@@ -1,14 +1,14 @@
-# Byte-compiled / optimized / DLL files
+# Python bytecode & cache
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
+.Python
 
-# Distribution / packaging (dist/ is explicitly retained for release artifacts)
+# Distribution / Packaging
 build/
 develop-eggs/
+dist/
 downloads/
 eggs/
 .eggs/
@@ -22,7 +22,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# Virtual Environments
 .env
 .venv
 env/
@@ -31,30 +31,17 @@ ENV/
 env.bak/
 venv.bak/
 
-# Testing and linting caches
-.mypy_cache/
+# Testing & Quality
 .pytest_cache/
-.ruff_cache/
 .coverage
-.coverage.*
 htmlcov/
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
 
-# Local runtime profiles & scratch directories
-stealth_profile/
+# Runtime Logs, Test Artifacts & Scratch
+*.log
+*.csv
+*.png
+*.jpg
 scratch/
-
-# IDE & Editor temporary files
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# Operating System temporary files
-Thumbs.db
-Desktop.ini
-.DS_Store

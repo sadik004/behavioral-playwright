@@ -4,77 +4,31 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "behavioral-playwright"
-version = "10.0.0"
-description = "Production-Grade Humanized Automation, Resilient Browser Orchestration & Self-Healing AI/CV"
+version = "1.0.0"
+description = "A resilient, self-healing browser automation framework built on Playwright."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
     { name = "Sadik", email = "author@example.com" }
 ]
-requires-python = ">=3.10"
-keywords = [
-    "playwright",
-    "stealth",
-    "automation",
-    "anti-detect",
-    "scraping",
-    "human-behavior",
-    "computer-vision",
-    "self-healing",
-    "llm",
+requires-python = ">=3.11"
+dependencies = [
+    "playwright>=1.40.0"
 ]
-classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Testing",
-    "Topic :: Internet :: WWW/HTTP :: Browsers",
-]
-dependencies = []
 
 [project.optional-dependencies]
-playwright = [
-    "playwright>=1.40.0",
-]
-vision = [
-    "Pillow>=9.0.0",
-    "pytesseract>=0.3.10",
-    "opencv-python>=4.8.0",
-    "numpy>=1.24.0",
-]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
-    "ruff>=0.4.0",
-    "mypy>=1.10.0",
+    "build>=1.0.0",
+    "twine>=5.0.0"
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-behavioral_playwright = ["py.typed"]
-
-[tool.ruff]
-line-length = 120
-target-version = "py310"
-
-[tool.ruff.lint]
-select = ["E", "F", "W", "I"]
-ignore = ["E501"]
-
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-ignore_missing_imports = true
+where = ["."]
+include = ["behavioral_playwright*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["src", "."]
+python_files = ["test_*.py"]
