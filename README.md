@@ -67,15 +67,15 @@
 
 ## 📦 Installation Guide
 
-### Option 1: Install from pre-built Wheel (Recommended)
+### Option 1: Install from PyPI (Recommended)
 ```bash
-pip install dist/behavioral_playwright-10.0.0-py3-none-any.whl
+pip install behavioral-playwright
 playwright install chromium
 ```
 
 ### Option 2: Install from Source (Editable Mode)
 ```bash
-git clone https://github.com/your-username/behavioral-playwright.git
+git clone https://github.com/sadik004/behavioral-playwright.git
 cd behavioral-playwright
 pip install -e .
 playwright install chromium
