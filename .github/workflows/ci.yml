@@ -21,21 +21,25 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-      - name: Install dependencies
+      - name: Install dependencies/package
         run: |
           python -m pip install --upgrade pip build ruff mypy pytest pytest-asyncio
+          python -m pip install .
+      - name: Install Playwright browsers (Linux)
+        if: runner.os == 'Linux'
+        run: python -m playwright install --with-deps
+      - name: Install Playwright browsers (Other)
+        if: runner.os != 'Linux'
+        run: python -m playwright install
       - name: Code Quality & Linting (Ruff)
         run: |
           ruff check behavioral_playwright/ tests/
       - name: Type Checking (MyPy)
         run: |
           mypy behavioral_playwright/
-      - name: Build Package (Wheel & sdist)
-        run: |
-          python -m build
-      - name: Install Built Wheel
-        run: |
-          python -m pip install dist/*.whl
       - name: Run Pytest Suite
         run: |
           pytest
+      - name: Build Package (Wheel & sdist)
+        run: |
+          python -m build
