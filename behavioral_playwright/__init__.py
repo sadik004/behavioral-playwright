@@ -44,12 +44,14 @@ from behavioral_playwright.resilience.state import PageStateEntry, StateTracker
 from behavioral_playwright.selectors.fuzzy import FuzzyResolverStrategy
 from behavioral_playwright.selectors.resolver import SelfHealingResolver
 from behavioral_playwright.selectors.semantic import SemanticResolverStrategy
+from behavioral_playwright.facade import BP
 
 __all__ = [
     "__version__",
     "AutomationConfig",
     "BehavioralPlaywrightError",
     "BoundingBox",
+    "BP",
     "BrowserConfig",
     "BrowserProvider",
     "BrowserProviderError",
