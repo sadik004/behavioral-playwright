@@ -1,6 +1,5 @@
 """High-level PageSession and BrowserSession abstractions."""
 
-import asyncio
 from types import TracebackType
 from typing import Any, List, Optional, Type
 
@@ -9,7 +8,7 @@ from behavioral_playwright.automation.mouse import MouseController
 from behavioral_playwright.automation.scroll import ScrollController
 from behavioral_playwright.browser.base import BrowserProvider
 from behavioral_playwright.browser.playwright_provider import PlaywrightProvider
-from behavioral_playwright.config.settings import AutomationConfig, BrowserConfig
+from behavioral_playwright.config.settings import AutomationConfig
 from behavioral_playwright.extraction.dom import DOMExtractor
 from behavioral_playwright.logging import get_logger
 from behavioral_playwright.models.results import ExtractionRecord, ResolutionResult

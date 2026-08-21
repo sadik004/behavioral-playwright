@@ -1,7 +1,7 @@
 """Abstract base class and protocols for Browser Providers."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from behavioral_playwright.config.settings import BrowserConfig
 

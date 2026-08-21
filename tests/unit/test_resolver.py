@@ -2,7 +2,6 @@
 
 import pytest
 from behavioral_playwright.browser.mock_provider import MockElementHandle, MockPage
-from behavioral_playwright.config.settings import ResolverConfig
 from behavioral_playwright.models.results import ResolutionStrategy
 from behavioral_playwright.selectors.resolver import SelfHealingResolver
 

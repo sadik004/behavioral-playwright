@@ -1,6 +1,6 @@
 """Crawling module."""
 
-from typing import List, Set, Any
+from typing import List, Set
 from behavioral_playwright.page.session import PageSession
 from behavioral_playwright.models.results import ExtractionRecord
 from behavioral_playwright.logging import get_logger

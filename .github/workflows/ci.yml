@@ -32,11 +32,11 @@ jobs:
 
       - name: Code Quality & Linting (Ruff)
         run: |
-          ruff check src/ tests/ demo.py
+          ruff check behavioral_playwright/ tests/ demo.py
 
       - name: Type Checking (MyPy)
         run: |
-          mypy src/
+          mypy behavioral_playwright/
 
       - name: Build Package (Wheel & sdist)
         run: |

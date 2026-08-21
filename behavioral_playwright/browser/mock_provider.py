@@ -1,8 +1,7 @@
 """Mock in-memory BrowserProvider for fast, deterministic unit testing."""
 
-import asyncio
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from behavioral_playwright.browser.base import BrowserProvider
 from behavioral_playwright.config.settings import BrowserConfig

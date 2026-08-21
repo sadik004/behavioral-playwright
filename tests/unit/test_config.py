@@ -1,6 +1,5 @@
 """Unit tests for configuration models."""
 
-import pytest
 from behavioral_playwright.config.settings import (
     AutomationConfig,
     BrowserConfig,

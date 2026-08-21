@@ -3,7 +3,6 @@
 from typing import Any, Dict, List, Optional
 
 from behavioral_playwright.exceptions import ExtractionError
-from behavioral_playwright.models.elements import DOMElement
 from behavioral_playwright.models.results import ExtractionRecord
 
 

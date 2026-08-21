@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 from behavioral_playwright import BP
 from behavioral_playwright.config.settings import AutomationConfig
 

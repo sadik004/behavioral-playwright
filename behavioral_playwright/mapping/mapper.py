@@ -1,6 +1,6 @@
 """Mapping module."""
 
-from typing import Dict, Any, List
+from typing import Dict, Any
 from behavioral_playwright.page.session import PageSession
 from behavioral_playwright.logging import get_logger
 

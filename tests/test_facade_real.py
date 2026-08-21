@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 from behavioral_playwright.facade import BP
 from behavioral_playwright.config.settings import AutomationConfig
 from behavioral_playwright.browser.mock_provider import MockBrowserProvider

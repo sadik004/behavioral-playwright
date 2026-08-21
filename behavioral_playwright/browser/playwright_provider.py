@@ -1,11 +1,10 @@
 """Playwright implementation of BrowserProvider."""
 
-import asyncio
 import os
 import shutil
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from playwright.async_api import (
     Browser,

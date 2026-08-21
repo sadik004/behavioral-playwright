@@ -1,7 +1,7 @@
 """Core cascading SelfHealingResolver engine."""
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from behavioral_playwright.config.settings import ResolverConfig
 from behavioral_playwright.exceptions import ElementResolutionError

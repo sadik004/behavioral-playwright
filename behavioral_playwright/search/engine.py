@@ -1,6 +1,6 @@
 """Search engine module."""
 
-from typing import Any, List
+from typing import List
 from behavioral_playwright.page.session import PageSession
 from behavioral_playwright.models.results import ExtractionRecord
 from behavioral_playwright.logging import get_logger
