@@ -46,7 +46,7 @@ class SiteMapper:
             }
 
         # Call using resilience primitives
-        return await self.page.circuit_breaker.call(
-            f"map_{url}", 
-            lambda: self.page.retry_policy.execute(_perform_map)
+        return await self.page.circuit_breaker.execute(
+            lambda: self.page.retry_policy.execute(_perform_map),
+            operation_name=f"map_{url}"
         )

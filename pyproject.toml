@@ -1,22 +1,27 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "behavioral-playwright"
-version = "1.0.0"
-description = "A resilient, self-healing browser automation framework built on Playwright."
+version = "10.0.0"
+description = "A resilient browser automation and self-healing AI framework"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
     { name = "Sadik", email = "author@example.com" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
-    "playwright>=1.40.0"
+    "playwright",
+    "beautifulsoup4",
+    "pypdf",
+    "python-docx",
+    "pillow"
 ]
 
 [project.optional-dependencies]
+ocr = ["pytesseract"]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
@@ -25,8 +30,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["behavioral_playwright*"]
+where = ["src"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

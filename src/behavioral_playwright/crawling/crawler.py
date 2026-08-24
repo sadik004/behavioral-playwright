@@ -33,9 +33,9 @@ class Crawler:
                     return await self.page.extract_links()
 
                 # Call using resilience primitives
-                page_links = await self.page.circuit_breaker.call(
-                    f"crawl_{current_url}", 
-                    lambda: self.page.retry_policy.execute(_crawl_page)
+                page_links = await self.page.circuit_breaker.execute(
+                    lambda: self.page.retry_policy.execute(_crawl_page),
+                    operation_name=f"crawl_{current_url}"
                 )
                 
                 if page_links:

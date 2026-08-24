@@ -1,8 +1,12 @@
 """
-behavioral-playwright: Resilient, self-healing browser automation framework built on Playwright.
+behavioral-playwright: Resilient, self-healing browser automation framework
+built on Playwright. Primary package interface — exposes the unified BP facade
+and all core configuration/session classes for clean global imports:
+
+    from behavioral_playwright import BP, AutomationConfig
 """
 
-__version__ = "1.0.0"
+__version__ = "10.0.0"
 
 from behavioral_playwright.automation.keyboard import KeyboardController
 from behavioral_playwright.automation.mouse import MouseController
