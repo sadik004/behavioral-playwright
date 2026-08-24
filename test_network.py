@@ -1,42 +1,10 @@
-import sys
 import socket
 import urllib.error
 import pytest
 from unittest.mock import MagicMock, patch
 
-# Stub behavioral_playwright packages if not installed in local environment
-class MockProviderUnavailableError(Exception):
-    pass
-
-class MockProviderError(Exception):
-    pass
-
-class MockInvalidRequestError(Exception):
-    pass
-
-for mod in [
-    'behavioral_playwright',
-    'behavioral_playwright.core',
-    'behavioral_playwright.core.config',
-    'behavioral_playwright.core.exceptions',
-    'behavioral_playwright.core.circuit_breaker',
-    'behavioral_playwright.core.v10_core',
-    'behavioral_playwright.acquisition',
-    'behavioral_playwright.acquisition.exceptions',
-    'behavioral_playwright.acquisition.models',
-    'behavioral_playwright.acquisition.router',
-    'behavioral_playwright.acquisition.handoff',
-]:
-    if mod not in sys.modules:
-        m = MagicMock()
-        if mod == 'behavioral_playwright.acquisition.exceptions':
-            m.ProviderUnavailableError = MockProviderUnavailableError
-            m.InvalidRequestError = MockInvalidRequestError
-        elif mod == 'behavioral_playwright.core.exceptions':
-            m.ProviderError = MockProviderError
-        sys.modules[mod] = m
-
-from bp_facade12 import BP
+# Refactored package exposes BP via the public API (src layout).
+from behavioral_playwright import BP
 
 
 def test_measure_response_time_invalid_scheme():

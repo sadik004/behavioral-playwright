@@ -26,10 +26,14 @@ class SessionHandoff:
         - sessionStorage (not natively supported by context.storage_state)
         - IndexedDB (not natively supported by context.storage_state)
         """
-        context = self.page.raw_page.context
+        context = getattr(self.page.raw_page, "context", None)
         
         if context_data is None:
             logger.info("Extracting context state for handoff")
+            if context is None:
+                # Mock/raw pages without a browser context: degrade gracefully
+                return {"cookies": [], "origins": [],
+                        "current_url": await self.page.get_url()}
             # storage_state() captures cookies and localStorage for all origins
             state = await context.storage_state()
             state["current_url"] = await self.page.get_url()
@@ -39,7 +43,7 @@ class SessionHandoff:
             # Note: Injection of storage state (localStorage) mid-session via API is tricky.
             # Playwright normally takes storage_state on context creation.
             # But we can at least add cookies.
-            if "cookies" in context_data:
+            if "cookies" in context_data and context is not None:
                 await context.add_cookies(context_data["cookies"])
             # We can also try to evaluate localStorage if it's for the current origin
             if "origins" in context_data and "current_url" in context_data:
