@@ -71,7 +71,8 @@ class AutonomousWebAgent:
         try:
             async with bp as facade:
                 # ---- Phase B: probe + boot + navigate -------------------
-                bp.observability.start_trace(self.db_path, trace_id, target_url)
+                bp.observability.start_trace(trace_id, target=target_url,
+                                            db_path=self.db_path)
                 try:
                     latency = await facade.measure_response_time_async(target_url)
                     print(f"[Phase B] Target latency: {latency:.1f} ms")
@@ -83,8 +84,8 @@ class AutonomousWebAgent:
                 nav_ms = (time.perf_counter() - t0) * 1000
                 report.navigation_ok = True
                 bp.observability.log_execution(
-                    self.db_path, trace_id, target_url, "navigate",
-                    int(nav_ms), "success")
+                    target_url, "navigate", int(nav_ms), "success",
+                    db_path=self.db_path)
                 print(f"[Phase B] Navigation OK in {nav_ms:.0f} ms")
 
                 # /scroll renders quotes via JS — wait for dynamic content

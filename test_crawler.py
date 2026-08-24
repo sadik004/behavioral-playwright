@@ -1,10 +1,5 @@
 import pytest
 
-pytestmark = pytest.mark.skip(reason=(
-    "Targets legacy bp_facade12 API (web.crawl_recursive/document.ocr/"
-    "observability metrics/AI namespaces) not implemented in the refactored "
-    "facade. Preserved for coverage when these namespaces are ported."
-))
 import sys
 import os
 import pytest
@@ -12,8 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 # Legacy sys.modules stub block removed during src-layout refactor.
 
-# Legacy import removed during src-layout refactor:
-# from bp_facade12 import BP
+from behavioral_playwright import BP
 # 
 
 @pytest.fixture
