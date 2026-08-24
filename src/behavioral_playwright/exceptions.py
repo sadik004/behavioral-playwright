@@ -50,3 +50,13 @@ class CircuitBreakerError(BehavioralPlaywrightError):
 class TimeoutError(BehavioralPlaywrightError):
     """Raised when an asynchronous operation exceeds the configured timeout."""
     pass
+
+
+class ProviderUnavailableError(BehavioralPlaywrightError):
+    """Raised when a required provider/dependency is missing or not booted."""
+    pass
+
+
+class ProviderError(BehavioralPlaywrightError):
+    """Raised when an underlying provider operation fails at runtime."""
+    pass

@@ -15,8 +15,6 @@ def test_webhook_invalid_url_raises_valueerror():
         bp.integrations.notify_webhook("invalid_schema_url", {"data": 123})
 
 
-@pytest.mark.skip(reason="n8n integration not implemented in refactored facade "
-                         "(legacy-only API; tracked for future namespace work)")
 def test_n8n_webhook_trigger_success():
     """Verify n8n webhook issues real HTTP POST with json payload."""
     bp = BP()
@@ -74,8 +72,6 @@ def test_webhook_error_propagation():
             bp.integrations.notify_webhook("https://hooks.slack.com/fail", {"text": "Test"})
 
 
-@pytest.mark.skip(reason="MCP integration not implemented in refactored facade "
-                         "(legacy-only API; tracked for future namespace work)")
 @pytest.mark.asyncio
 async def test_mcp_call_tool_real_scrape_delegation():
     """Verify mcp_call_tool delegates scrape to bp.web.scrape."""
@@ -90,8 +86,6 @@ async def test_mcp_call_tool_real_scrape_delegation():
     bp.web.scrape.assert_awaited_once_with("https://example.com", options=None)
 
 
-@pytest.mark.skip(reason="MCP integration not implemented in refactored facade "
-                         "(legacy-only API; tracked for future namespace work)")
 @pytest.mark.asyncio
 async def test_mcp_call_tool_unknown_tool_returns_error():
     """Verify unknown tool name returns structured error dictionary."""
@@ -115,3 +109,6 @@ async def test_top_level_bp_integrations_delegation():
 
         res2 = await bp.discord_webhook_notify("https://discord.com/webhook", "Hello")
         assert res2 is True
+
+        res3 = await bp.n8n_webhook_trigger("https://n8n.local/webhook", {"k": "v"})
+        assert res3 is True

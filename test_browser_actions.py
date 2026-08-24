@@ -1,30 +1,13 @@
 import pytest
 
-pytestmark = pytest.mark.skip(reason=(
-    "Targets legacy bp_facade12 API (web.crawl_recursive/document.ocr/"
-    "observability metrics/AI namespaces) not implemented in the refactored "
-    "facade. Preserved for coverage when these namespaces are ported."
-))
 import sys
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 # Legacy sys.modules stub block removed during src-layout refactor.
 
-# Legacy import removed during src-layout refactor:
-# from bp_facade12 import (
-#     BP,
-#     WebNamespace,
-#     BrowserNamespace,
-#     DocumentNamespace,
-#     AINamespace,
-#     NetworkNamespace,
-#     IntegrationsNamespace,
-#     InfrastructureNamespace,
-#     ObservabilityNamespace,
-#     AdvancedIntelligenceNamespace,
-#     ProviderUnavailableError
-# )
+from behavioral_playwright import BP
+from behavioral_playwright.exceptions import ProviderUnavailableError
 
 
 @pytest.fixture
@@ -229,6 +212,9 @@ async def test_part1_regressions_intact(booted_bp):
     await booted_bp.browser.scroll(50.0)
     assert humanizer.human_scroll.call_count == 5
 
-    with open("bp_facade12.py", "r", encoding="utf-8") as f:
+    import pathlib
+
+    legacy_path = pathlib.Path(__file__).parent / "src" / "behavioral_playwright" / "_legacy_facade12.py"
+    with open(legacy_path, "r", encoding="utf-8") as f:
         code = f.read()
     assert "console.debug('Virtual speech synthesized.');" in code

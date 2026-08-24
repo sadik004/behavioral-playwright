@@ -12,11 +12,20 @@ import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, List, Optional, TypeVar
+from typing import Any, Callable, Coroutine, Dict, List, Optional, TypeVar
+from types import SimpleNamespace
 
 from behavioral_playwright.config.settings import AutomationConfig
 from behavioral_playwright.page.session import BrowserSession, PageSession
 from behavioral_playwright.models.results import ExtractionRecord
+from behavioral_playwright.exceptions import ProviderUnavailableError
+
+# Domain services (kept out of the facade to avoid a god object)
+from behavioral_playwright.crawling.service import CrawlingService
+from behavioral_playwright.document.ocr import DocumentNamespace
+from behavioral_playwright.browser.actions import BrowserActionNamespace
+from behavioral_playwright.observability.metrics import ObservabilityMetrics
+from behavioral_playwright.integrations.extensions import IntegrationExtensions
 
 T = TypeVar("T")
 
@@ -51,8 +60,70 @@ CREATE TABLE IF NOT EXISTS traces (
 class WebNamespace:
     """Crawl session state and link utilities backed by SQLite."""
 
-    def __init__(self) -> None:
+    def __init__(self, bp: Any = None) -> None:
+        self._bp = bp
         self.rate_limit_rpm: int = 60
+        # Real crawling engine (extract/filter/sitemap/robots/crawl_recursive)
+        self._crawler = CrawlingService()
+
+    def __getattr__(self, name: str) -> Any:
+        # Delegate crawling-domain calls to the service (crawl_recursive,
+        # extract_links, filter_crawl_links, generate_sitemap, robots...).
+        if name.startswith("__"):
+            raise AttributeError(name)
+        crawler = self.__dict__.get("_crawler")
+        if crawler is None:
+            raise AttributeError(name)
+
+        # crawl_recursive needs a scrape_fn; bind the booted-facade scraper
+        # automatically so callers can invoke it directly on bp.web.
+        if name == "crawl_recursive":
+            async def _crawl_recursive(url: str, max_depth: int = 3,
+                                       db_path: str = "crawl_state.db",
+                                       max_pages: Optional[int] = None,
+                                       options: Optional[Dict[str, Any]] = None,
+                                       **kwargs: Any) -> List[str]:
+                if kwargs.get("scrape_fn") is None:
+                    kwargs["scrape_fn"] = self._default_scrape_fn()
+                return await crawler.crawl_recursive(
+                    url, max_depth=max_depth, db_path=db_path,
+                    max_pages=max_pages, options=options, **kwargs)
+            return _crawl_recursive
+
+        try:
+            return getattr(crawler, name)
+        except AttributeError:
+            raise AttributeError(
+                f"{type(self).__name__!s} has no attribute {name!r}") from None
+
+    def _default_scrape_fn(self) -> Callable[[str, Optional[Dict[str, Any]]],
+                                             Coroutine[Any, Any, Any]]:
+        async def _scrape(target_url: str,
+                          opts: Optional[Dict[str, Any]]) -> Any:
+            # Late-bound: tests may replace bp.web.scrape with a mock after
+            # construction, so resolve the attribute at call time.
+            scrape = getattr(self, "scrape")
+            return await scrape(target_url, options=opts)
+        return _scrape
+
+    async def scrape(self, url_or_html: str, schema: Any = None,
+                     options: Optional[Dict[str, Any]] = None) -> Any:
+        """Fetches a URL via the booted browser session and returns the page.
+
+        The returned object exposes ``html``/``content`` for downstream
+        extraction, matching the legacy AcquisitionResult contract.
+        """
+        bp = self._bp_ref()
+        if bp is None or bp.page is None:
+            raise ProviderUnavailableError(
+                "Facade is not booted. Call bp.boot() first.")
+        await bp.page.goto(url_or_html)
+        html = await bp.page.evaluate("() => document.documentElement.outerHTML")
+        return type("ScrapedPage", (), {"url": url_or_html, "html": html,
+                                        "content": None})()
+
+    def _bp_ref(self) -> Any:
+        return getattr(self, "_bp", None)
 
     def init_crawl_session(self, db_path: str = "crawl_state.db") -> None:
         conn = sqlite3.connect(db_path)
@@ -165,7 +236,24 @@ class InfrastructureNamespace:
 class ObservabilityNamespace:
     """Execution tracing and QA reporting backed by SQLite."""
 
-    def start_trace(self, db_path: str, trace_id: str, target: str) -> None:
+    def __init__(self) -> None:
+        # Legacy-compatible fine-grained metrics engine (metrics_log /
+        # compliance_audit / session_replays tables, traces, QA report).
+        self._metrics = ObservabilityMetrics()
+
+    def __getattr__(self, name: str) -> Any:
+        # Delegate metric APIs (init_metrics_db, log_execution, start_trace,
+        # end_trace, get_average_duration, get_error_rate, audit_compliance_log,
+        # save_session_replay_state, get_session_replays, _initialized_dbs...)
+        return getattr(self._metrics, name)
+
+    # Legacy-compatible signatures (url, operation, duration_ms, status,
+    # db_path) — the refactored examples/autonomous_agent.py used a different
+    # positional order, so both are supported via keyword-friendly design.
+    def start_trace(self, trace_id: str, target: str = "",
+                    db_path: str = "bp_metrics.db") -> None:
+        self._metrics.start_trace(trace_id)
+        self._ensure_legacy_db(db_path)
         conn = sqlite3.connect(db_path)
         try:
             conn.execute(
@@ -173,44 +261,111 @@ class ObservabilityNamespace:
                 (trace_id, target, time.strftime("%Y-%m-%dT%H:%M:%S")),
             )
             conn.commit()
+        except sqlite3.OperationalError:
+            pass  # traces table only exists in queue-schema DBs
         finally:
             conn.close()
 
-    def end_trace(self, db_path: str, trace_id: str, target: str) -> None:
+    def end_trace(self, trace_id: str, target: str = "",
+                  db_path: str = "bp_metrics.db", url: str = "",
+                  ) -> float:
+        target = url or target
+        duration = self._metrics.end_trace(trace_id, url=target or "trace_log",
+                                           db_path=db_path)
+        self._ensure_legacy_db(db_path)
         conn = sqlite3.connect(db_path)
         try:
             conn.execute("UPDATE traces SET ended_at=?, target=? WHERE trace_id=?",
                          (time.strftime("%Y-%m-%dT%H:%M:%S"), target, trace_id))
             conn.commit()
+        except sqlite3.OperationalError:
+            pass
         finally:
             conn.close()
+        return duration
 
-    def log_execution(self, db_path: str, trace_id: str, target: str,
-                      action: str, duration_ms: int, status: str) -> None:
-        conn = sqlite3.connect(db_path)
+    def log_execution(self, url_or_db: str, operation_or_trace: str,
+                      duration_or_target: Any = None, status: Any = "success",
+                      db_path: Any = None, action: str = "",
+                      ) -> Any:
+        """Dual-signature logger.
+
+        Legacy form:  log_execution(url, operation, duration_ms, status, db_path)
+        Facade form:  log_execution(db_path, trace_id, target, action, duration_ms, status)
+        """
+        if isinstance(status, int) and not isinstance(status, bool):
+            # Facade form detected (status is an int here)
+            db_path = url_or_db
+            trace_id = operation_or_trace
+            target = duration_or_target
+            duration_ms = status
+            status_str = str(db_path) if isinstance(db_path, str) else "success"
+            real_status = action or "success"
+            self._metrics.log_execution(target, f"{trace_id}:{action}",
+                                        duration_ms, real_status,
+                                        db_path=db_path)
+            self._ensure_legacy_db(db_path)
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    "INSERT INTO executions VALUES (NULL, ?, ?, ?, ?, ?, ?)",
+                    (trace_id, target, action, duration_ms, status_str,
+                     time.strftime("%Y-%m-%dT%H:%M:%S")))
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass
+            finally:
+                conn.close()
+            return None
+        # Legacy form
+        real_db = db_path if isinstance(db_path, str) else "bp_metrics.db"
+        return self._metrics.log_execution(url_or_db, operation_or_trace,
+                                           duration_or_target, status,
+                                           db_path=real_db)
+
+    def _ensure_legacy_db(self, db_path: str) -> None:
         try:
+            conn = sqlite3.connect(db_path)
             conn.execute(
-                "INSERT INTO executions VALUES (NULL, ?, ?, ?, ?, ?, ?)",
-                (trace_id, target, action, duration_ms, status,
-                 time.strftime("%Y-%m-%dT%H:%M:%S")),
-            )
+                "CREATE TABLE IF NOT EXISTS traces ("
+                " trace_id TEXT PRIMARY KEY, target TEXT, "
+                " started_at TEXT NOT NULL, ended_at TEXT)")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS executions ("
+                " id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                " trace_id TEXT NOT NULL, target TEXT NOT NULL, "
+                " action TEXT NOT NULL, duration_ms INTEGER NOT NULL, "
+                " status TEXT NOT NULL, logged_at TEXT NOT NULL)")
             conn.commit()
-        finally:
             conn.close()
+        except sqlite3.OperationalError:
+            pass
 
-    def generate_qa_report(self, db_path: str) -> str:
-        conn = sqlite3.connect(db_path)
-        try:
-            total, ok = conn.execute(
-                "SELECT COUNT(*), SUM(status='success') FROM executions"
-            ).fetchone()
-            avg_ms = conn.execute(
-                "SELECT AVG(duration_ms) FROM executions").fetchone()[0]
-        finally:
-            conn.close()
-        rate = (ok / total * 100.0) if total else 0.0
-        return (f"Executions: {total} | Success rate: {rate:.1f}% | "
-                f"Avg latency: {(avg_ms or 0):.1f} ms")
+    def generate_qa_report(self, db_path: str = "") -> Any:
+        # Legacy dict contract takes precedence when a metrics DB is given.
+        if isinstance(db_path, str) and db_path:
+            try:
+                dict_report = self._metrics.generate_qa_report(db_path=db_path)
+                if dict_report.get("total_executed_ops", 0) > 0 or (
+                        dict_report["compliance_violations_count"] > 0):
+                    return dict_report
+            except sqlite3.OperationalError:
+                pass
+            conn = sqlite3.connect(db_path)
+            try:
+                total, ok = conn.execute(
+                    "SELECT COUNT(*), SUM(status='success') FROM executions"
+                ).fetchone()
+                avg_ms = conn.execute(
+                    "SELECT AVG(duration_ms) FROM executions").fetchone()[0]
+            except sqlite3.OperationalError:
+                return self._metrics.generate_qa_report(db_path=db_path)
+            finally:
+                conn.close()
+            rate = (ok / total * 100.0) if total else 0.0
+            return (f"Executions: {total} | Success rate: {rate:.1f}% | "
+                    f"Avg latency: {(avg_ms or 0):.1f} ms")
+        return self._metrics.generate_qa_report()
 
 
 class NetworkNamespace:
@@ -256,19 +411,30 @@ class NetworkNamespace:
 class IntegrationsNamespace:
     """JSON webhook notifications (Slack/Discord/n8n compatible)."""
 
+    def __init__(self, bp: Any = None) -> None:
+        self._bp = bp
+        # n8n/MCP/health extensions (real HTTP + facade delegation)
+        self._ext = IntegrationExtensions(bp)
+
     def notify_webhook(self, webhook_url: str, payload: Dict[str, Any],
                        timeout: float = 10.0) -> bool:
         if not str(webhook_url).lower().startswith(("http://", "https://")):
             raise ValueError(f"Invalid webhook URL schema: {webhook_url!r}")
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
-            webhook_url, data=data, headers={"Content-Type": "application/json"})
+            webhook_url, data=data,
+            headers={"Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 resp.read()
             return True
         except urllib.error.HTTPError as exc:
             raise RuntimeError(f"Webhook rejected ({exc.code})") from exc
+
+    def __getattr__(self, name: str) -> Any:
+        # Delegate legacy APIs: n8n_webhook_trigger(_async), mcp_call_tool_async,
+        # generate_mcp_manifest, integrations_health_check...
+        return getattr(self._ext, name)
 
 
 class BP:
@@ -283,12 +449,22 @@ class BP:
         self._provider = provider
         self.session: Optional[BrowserSession] = None
         self.page: Optional[PageSession] = None
+        # Internal state required by humanized browser actions
+        self._humanizer: Any = None
+        self._page: Any = None
+        self._navigation_manager: Any = None
         # Domain namespaces (lazy DB paths are caller-managed)
-        self.web = WebNamespace()
+        self.web = WebNamespace(bp=self)
+        self.web._bp = self
         self.infrastructure = InfrastructureNamespace()
         self.observability = ObservabilityNamespace()
         self.network = NetworkNamespace()
-        self.integrations = IntegrationsNamespace()
+        self.integrations = IntegrationsNamespace(bp=self)
+        # Restored legacy-capability namespaces
+        self.document = DocumentNamespace()
+        self.browser = BrowserActionNamespace(self)
+        self.metrics = ObservabilityMetrics()
+        self.integrations_ext = IntegrationExtensions(self)
 
     async def boot(self) -> "BP":
         """Starts the browser session and initializes the first page."""
@@ -296,11 +472,15 @@ class BP:
             self.session = BrowserSession(config=self.config,
                                           provider=self._provider)
             await self.session.start()
-        
+
         if not self.page:
             self.page = await self.session.new_page()
-            
-        return self
+        # Install internal refs consumed by the humanized browser namespace
+        self._page = self.page
+        self._humanizer = self._humanizer or SimpleNamespace(
+            execute_safe_hover=None, execute_safe_click=None)
+        # A plain booted marker: browser namespace falls back to page methods
+        self._humanizer = object()  # truthy sentinel; methods looked up dynamically
 
     async def open(self, url: str) -> None:
         """Navigates to the specified URL."""
@@ -436,3 +616,60 @@ class BP:
         return await loop.run_in_executor(
             None, lambda: self.integrations.notify_webhook(
                 webhook_url, {"content": message}, timeout))
+
+    # -- restored legacy delegations ----------------------------------------
+    async def crawl_recursive(self, url: str, max_depth: int = 3,
+                              db_path: str = "crawl_state.db",
+                              max_pages: Optional[int] = None,
+                              options: Optional[Dict[str, Any]] = None
+                              ) -> List[str]:
+        """Delegates to the crawling service using the booted page scraper."""
+        async def _scrape(target_url: str, opts: Optional[Dict[str, Any]]) -> Any:
+            return await self.web.scrape(target_url, options=opts)
+        return await self.web._crawler.crawl_recursive(
+            url, max_depth=max_depth, db_path=db_path,
+            max_pages=max_pages, options=options, scrape_fn=_scrape)
+
+    async def ocr_image(self, file_path: str) -> Dict[str, Any]:
+        return await self.document.ocr_image(file_path)
+
+    async def ocr_image_with_autocorrect(self, file_path: str) -> Dict[str, Any]:
+        return await self.document.ocr_image_with_autocorrect(file_path)
+
+    async def mcp_call_tool(self, tool_name: str,
+                            arguments: Dict[str, Any]) -> Any:
+        return await self.integrations_ext.mcp_call_tool_async(
+            tool_name, arguments)
+
+    async def n8n_webhook_trigger(self, webhook_url: str,
+                                  payload: Dict[str, Any],
+                                  timeout: float = 10.0) -> bool:
+        return await self.integrations_ext.n8n_webhook_trigger_async(
+            webhook_url, payload, timeout)
+
+    # Humanized browser action passthroughs
+    async def hover(self, selector: str) -> bool:
+        return await self.browser.hover(selector)
+
+    async def drag_and_drop(self, source_selector: str,
+                            target_selector: str) -> bool:
+        return await self.browser.drag_and_drop(source_selector,
+                                                target_selector)
+
+    async def check_checkbox(self, selector: str, checked: bool = True) -> bool:
+        return await self.browser.check_checkbox(selector, checked)
+
+    async def check(self, selector: str) -> bool:
+        return await self.browser.check(selector)
+
+    async def uncheck(self, selector: str) -> bool:
+        return await self.browser.uncheck(selector)
+
+    async def select_option(self, selector: str, value: str) -> bool:
+        return await self.browser.select_option(selector, value)
+
+    async def keyboard_press(self, selector: str, key: str) -> bool:
+        return await self.browser.keyboard_press(selector, key)
+
+    async def press(self, selector: str, key: str) -> bool:
+        return await self.browser.press(selector, key)
