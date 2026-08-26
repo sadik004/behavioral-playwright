@@ -3455,6 +3455,117 @@ class CircuitBreaker:
 
 
 # =====================================================================
+# PHASE 12 RESTORATION: DURABLE EVENT OBSERVABILITY (SQLite)
+# =====================================================================
+# Generation 2 shipped a real SQLite-backed metrics/observability store; it was
+# deleted in the v15 consolidation. This restores that niche in minimal,
+# dependency-free form: any component's ``on_event`` hook can be pointed at
+# ``sink.record`` to durably journal retry decisions, breaker transitions or
+# custom workflow events. Uses only the standard library; every failure is
+# raised loudly (hook wrappers log-and-continue, so observability outages can
+# never corrupt protected operations).
+class ObservabilitySQLiteSink:
+    """
+    Minimal durable event journal (stdlib sqlite3).
+
+    Schema::
+
+        events(id INTEGER PRIMARY KEY AUTOINCREMENT,
+               ts REAL NOT NULL,          -- unix epoch seconds of insertion
+               kind TEXT NOT NULL,        -- event["event"], e.g. 'retry'
+               data TEXT)                 -- full JSON payload (sorted keys)
+
+    Usage::
+
+        sink = ObservabilitySQLiteSink("runs.db")
+        policy = RetryPolicy(on_event=sink.record)
+        ...
+        sink.recent(20)          # newest events, JSON decoded
+        sink.count("retry")      # how many retries were scheduled
+        sink.close()
+
+    Single-threaded/single-loop by design (documented limitation); callers
+    needing cross-thread durability must bring their own serialization.
+    """
+
+    def __init__(self, db_path: str = "observability.db") -> None:
+        if not isinstance(db_path, str) or not db_path.strip():
+            raise ValueError("ObservabilitySQLiteSink: db_path must be a non-empty string.")
+        self.db_path = db_path
+        self._conn: Optional[Any] = None
+
+    def _connection(self) -> Any:
+        if self._conn is None:
+            self._conn = sqlite3.connect(self.db_path)
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS events ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "ts REAL NOT NULL, kind TEXT NOT NULL, data TEXT)"
+            )
+            self._conn.commit()
+        return self._conn
+
+    def record(self, event: Dict[str, Any]) -> int:
+        """Persists one event dict; returns its row id. Failures raise."""
+        if not isinstance(event, dict):
+            raise ValueError(
+                f"ObservabilitySQLiteSink.record: event must be a dict, got {type(event).__name__}."
+            )
+        if "event" not in event:
+            raise ValueError('ObservabilitySQLiteSink.record: event dict requires an "event" kind key.')
+        payload = json.dumps(event, sort_keys=True, default=repr)
+        cur = self._connection().execute(
+            "INSERT INTO events (ts, kind, data) VALUES (?, ?, ?)",
+            (time.time(), str(event["event"]), payload),
+        )
+        self._conn.commit()  # type: ignore[union-attr]
+        logger.debug("ObservabilitySQLiteSink: recorded event %r (id=%s).", event["event"], cur.lastrowid)
+        return cur.lastrowid
+
+    def recent(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Returns up to ``limit`` newest events as dicts (JSON decoded)."""
+        if limit < 0:
+            raise ValueError("ObservabilitySQLiteSink.recent: limit must be >= 0.")
+        rows = self._connection().execute(
+            "SELECT ts, kind, data FROM events ORDER BY id DESC LIMIT ?", (int(limit),)
+        ).fetchall()
+        decoded: List[Dict[str, Any]] = []
+        for ts, kind, data in rows:
+            try:
+                payload = json.loads(data) if data else {}
+            except ValueError:
+                payload = {"_raw": data}
+            payload["_recorded_at"] = ts
+            decoded.append(payload)
+        return decoded
+
+    def count(self, kind: Optional[str] = None) -> int:
+        """Counts stored events (optionally only one ``kind``)."""
+        if kind is None:
+            row = self._connection().execute("SELECT COUNT(*) FROM events").fetchone()
+        else:
+            row = self._connection().execute(
+                "SELECT COUNT(*) FROM events WHERE kind = ?", (str(kind),)
+            ).fetchone()
+        return int(row[0])
+
+    def close(self) -> None:
+        """Closes the underlying connection; safe to call repeatedly."""
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            finally:
+                self._conn = None
+
+    def __enter__(self) -> "ObservabilitySQLiteSink":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        self.close()
+        return False
+
+
+# =====================================================================
 # PHASE 5: HIGH-LEVEL UX FACADE -- bp.run() / bp.solve() / bp.collect()
 # =====================================================================
 class ElementResolutionError(RuntimeError):
