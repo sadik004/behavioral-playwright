@@ -965,9 +965,12 @@ class TestBlockchainLakehouseStreamingPipeline:
             p.process_transaction_event({"amount": float(i)})
         assert len(p.transaction_history) == 5
 
-    def test_random_hash_generated_when_absent(self):
+    def test_generated_hash_is_visibly_synthetic_when_absent(self):
+        # PHASE 13 honesty decision: generated ids must be visibly synthetic
+        # ('sim-tx-' prefix) -- a bare 0x+64hex was indistinguishable from a
+        # real chain transaction hash.
         rec = mod.BlockchainLakehouseStreamingPipeline().process_transaction_event({"amount": 1.0})
-        assert re.fullmatch(r"0x[0-9a-f]{64}", rec["tx_hash"])
+        assert re.fullmatch(r"sim-tx-[0-9a-f]{64}", rec["tx_hash"])
 
     def test_partition_date_format(self):
         rec = mod.BlockchainLakehouseStreamingPipeline().process_transaction_event({"amount": 1.0})

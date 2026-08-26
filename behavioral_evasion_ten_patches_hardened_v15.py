@@ -1664,7 +1664,11 @@ class SelfHealingSelectorEngine:
                         ):
                             best_l1_similarity = similarity
                             best_l1_element = el
-            except Exception:
+            except Exception as scan_exc:
+                # PHASE 13: per-element introspection failures are skipped (a
+                # single unreadable element must not kill the cascade) but they
+                # are no longer silent -- debug-logged for auditability.
+                logger.debug("SelfHealing [L1]: element introspection failed, skipping: %r", scan_exc)
                 continue
 
         if best_l1_element is not None:
@@ -1721,7 +1725,8 @@ class SelfHealingSelectorEngine:
                                 f"{self.TIER_CONFIDENCE_L2:.2f} below threshold {self.confidence_threshold:.2f}."
                             )
                             break
-                except Exception:
+                except Exception as scan_exc:
+                    logger.debug("SelfHealing [L2]: element introspection failed, skipping: %r", scan_exc)
                     continue
 
         # L3: Computer Vision & Layout Spatial Geometry (FIX B18: gated)
@@ -1751,7 +1756,8 @@ class SelfHealingSelectorEngine:
                                 f"SelfHealing [L3]: Candidate rejected -- tier confidence "
                                 f"{self.TIER_CONFIDENCE_L3:.2f} below threshold {self.confidence_threshold:.2f}."
                             )
-            except Exception:
+            except Exception as scan_exc:
+                logger.debug("SelfHealing [L3]: element introspection failed, skipping: %r", scan_exc)
                 continue
 
         # L4: Cognitive Heuristic Fallback (FIX B18: can no longer bypass the gate)
@@ -1765,7 +1771,8 @@ class SelfHealingSelectorEngine:
                         self.last_match_tier = "L4"
                         self.last_match_confidence = self.TIER_CONFIDENCE_L4
                         return el
-                except Exception:
+                except Exception as scan_exc:
+                    logger.debug("SelfHealing [L4]: element introspection failed, skipping: %r", scan_exc)
                     continue
         else:
             logger.info(
@@ -2704,8 +2711,16 @@ class BlockchainLakehouseStreamingPipeline:
             self.transaction_history.pop(0)
 
         m = len(self.transaction_history)
+        # PHASE 13 HONESTY DECISION (supersedes the earlier simulator default):
+        # an absent tx_hash used to be filled with a bare ``0x`` + 64-hex value
+        # that was indistinguishable from a REAL chain transaction hash -- a
+        # fabricated identifier by inspection. Generated ids are now VISIBLY
+        # synthetic ('sim-tx-' prefix) while keeping hex bodies; callers who
+        # need real-looking hashes must supply their own.
         meta_record = {
-            "tx_hash": transaction.get("tx_hash", "0x" + "".join(random.choices("abcdef0123456789", k=64))),
+            "tx_hash": transaction.get(
+                "tx_hash", "sim-tx-" + "".join(random.choices("abcdef0123456789", k=64))
+            ),
             "amount": amount,
             "running_mean": round(sum(self.transaction_history) / m, 2),
             "z_score": round(z_score, 4),
