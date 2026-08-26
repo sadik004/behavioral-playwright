@@ -11,6 +11,7 @@ import json
 import re
 from collections import deque
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Dict, Any, List, Optional, Type, Callable, Tuple, Union
 from pydantic import BaseModel, ValidationError
 
@@ -3035,6 +3036,353 @@ class PITQuantEngine:
             return fallback_res
 
 # =====================================================================
+# PHASE 10: RESILIENCE SUBSYSTEM -- RETRY / BACKOFF / CLASSIFICATION /
+#           TIMEOUT AWARENESS / CIRCUIT BREAKER
+# =====================================================================
+# Reconciliation note (Phase 10/12): Generation 2 (BP facade) carried genuinely
+# real retry/backoff and circuit-breaker primitives; they were deleted in the
+# v15 consolidation. This subsystem restores that capability in a redesigned,
+# dependency-free form: bounded exponential backoff with jitter, explicit
+# retryable/non-retryable error classification (the historical string-matching
+# classifier is gone), per-attempt timeout awareness, cancellation safety
+# (asyncio.CancelledError is BaseException and is never swallowed), injectable
+# sleep/clock/rng for deterministic testing, and opt-in observability events.
+#
+# RETRY-SAFETY CONTRACT: callers must apply retries ONLY to operations whose
+# repetition is semantically safe (idempotent reads, navigation, selector
+# recovery). Nothing in this subsystem inspects side effects -- choosing safe
+# operations remains the caller's responsibility. The facade wires these
+# primitives ONLY around read-only paths (solve/navigate), never around
+# collect()/persistence writes.
+# =====================================================================
+
+class NonRetryableError(Exception):
+    """
+    Marker exception: when raised (or wrapped) it is NEVER retried by the
+    default classifier, regardless of how many attempts remain. Use it to
+    abort retry loops for definitively permanent failures.
+    """
+
+    def __init__(self, reason: str, *, wrapped: Optional[BaseException] = None) -> None:
+        super().__init__(reason)
+        self.wrapped = wrapped
+
+
+# Exceptions considered TRANSIENT by the default classifier. Everything else
+# (ValueError, KeyError, RuntimeError, ElementResolutionError, ...) is treated
+# as a definite answer and never retried unless a custom ``retryable``
+# predicate says otherwise. asyncio.TimeoutError == TimeoutError on 3.11+, but
+# listing both keeps the tuple correct on 3.9/3.10.
+DEFAULT_RETRYABLE_EXCEPTIONS: Tuple[type, ...] = (
+    TimeoutError,
+    asyncio.TimeoutError,
+    ConnectionError,
+    OSError,
+)
+
+
+def is_retryable_exception(exc: BaseException) -> bool:
+    """Default transient/permanent classification for retry decisions."""
+    if isinstance(exc, NonRetryableError):
+        return False
+    return isinstance(exc, DEFAULT_RETRYABLE_EXCEPTIONS)
+
+
+class RetryPolicy:
+    """
+    Bounded-attempt retry executor with exponential backoff and jitter.
+
+    Contract (all verified by tests/test_phase10_resilience.py):
+
+      * ``max_attempts`` bounds total executions (>= 1 validated); after the
+        final failed attempt the ORIGINAL last exception is re-raised -- the
+        caller sees the real failure, never a synthesized one.
+      * backoff: ``delay = min(base_delay * multiplier**(attempt-1), max_delay)``;
+        when ``jitter`` is enabled the effective sleep is drawn from
+        ``[delay * (1 - jitter_ratio), delay]`` using the injected ``rng`` so
+        thundering-herd synchronization is avoided deterministically in tests.
+      * classification: an exception is retried only when
+        ``is_retryable_exception`` (or the caller-supplied ``retryable``
+        predicate) says so; anything permanent fails immediately WITHOUT
+        consuming further attempts.
+      * timeout awareness: with ``per_attempt_timeout`` set, each attempt runs
+        under ``asyncio.wait_for``; a timeout is classified like any other
+        exception (transient by default) and the hung attempt is cancelled.
+      * cancellation safety: only ``Exception`` subclasses participate in
+        retry decisions; ``asyncio.CancelledError`` propagates immediately and
+        is never swallowed or counted as a failure.
+      * determinism: ``sleep_fn`` and ``rng`` are injectable; tests pass a
+        recording sleeper / seeded Random and never really wait.
+      * observability: ``on_event`` receives dicts
+        ({"event": "retry", ...} / {"event": "retries_exhausted", ...});
+        hook failures are logged, never propagated into operation results.
+    """
+
+    def __init__(
+        self,
+        max_attempts: int = 3,
+        base_delay: float = 1.0,
+        max_delay: float = 30.0,
+        multiplier: float = 2.0,
+        jitter: bool = True,
+        jitter_ratio: float = 0.5,
+        retryable: Optional[Callable[[BaseException], bool]] = None,
+        per_attempt_timeout: Optional[float] = None,
+        sleep_fn: Optional[Callable[[float], Any]] = None,
+        rng: Optional[random.Random] = None,
+        on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> None:
+        if max_attempts < 1:
+            raise ValueError("RetryPolicy: max_attempts must be >= 1.")
+        if base_delay < 0:
+            raise ValueError("RetryPolicy: base_delay must be >= 0.")
+        if max_delay < 0:
+            raise ValueError("RetryPolicy: max_delay must be >= 0.")
+        if multiplier < 1.0:
+            raise ValueError("RetryPolicy: multiplier must be >= 1.0.")
+        if not 0.0 <= jitter_ratio <= 1.0:
+            raise ValueError("RetryPolicy: jitter_ratio must be within [0.0, 1.0].")
+        if per_attempt_timeout is not None and per_attempt_timeout <= 0:
+            raise ValueError("RetryPolicy: per_attempt_timeout must be > 0 when provided.")
+
+        self.max_attempts = int(max_attempts)
+        self.base_delay = float(base_delay)
+        self.max_delay = float(max_delay)
+        self.multiplier = float(multiplier)
+        self.jitter = bool(jitter)
+        self.jitter_ratio = float(jitter_ratio)
+        self.retryable = retryable
+        self.per_attempt_timeout = per_attempt_timeout
+        self.sleep_fn = sleep_fn if sleep_fn is not None else asyncio.sleep
+        self.rng = rng if rng is not None else random
+        self.on_event = on_event
+
+    # ------------------------------------------------------------------
+    def _emit(self, event: Dict[str, Any]) -> None:
+        if self.on_event is None:
+            return
+        try:
+            self.on_event(event)
+        except Exception as hook_exc:
+            logger.warning("RetryPolicy: on_event hook raised (%r); ignored.", hook_exc)
+
+    def _classify(self, exc: BaseException) -> bool:
+        if self.retryable is not None:
+            try:
+                return bool(self.retryable(exc))
+            except Exception as pred_exc:
+                logger.warning(
+                    "RetryPolicy: retryable-predicate raised (%r); treating %r as non-retryable.",
+                    pred_exc, exc,
+                )
+                return False
+        return is_retryable_exception(exc)
+
+    def _backoff_delay(self, failed_attempts: int) -> float:
+        delay = min(self.base_delay * (self.multiplier ** failed_attempts), self.max_delay)
+        if self.jitter:
+            delay *= 1.0 - self.jitter_ratio * self.rng.random()
+        return delay
+
+    # ------------------------------------------------------------------
+    async def execute(
+        self,
+        operation: Callable[[], Any],
+        *,
+        operation_name: str = "operation",
+    ) -> Any:
+        """
+        Runs ``operation()`` (a zero-argument callable returning an awaitable)
+        under this policy. Retries ONLY classified-transient failures; a
+        definitive non-exception answer (including None) is returned as-is
+        without extra attempts.
+        """
+        if not callable(operation):
+            raise TypeError("RetryPolicy.execute: operation must be a zero-argument callable.")
+
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                if self.per_attempt_timeout is not None:
+                    return await asyncio.wait_for(
+                        operation(), timeout=self.per_attempt_timeout
+                    )
+                return await operation()
+            except Exception as exc:  # noqa: BLE001 -- classification below; CancelledError is BaseException
+                if attempt >= self.max_attempts:
+                    self._emit({
+                        "event": "retries_exhausted",
+                        "operation": operation_name,
+                        "attempts": attempt,
+                        "error": repr(exc),
+                    })
+                    logger.warning(
+                        "RetryPolicy [%s]: giving up after %d attempt(s): %r",
+                        operation_name, attempt, exc,
+                    )
+                    raise
+                if not self._classify(exc):
+                    logger.info(
+                        "RetryPolicy [%s]: non-retryable failure on attempt %d: %r",
+                        operation_name, attempt, exc,
+                    )
+                    raise
+
+                delay = self._backoff_delay(attempt - 1)
+                self._emit({
+                    "event": "retry",
+                    "operation": operation_name,
+                    "attempt": attempt,
+                    "delay": delay,
+                    "error": repr(exc),
+                })
+                logger.info(
+                    "RetryPolicy [%s]: attempt %d/%d failed (%r); retrying in %.3fs.",
+                    operation_name, attempt, self.max_attempts, exc, delay,
+                )
+                await self.sleep_fn(delay)
+
+
+class CircuitState(str, Enum):
+    """Finite-state-machine states of CircuitBreaker."""
+    CLOSED = "CLOSED"
+    OPEN = "OPEN"
+    HALF_OPEN = "HALF_OPEN"
+
+
+class CircuitBreakerOpenError(RuntimeError):
+    """Raised when an operation is rejected because the circuit is OPEN."""
+
+
+class CircuitBreaker:
+    """
+    CLOSED -> OPEN -> HALF_OPEN -> CLOSED fault-isolation FSM.
+
+      * CLOSED: operations run; ``failure_threshold`` consecutive failures
+        trip the circuit OPEN (any success resets the consecutive counter).
+      * OPEN: operations are rejected FAST with CircuitBreakerOpenError --
+        nothing executes until ``recovery_timeout`` elapses (measured on an
+        injectable monotonic clock).
+      * HALF_OPEN: limited probe traffic; ``half_open_max_successes``
+        consecutive successes close the circuit again, ANY failure re-trips it
+        OPEN immediately.
+
+    Observability: ``on_event`` receives {"event": "circuit_transition",
+    "from": ..., "to": ...}; hook failures are logged, never propagated.
+    """
+
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 30.0,
+        half_open_max_successes: int = 2,
+        clock_fn: Optional[Callable[[], float]] = None,
+        on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> None:
+        if failure_threshold < 1:
+            raise ValueError("CircuitBreaker: failure_threshold must be >= 1.")
+        if recovery_timeout < 0:
+            raise ValueError("CircuitBreaker: recovery_timeout must be >= 0.")
+        if half_open_max_successes < 1:
+            raise ValueError("CircuitBreaker: half_open_max_successes must be >= 1.")
+
+        self.failure_threshold = int(failure_threshold)
+        self.recovery_timeout = float(recovery_timeout)
+        self.half_open_max_successes = int(half_open_max_successes)
+        self.clock_fn = clock_fn if clock_fn is not None else time.monotonic
+        self.on_event = on_event
+
+        self._state = CircuitState.CLOSED
+        self._consecutive_failures = 0
+        self._half_open_successes = 0
+        self._last_transition = self.clock_fn()
+
+    # ------------------------------------------------------------------
+    def _emit_transition(self, old: "CircuitState", new: "CircuitState") -> None:
+        if self.on_event is None:
+            return
+        try:
+            self.on_event({"event": "circuit_transition", "from": old.value, "to": new.value})
+        except Exception as hook_exc:
+            logger.warning("CircuitBreaker: on_event hook raised (%r); ignored.", hook_exc)
+
+    def _transition_to(self, new_state: CircuitState) -> None:
+        old, self._state = self._state, new_state
+        self._last_transition = self.clock_fn()
+        if new_state is CircuitState.CLOSED:
+            self._consecutive_failures = 0
+            self._half_open_successes = 0
+        elif new_state is CircuitState.HALF_OPEN:
+            self._half_open_successes = 0
+        logger.info("CircuitBreaker: state transition %s -> %s.", old.value, new_state.value)
+        self._emit_transition(old, new_state)
+
+    @property
+    def state(self) -> CircuitState:
+        """Current state; lazily promotes OPEN -> HALF_OPEN after cooldown."""
+        if (
+            self._state is CircuitState.OPEN
+            and (self.clock_fn() - self._last_transition) >= self.recovery_timeout
+        ):
+            self._transition_to(CircuitState.HALF_OPEN)
+        return self._state
+
+    @property
+    def failure_count(self) -> int:
+        """Consecutive failures recorded while CLOSED."""
+        return self._consecutive_failures
+
+    # ------------------------------------------------------------------
+    def record_success(self) -> None:
+        state = self.state
+        if state is CircuitState.HALF_OPEN:
+            self._half_open_successes += 1
+            if self._half_open_successes >= self.half_open_max_successes:
+                self._transition_to(CircuitState.CLOSED)
+        elif state is CircuitState.CLOSED:
+            self._consecutive_failures = 0
+
+    def record_failure(self) -> None:
+        state = self.state
+        if state is CircuitState.HALF_OPEN:
+            self._transition_to(CircuitState.OPEN)
+        elif state is CircuitState.CLOSED:
+            self._consecutive_failures += 1
+            if self._consecutive_failures >= self.failure_threshold:
+                self._transition_to(CircuitState.OPEN)
+
+    def reset(self) -> None:
+        """Manually forces the circuit back to CLOSED."""
+        self._transition_to(CircuitState.CLOSED)
+
+    # ------------------------------------------------------------------
+    async def execute(
+        self,
+        operation: Callable[[], Any],
+        *,
+        operation_name: str = "operation",
+    ) -> Any:
+        """
+        Runs ``operation()`` under breaker protection: fast-fails while OPEN,
+        records success/failure outcomes otherwise. Failures are always
+        re-raised unchanged; the breaker adds isolation, not suppression.
+        """
+        if self.state is CircuitState.OPEN:
+            raise CircuitBreakerOpenError(
+                f"CircuitBreaker [{operation_name}] is OPEN; operation rejected "
+                f"(recovery_timeout={self.recovery_timeout:.3f}s)."
+            )
+        try:
+            result = await operation()
+        except Exception:
+            self.record_failure()
+            raise
+        self.record_success()
+        return result
+
+
+# =====================================================================
 # PHASE 5: HIGH-LEVEL UX FACADE -- bp.run() / bp.solve() / bp.collect()
 # =====================================================================
 class ElementResolutionError(RuntimeError):
@@ -3073,6 +3421,8 @@ class BehavioralPlaywright:
         confidence_threshold: float = 0.80,
         heal_memory_path: Optional[str] = None,
         recycle_threshold: int = 50,
+        retry_policy: Optional["RetryPolicy"] = None,
+        circuit_breaker: Optional["CircuitBreaker"] = None,
     ) -> None:
         self.geo_aligner = DynamicUSGeoIPAligner(region=region)
         self.selector_engine = SelfHealingSelectorEngine(confidence_threshold=confidence_threshold)
@@ -3082,6 +3432,12 @@ class BehavioralPlaywright:
             min_expected_throughput=min_expected_throughput,
         )
         self.sentinel = self.pipeline.sentinel
+        # PHASE 10: optional resilience wiring. Both default to None so the
+        # facade's behavior is UNCHANGED unless explicitly configured; when
+        # present they protect ONLY semantically-safe read paths (solve /
+        # navigate) -- never collect()/persistence writes.
+        self.retry_policy = retry_policy
+        self.circuit_breaker = circuit_breaker
         self.context_rotator: Optional[ContextRotator] = None
         # FIX B33 (Phase 2 audit): validate eagerly -- a bad threshold used to
         # surface only later inside ContextRotator (or never, since the rotator
@@ -3089,6 +3445,24 @@ class BehavioralPlaywright:
         if recycle_threshold < 1:
             raise ValueError("BehavioralPlaywright: recycle_threshold must be >= 1.")
         self._recycle_threshold = recycle_threshold
+
+    async def _run_protected(self, operation_name: str, coro_fn: Callable[[], Any]) -> Any:
+        """
+        Executes ``coro_fn()`` under the configured resilience stack:
+
+            circuit_breaker (outer fast-fail) -> retry_policy (inner attempts)
+
+        With neither configured this is a single direct await -- behavior and
+        timing are byte-for-byte identical to the unprotected call.
+        """
+        op = coro_fn
+        if self.retry_policy is not None:
+            policy, inner = self.retry_policy, op
+            op = lambda: policy.execute(inner, operation_name=operation_name)  # noqa: E731
+        if self.circuit_breaker is not None:
+            breaker, inner = self.circuit_breaker, op
+            op = lambda: breaker.execute(inner, operation_name=operation_name)  # noqa: E731
+        return await op()
 
     def attach_browser(self, browser: Any) -> ContextRotator:
         """Binds a live browser handle and activates context rotation."""
@@ -3160,13 +3534,21 @@ class BehavioralPlaywright:
         if page is None:
             page = await self._acquire_page()
 
-        element = await self.selector_engine.resolve_element(
-            page,
-            selector,
-            expected_content,
-            logical_name=logical_name,
-            heal_memory=self.heal_memory,
-        )
+        async def _resolve() -> Any:
+            return await self.selector_engine.resolve_element(
+                page,
+                selector,
+                expected_content,
+                logical_name=logical_name,
+                heal_memory=self.heal_memory,
+            )
+
+        # PHASE 10: solve is a read-only, idempotent resolution -- a safe retry
+        # candidate when a policy is configured. A None result is a DEFINITIVE
+        # negative answer (no element met the gate) and is deliberately NOT
+        # retried; only transient exceptions (timeouts/connection errors)
+        # consume additional attempts.
+        element = await self._run_protected("solve", _resolve)
         if element is None:
             raise ElementResolutionError(
                 f"BehavioralPlaywright.solve: no element matching '{selector}' met the "
