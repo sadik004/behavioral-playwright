@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "behavioral-playwright"
-version = "1.0.0"
-description = "Behavioral-evasion and point-in-time quantitative data framework with a self-healing Playwright facade."
+version = "1.1.0"
+description = "Behavioral-evasion and point-in-time quantitative data framework with a self-healing Playwright facade, resilient execution primitives and durable event observability."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "Proprietary (private personal framework)" }
-keywords = ["playwright", "self-healing", "selectors", "point-in-time", "quant", "pit"]
+keywords = ["playwright", "self-healing", "selectors", "point-in-time", "quant", "pit", "retry", "circuit-breaker", "resilience"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",

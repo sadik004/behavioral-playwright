@@ -31,3 +31,4 @@ quant_pit_output*
 build/
 dist/
 *.egg-info/
+*.whl
