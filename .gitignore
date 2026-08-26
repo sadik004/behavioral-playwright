@@ -1,0 +1,33 @@
+# Generated runtime artifacts only — never framework source, tests, docs, or metadata
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Test/run-generated data outputs
+*.db
+*.ndjson
+heal*.json
+bp_output*
+quant_pit_output*
+
+# Temporary / corrupted-state artifacts
+*.log
+*.tmp
+*.corrupt
+
+# Screenshots produced by examples/debug runs
+*.png
+*.jpg
+*.jpeg
+
+# Environment / credentials — must never be committed
+.env
+.env.*
+*.pem
+*.key
+
+# Build/distribution output
+build/
+dist/
+*.egg-info/

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "behavioral-playwright"
+version = "1.0.0"
+description = "Behavioral-evasion and point-in-time quantitative data framework with a self-healing Playwright facade."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary (private personal framework)" }
+keywords = ["playwright", "self-healing", "selectors", "point-in-time", "quant", "pit"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Testing",
+]
+# Runtime-reality check (Phase 8 audit): the ONLY third-party module-level
+# import in behavioral_evasion_ten_patches_hardened_v15.py is pydantic.
+# Everything else is standard library. The framework relies on pydantic v2
+# validation semantics (BaseModel schema_class validation, ValidationError).
+dependencies = ["pydantic>=2"]
+
+# Every optional capability degrades HONESTLY when its provider is absent;
+# none is required for import or core operation. Verified guards:
+#   pandas     -> PITQuantEngine DataFrame path (lazy import, dict fallback)
+#   numpy      -> MarketSyntheticGenerator fast math (lazy import, math fallback)
+#   curl_cffi  -> TLSJA4Spoofer (module-level availability flag; loud RuntimeError)
+#   frida      -> FridaNativeHookEngine (lazy import; reports unavailability)
+[project.optional-dependencies]
+pandas = ["pandas"]
+numpy = ["numpy"]
+tls = ["curl_cffi"]
+frida = ["frida"]
+all = ["pandas", "numpy", "curl_cffi", "frida"]
+
+[tool.setuptools]
+py-modules = ["behavioral_evasion_ten_patches_hardened_v15"]
+packages = ["behavioral_playwright"]
