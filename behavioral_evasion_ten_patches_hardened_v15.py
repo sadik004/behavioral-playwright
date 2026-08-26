@@ -406,6 +406,78 @@ class BiomechanicalInteractionEngine:
         if remaining != 0:
             await page.evaluate(f"window.scrollBy(0, {remaining})")
 
+    # =================================================================
+    # PHASE 12 RESTORATION: HUMANIZED TYPING DYNAMICS
+    # =================================================================
+    # Generation 1 carried a real linguistic keystroke model (gaussian
+    # inter-key intervals); it was deleted during the v15 consolidation,
+    # leaving the WindMouse trajectory engine without a typing counterpart.
+    # This restores that niche in redesigned form: gaussian inter-key pacing
+    # plus occasional long hesitations, fully deterministic under a seeded
+    # ``random`` module and an injectable sleep function.
+    KEY_BASE_DELAY_SECONDS = 0.11
+    KEY_SIGMA_SECONDS = 0.035
+    KEY_HESITATION_PROBABILITY = 0.04
+    KEY_HESITATION_RANGE = (0.25, 0.65)
+
+    async def type_like_human(
+        self,
+        page: Any,
+        text: str,
+        *,
+        selector: Optional[str] = None,
+        base_delay: float = KEY_BASE_DELAY_SECONDS,
+        sigma: float = KEY_SIGMA_SECONDS,
+        hesitation_probability: float = KEY_HESITATION_PROBABILITY,
+        sleep_fn: Optional[Callable[[float], Any]] = None,
+    ) -> int:
+        """
+        Types ``text`` character-by-character through ``page.keyboard`` with
+        gaussian inter-key delays and occasional long hesitations (fat-finger /
+        thinking pauses). Optionally clicks ``selector`` first to move focus.
+
+        Returns the number of characters actually dispatched. Raises a loud
+        RuntimeError when the page exposes no keyboard (no silent fallback to
+        instant ``fill()`` -- that would defeat the behavioral purpose).
+        Fully deterministic under ``random.seed(...)`` with an injected
+        ``sleep_fn`` recorder.
+        """
+        keyboard = getattr(page, "keyboard", None)
+        if keyboard is None or not hasattr(keyboard, "type"):
+            raise RuntimeError(
+                "BiomechanicalInteractionEngine.type_like_human: page exposes no "
+                "keyboard interface; humanized typing is unavailable. Instant "
+                "programmatic fill is deliberately NOT used as a fallback."
+            )
+        if not isinstance(text, str):
+            raise TypeError(
+                f"type_like_human: text must be a string, got {type(text).__name__}."
+            )
+        for name, value in (("base_delay", base_delay), ("sigma", sigma)):
+            if value < 0:
+                raise ValueError(f"type_like_human: {name} must be >= 0.")
+        if not 0.0 <= hesitation_probability <= 1.0:
+            raise ValueError("type_like_human: hesitation_probability must be within [0.0, 1.0].")
+
+        do_sleep = sleep_fn if sleep_fn is not None else asyncio.sleep
+        logger.info(
+            "BiomechanicalInteraction: humanized typing of %d character(s)%s.",
+            len(text), f" into '{selector}'" if selector else "",
+        )
+
+        if selector:
+            await page.click(selector)
+
+        dispatched = 0
+        for char in text:
+            await keyboard.type(char)
+            delay = max(0.0, random.gauss(base_delay, sigma))
+            if random.random() < hesitation_probability:
+                delay += random.uniform(*self.KEY_HESITATION_RANGE)
+            await do_sleep(delay)
+            dispatched += 1
+        return dispatched
+
 # =====================================================================
 # 4. HARDWARE AND OS SYNC (WebGL & Font Engine - Patch 4)
 # =====================================================================
@@ -3389,6 +3461,19 @@ class ElementResolutionError(RuntimeError):
     """Raised when the self-healing cascade cannot resolve an element."""
 
 
+class NavigationError(RuntimeError):
+    """Raised when a navigation request is malformed or cannot be executed."""
+
+
+class NavigationLoopError(NavigationError):
+    """
+    Raised when recent completed navigations show the target URL repeating
+    (redirect/refresh trap). Restores Generation 1's loop-detection intent in
+    simplified, honest form: count occurrences of completed navigations, refuse
+    the obviously-looping next hop instead of burning retries forever.
+    """
+
+
 class BehavioralPlaywright:
     """
     Single entry-point facade for the hardened engine (Phase 5).
@@ -3439,6 +3524,8 @@ class BehavioralPlaywright:
         self.retry_policy = retry_policy
         self.circuit_breaker = circuit_breaker
         self.context_rotator: Optional[ContextRotator] = None
+        # PHASE 11: completed-navigation ring buffer powering the loop guard.
+        self._navigation_history: deque = deque(maxlen=8)
         # FIX B33 (Phase 2 audit): validate eagerly -- a bad threshold used to
         # surface only later inside ContextRotator (or never, since the rotator
         # is constructed lazily in attach_browser()).
@@ -3518,6 +3605,102 @@ class BehavioralPlaywright:
                     except Exception as close_exc:
                         logger.warning("BehavioralPlaywright.run: page close failed: %r", close_exc)
 
+    # =================================================================
+    # PHASE 11/12: NAVIGATION VERB (restores lost navigation capability)
+    # =================================================================
+    # Generation 2 had NavigationManager.safe_goto (retry + backoff + loop
+    # guard); it was deleted in the v15 consolidation. This verb restores that
+    # niche through the Phase 10 resilience stack. A navigation is an idempotent
+    # GET acquisition -- a semantically SAFE retry candidate -- so it is the one
+    # facade path where retry_policy/circuit_breaker apply by design.
+    NAVIGATION_LOOP_MAX_REPEATS = 3
+
+    def _validate_navigation_url(self, url: Any) -> str:
+        """Loud scheme validation; malformed URLs are permanent config errors."""
+        if not isinstance(url, str) or not url.strip():
+            raise NavigationError("BehavioralPlaywright.navigate: url must be a non-empty string.")
+        candidate = url.strip()
+        if not (
+            candidate.startswith(("http://", "https://")) or candidate == "about:blank"
+        ):
+            raise NavigationError(
+                f"BehavioralPlaywright.navigate: refusing non-http(s) url {url!r}; "
+                "only http://, https:// and about:blank are valid navigation targets."
+            )
+        return candidate
+
+    def _check_navigation_loop(self, url: str) -> None:
+        occurrences = sum(1 for prior in self._navigation_history if prior == url)
+        if occurrences >= self.NAVIGATION_LOOP_MAX_REPEATS - 1:
+            raise NavigationLoopError(
+                f"BehavioralPlaywright.navigate: '{url}' was already completed "
+                f"{occurrences} time(s) recently; navigating again would form a "
+                "redirect/refresh loop. Break the cycle or forget bp._navigation_history."
+            )
+
+    async def navigate(
+        self,
+        url: str,
+        *,
+        page: Any = None,
+        timeout_ms: int = 30000,
+        wait_until: str = "load",
+    ) -> Dict[str, Any]:
+        """
+        Navigates to ``url`` behind the stealth stack and (when configured) the
+        Phase 10 resilience primitives. Returns an honest status dict:
+
+            {"url": <target>, "status": <http status or None>, "ok": <bool>}
+
+        ``status`` is None when the driver returned no response object; ``ok``
+        is True only for 2xx/3xx statuses. Nothing is ever invented: failures
+        raise (NavigationError / NavigationLoopError / the original transient
+        error after retries are exhausted).
+        """
+        target = self._validate_navigation_url(url)
+        self._check_navigation_loop(target)
+
+        owns_context = False
+        if page is None:
+            context = await self._acquire_page()
+            await self.geo_aligner.align_context(context)
+            page = await context.new_page()
+            owns_context = True
+
+        try:
+            shield = CDPEvasionShield(page)
+            await shield.apply_cdp_stealth_binding()
+            spoofer = HardwareOSSpoofer(page)
+            await spoofer.inject_hardware_stealth()
+
+            goto_fn = getattr(page, "goto", None)
+            if not callable(goto_fn):
+                raise NavigationError(
+                    "BehavioralPlaywright.navigate: page does not expose goto(); "
+                    "navigation is unavailable on this handle."
+                )
+
+            async def _goto() -> Any:
+                return await goto_fn(target, timeout=timeout_ms, wait_until=wait_until)
+
+            response = await self._run_protected("navigate", _goto)
+        finally:
+            if owns_context:
+                closer = getattr(page, "close", None)
+                if closer is not None:
+                    try:
+                        await closer()
+                    except Exception as close_exc:
+                        logger.warning("BehavioralPlaywright.navigate: page close failed: %r", close_exc)
+
+        self._navigation_history.append(target)
+        status = getattr(response, "status", None) if response is not None else None
+        ok = bool(status is not None and 200 <= status < 400)
+        logger.info(
+            "BehavioralPlaywright.navigate: '%s' -> status=%s ok=%s.", target, status, ok
+        )
+        return {"url": target, "status": status, "ok": ok}
+
     async def solve(
         self,
         selector: str,
@@ -3578,6 +3761,26 @@ class BehavioralPlaywright:
         """Flushes the persistence buffer and persists the heal memory."""
         await self.pipeline.close()
         self.heal_memory.save()
+
+    # =================================================================
+    # PHASE 11: SESSION CONTEXT MANAGER
+    # =================================================================
+    async def __aenter__(self) -> "BehavioralPlaywright":
+        """``async with bp:`` -- guarantees close()/flush/persist on exit."""
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        try:
+            await self.close()
+        except Exception as close_exc:
+            logger.error(
+                "BehavioralPlaywright: close() failed inside session exit (%r); "
+                "the original exception (if any) is preserved.", close_exc,
+            )
+            if exc_type is not None:
+                return False  # never mask the caller's own failure
+            raise
+        return False
 
 
 if __name__ == "__main__":

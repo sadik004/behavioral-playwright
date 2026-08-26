@@ -58,6 +58,20 @@ class FakeMouse:
         self.page.down_up += 1
 
 
+class FakeKeyboard:
+    def __init__(self, page: "FakePage") -> None:
+        self.page = page
+        self.typed: List[str] = []
+
+    async def type(self, char: str) -> None:
+        self.typed.append(char)
+
+
+class FakeResponse:
+    def __init__(self, status: int) -> None:
+        self.status = status
+
+
 class FakePage:
     """Records every script/click; wait_for_selector is driven by a mapping.
 
@@ -71,10 +85,14 @@ class FakePage:
         elements: Optional[List[FakeElement]] = None,
         wait_results: Optional[Dict[str, Any]] = None,
         evaluate_return: Any = None,
+        goto_results: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.elements = elements or []
         self.wait_results = dict(wait_results or {})
         self.evaluate_return = evaluate_return
+        # url -> FakeResponse/status int/RAISE sentinel; unmapped urls succeed with 200.
+        self.goto_results = dict(goto_results or {})
+        self.goto_calls: List[Dict[str, Any]] = []
         self.scripts: List[str] = []
         self.scroll_by: List[int] = []
         self.mouse_moves: List[tuple] = []
@@ -82,6 +100,7 @@ class FakePage:
         self.down_up = 0
         self.closed = False
         self.mouse = FakeMouse(self)
+        self.keyboard = FakeKeyboard(self)
         self.wait_calls: List[str] = []
 
     async def wait_for_selector(self, selector: str, timeout: Optional[int] = None):
@@ -92,6 +111,19 @@ class FakePage:
                 raise TimeoutError(f"simulated timeout for {selector!r}")
             return el
         raise TimeoutError(f"no wait mapping configured for {selector!r}")
+
+    async def goto(self, url: str, timeout: Optional[int] = None,
+                   wait_until: Optional[str] = None):
+        """Records the call; outcome driven by ``goto_results`` mapping."""
+        self.goto_calls.append({"url": url, "timeout": timeout, "wait_until": wait_until})
+        if url in self.goto_results:
+            outcome = self.goto_results[url]
+            if outcome is _RAISE:
+                raise TimeoutError(f"simulated navigation timeout for {url!r}")
+            if isinstance(outcome, int) and not isinstance(outcome, bool):
+                return FakeResponse(outcome)
+            return outcome
+        return FakeResponse(200)
 
     async def query_selector_all(self, selector: str) -> List[FakeElement]:
         return list(self.elements)
