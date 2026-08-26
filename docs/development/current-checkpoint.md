@@ -7,18 +7,79 @@
 
 ---
 
+## 0. LATEST CHECKPOINT — POST-AUDIT VERIFICATION (supersedes everything below where they conflict)
+
+```
+CURRENT VERIFIED TEST COUNT:   209  (python -m pytest tests -q => 209 passed /
+                               0 failed / 0 skipped / 0 errors in 15.52 s)
+PREVIOUS VERIFIED TEST COUNT:  199
+NEW REGRESSION SUITE:          tests/test_audit_regressions.py (10 tests:
+                               A1 x4, A2 x3, A3 x3 -- 10/10 passed in 0.52 s)
+FIXED (verified in source + tests):
+  A1  low-confidence heal-memory entries no longer bypass
+      confidence_threshold  (module line ~1209; tests/test_audit_regressions.py
+      ::TestMemoryTierThresholdGate)
+  A2  heal-memory hits verify expected_content; wrong-element reuse after
+      page/content change falls through to cascade (module line ~1224;
+      ::TestMemoryContentVerification)
+  A3  event_time=0.0 honored exactly; only None triggers the invented-
+      timestamp fallback (module line ~2005; ::TestEventTimeZeroHonored)
+
+CURRENT BRANCH:                main
+CURRENT LOCAL COMMIT:          6f71863 ("chore(release): protect verified
+                               framework baseline")
+REMOTE MAIN:                   cc6da38  (verified LIVE via GitHub API during
+                               this checkpoint -- not just the tracking ref)
+REMOTE MODIFIED:               NO
+PUSH PERFORMED:                NO
+COMMIT PERFORMED:              NO
+CURRENT WORKING TREE:          UNCOMMITTED AUDIT CHANGES --
+                               modified: behavioral_evasion_ten_patches_
+                               harded_v15.py (A1/A2/A3 hunks only)
+                               untracked: tests/test_audit_regressions.py,
+                               docs/development/full-codebase-audit.md
+SAFE RESUME POINT:             POST-AUDIT / PRE-COMMIT
+NEXT WORK:                     DO NOT IMPLEMENT YET. First review and protect
+                               this verified state.
+REMAINING SCOPED WORK (queued, NOT started):
+  1. lower-tier heal write-back
+  2. retry/backoff primitives
+  3. wheel-build verification
+  4. simulator-default tx_hash decision
+  5. quarantined capability decisions
+  6. CI workflow
+  7. documentation test-count update 199 -> 209
+```
+
+**Critical VCS facts (verified this session):**
+
+- A `.git` directory NOW EXISTS (sections below claiming "NOT A GIT REPO" are
+  outdated). However the `git` executable is STILL ABSENT from this machine;
+  verification was performed with `dulwich` (Python) + the GitHub API.
+- Local history is a deliberate SINGLE ORPHAN COMMIT (`reflog`: "commit
+  (initial)"). Local `main` (6f71863) and remote `origin/main` (cc6da38,
+  18-commit history) have UNRELATED histories. A future push will require an
+  explicit strategy decision (force-with-lease vs. merge/rebase). Do not push
+  casually.
+- Other refs observed: `origin/refactor/src-layout` = 852a099 (unchanged),
+  tag `v10.0.0` -> 8a4b454 (local lightweight tag).
+- Audit-fix hunks shifted module line numbers by roughly +45 for everything
+  after line ~1178; older line citations below reflect pre-audit positions.
+
+---
+
 ## 1. Repository State
 
 | Item | Verified Value |
 |------|----------------|
 | Repository root | `D:\behave` |
-| Version control | **NOT A GIT REPO** — `git` is not installed on this machine and no `.git` directory exists |
-| Current branch | N/A (no VCS) |
-| Current HEAD | N/A (no VCS) |
-| Remote tracking | None (no remotes configured) |
-| Working tree status | Clean of generated artifacts; contains only source files (see §9) |
-| Staged changes | None possible (no VCS) |
-| Unstaged changes | None possible (no VCS) |
+| Version control | **GIT REPO PRESENT** (see §0 — this row updated 2026-08-26 post-audit; earlier "NOT A GIT REPO" snapshot is historical) |
+| Current branch | `main` |
+| Current HEAD | `6f71863` (single orphan initial commit) |
+| Remote tracking | `origin` -> `https://github.com/sadik004/behavioral-playwright.git`; `origin/main` = `cc6da38` (untouched) |
+| Working tree status | Uncommitted audit changes (1 modified module + 2 untracked audit files); clean of generated artifacts (see §9) |
+| Staged changes | None |
+| Unstaged changes | `behavioral_evasion_ten_patches_hardened_v15.py` (A1/A2/A3 only) |
 
 **Complete on-disk inventory after cleanup:**
 
@@ -350,12 +411,25 @@ Permanent rules for this private personal framework:
 ```
 CHECKPOINT CREATED:      2026-08-26 07:29:57 (UTC+06:00) == 2026-08-26T01:29:57Z
 PHASE 8 AUDIT UPDATE:    2026-08-26 (same day, later session)
+POST-AUDIT UPDATE:       2026-08-26 13:2x (UTC+06:00) -- see §0 (authoritative)
 
 VERIFIED TEST STATUS:    python -m pytest tests -q
-                         => 199 passed, 0 failed, 0 skipped, 0 errors
-                         (141 phase2 + 27 phase4 + 17 phase5 + 14 phase8)
+                         => 209 passed, 0 failed, 0 skipped, 0 errors
+                            in 15.52 s
+                         (141 phase2 + 27 phase4 + 17 phase5 + 14 phase8
+                          + 10 test_audit_regressions.py)
+                         regression suite alone: 10 passed in 0.52 s
+
+REMOTE:                  origin/main cc6da38 -- verified LIVE via GitHub API;
+                         NO push, NO commit performed this session
+
+STATE:                   POST-AUDIT / PRE-COMMIT (uncommitted audit changes)
 
 SAFE TO CLOSE CLI:       YES
 
-SAFE RESUME FROM:        Post-Phase-8 / await explicit user direction
+SAFE RESUME FROM:        Post-audit / pre-commit. Review & protect the
+                         verified 209-test state before ANY further work.
+                         Remaining scoped work is queued in §0 -- do NOT
+                         implement until this state is committed or
+                         otherwise protected by explicit user direction.
 ```

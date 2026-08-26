@@ -1178,6 +1178,13 @@ class SelfHealingSelectorEngine:
         memory automatically; lower tiers return raw element handles whose
         stable selector extraction is not yet implemented (documented
         limitation -- no pretending otherwise).
+
+        AUDIT FIXES A1/A2: the MEMORY fast-path is a tier like any other --
+          * a remembered entry whose stored confidence is below
+            ``confidence_threshold`` no longer bypasses the gate;
+          * when ``expected_content`` is supplied, a remembered hit whose
+            element text no longer contains it is treated as stale and falls
+            through to the cascade instead of being returned unverified.
         """
         logger.info(f"SelfHealing: Initiating cascading resolution sequence for selector '{target_selector}'.")
         self.last_match_tier = None
@@ -1190,11 +1197,6 @@ class SelfHealingSelectorEngine:
                 try:
                     el = await page.wait_for_selector(remembered, timeout=1500)
                     if el:
-                        logger.info(
-                            "SelfHealing [MEMORY]: logical element '%s' resolved via remembered "
-                            "selector '%s' (skipping cascade).",
-                            logical_name, remembered,
-                        )
                         entry_conf = 0.95
                         try:
                             entry_conf = float(
@@ -1203,9 +1205,52 @@ class SelfHealingSelectorEngine:
                             )
                         except (KeyError, TypeError, ValueError):
                             pass
-                        self.last_match_tier = "MEMORY"
-                        self.last_match_confidence = entry_conf
-                        return el
+
+                        # AUDIT FIX A1: MEMORY is a tier like any other -- a
+                        # remembered entry whose stored confidence is below the
+                        # engine's gate must NOT bypass the threshold (e.g. an
+                        # entry loaded from a legacy/hand-edited memory file).
+                        # Below-threshold entries fall through to the full
+                        # cascade exactly like stale ones (S2).
+                        if entry_conf < self.confidence_threshold:
+                            logger.warning(
+                                "SelfHealing [MEMORY]: remembered selector '%s' for '%s' carries "
+                                "confidence %.2f below threshold %.2f; ignoring memory and "
+                                "running the full cascade (S2).",
+                                remembered, logical_name,
+                                entry_conf, self.confidence_threshold,
+                            )
+                        else:
+                            # AUDIT FIX A2: recovery verification. When expected
+                            # content is supplied, a remembered hit that no longer
+                            # shows it is treated as stale (the page changed under
+                            # the old selector) and falls through to the cascade.
+                            content_verified = True
+                            if expected_content:
+                                try:
+                                    remembered_text = ((await el.inner_text()) or "").strip().lower()
+                                    content_verified = expected_content.lower() in remembered_text
+                                except Exception as text_exc:
+                                    logger.debug(
+                                        "SelfHealing [MEMORY]: content verification unavailable "
+                                        "for '%s' (%r); accepting remembered resolution.",
+                                        logical_name, text_exc,
+                                    )
+                            if content_verified:
+                                logger.info(
+                                    "SelfHealing [MEMORY]: logical element '%s' resolved via remembered "
+                                    "selector '%s' (skipping cascade).",
+                                    logical_name, remembered,
+                                )
+                                self.last_match_tier = "MEMORY"
+                                self.last_match_confidence = entry_conf
+                                return el
+                            logger.warning(
+                                "SelfHealing [MEMORY]: remembered selector '%s' for '%s' resolved an "
+                                "element without expected content %r; treating entry as stale and "
+                                "falling through to the full cascade (S2).",
+                                remembered, logical_name, expected_content,
+                            )
                 except Exception:
                     logger.warning(
                         "SelfHealing [MEMORY]: remembered selector '%s' for '%s' went stale; "
@@ -1957,7 +2002,10 @@ class QuantPersistencePipeline(BasePersistencePipeline):
         validates the schema contract, and flushes to disk.
         """
         # T0: Event Timestamp (When the real-world event happened. If absent, fallback to extraction time minus latency jitter)
-        t0 = event_time if event_time else (time.time() - random.uniform(0.1, 0.5))
+        # AUDIT FIX A3: ``event_time=0.0`` is a VALID epoch and used to be
+        # silently discarded by a truthiness check, replacing it with an
+        # invented jittered timestamp. Only None means "not supplied".
+        t0 = event_time if event_time is not None else (time.time() - random.uniform(0.1, 0.5))
         
         # T1: Knowledge Timestamp (The exact millisecond when the scraper ingested and logged the data)
         t1 = time.time()
