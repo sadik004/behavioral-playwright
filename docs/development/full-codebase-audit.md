@@ -256,3 +256,52 @@ Suite: **209 passed / 0 failed / 0 skipped / 0 errors** (was 199 before audit).
 
 REMOTE MODIFIED: NO
 PUSH PERFORMED: NO
+
+---
+
+## 13. ADDENDUM — PHASES 10–16 RECONCILIATION RESULTS (2026-08-26)
+
+This addendum records the outcome of the Phase 12 historical-capability
+reconciliation executed after the audit above. Suite at time of writing:
+**334 passed / 0 failed / 0 skipped / 0 errors**.
+
+### Reconciliation decisions (historical capability → disposition)
+
+| Historical capability | Gen | Disposition | Where |
+|---|---|---|---|
+| RetryPolicy (bounded, backoff, jitter) | Gen2 REAL | **RESTORED (redesigned)** — added classification, timeout awareness, cancellation safety, observability, injectable sleep/rng | `RetryPolicy` + `tests/test_phase10_resilience.py` |
+| CircuitBreaker FSM | Gen2 REAL | **RESTORED** — monotonic clock (was wall-clock), transition events | `CircuitBreaker` |
+| Navigation retry/backoff/loop-guard (`NavigationManager.safe_goto`, Markov detector) | Gen1/Gen2 REAL | **RESTORED (simplified)** — `bp.navigate()` with URL validation, completed-navigation loop guard, honest status dicts | facade + `tests/test_phase11_ux_orchestration.py` |
+| Typing humanization (keystroke gauss model) | Gen1 REAL | **RESTORED (redesigned)** — `type_like_human()` deterministic pacing | `BiomechanicalInteractionEngine` |
+| SQLite observability/metrics | Gen2 REAL | **RESTORED (minimal)** — `ObservabilitySQLiteSink` stdlib event journal | Phase 12 |
+| Crawling / search engine / site mapping | Gen2 real-but-broken | **INTENTIONALLY NOT RESTORED** — died with its bugs (1-page crawl, mapper count mismatch); extraction niche covered by DOMToMarkdownSimplifier; restoring would regrow the Gen2 god-facade | guarded by `test_deliberately_absent_capabilities_are_still_absent` |
+| OCR / vision detection | Gen1 provider-dep + fake fallbacks | **NOT RESTORED** — fabricated detections in Gen1; honest pytesseract path would need an unverifiable provider boundary | documented README table |
+| Webhooks / MCP integrations | Gen2 webhooks real; MCP broken | **NOT RESTORED** — MCP was AttributeError theater; webhook POST unverifiable without network honesty | documented README table |
+| LLM integration | Gen1 fabricated offline mocks | **STAYS REMOVED BY DESIGN** — never re-add fabrication | unchanged |
+| Humanizer sentinel / mock provider cascade / PoC exporter / eBPF+JA4 props | Gen1 MOCK-THEATER | **STAYS REMOVED**; regression-pinned against silent reintroduction | `TestReconciliationDecisions` |
+
+### Honesty audit outcomes (Phase 13, from this audit's flagged items)
+
+- Simulator-default `tx_hash`: **CHANGED** to visibly synthetic `sim-tx-…`
+  (bare `0x`+64-hex was indistinguishable from a real chain hash — fabricated
+  identifier). Caller-supplied hashes untouched; pinned.
+- `ingest_market_record` event_time=None fallback: **KEPT**, classified
+  EXPERIMENTAL convenience — bounded ≤0.5 s, knowledge timestamp authoritative,
+  epoch 0.0 honored exactly (A3 regression retained).
+- `_stable_composite_figi`: **KEPT**, documented synthetic join key,
+  process-deterministic.
+- Cascade L1–L4 per-element scan skips: now debug-logged (were silent).
+- All quarantined capabilities re-verified still honestly unavailable.
+
+### Package/CI outcomes
+
+- Wheel build verified for real (Phase 8 limitation closed): payload is exactly
+  `behavioral_evasion_ten_patches_hardened_v15.py` +
+  `behavioral_playwright/__init__.py`; metadata matches pyproject; fresh-venv
+  install pulls pydantic and both import paths resolve identically.
+- Version bumped to 1.1.0 (feature release: resilience, navigation, typing,
+  observability).
+- CI workflow added (py3.9–3.12 × ubuntu/windows, core deps only + wheel job).
+
+REMOTE MODIFIED: NO
+PUSH PERFORMED: NO

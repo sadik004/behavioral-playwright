@@ -7,13 +7,14 @@ The framework's core contract is **honesty**: every capability reports its real 
 Where a capability is not implemented, it is *explicitly* unavailable (raises or returns
 `UNAVAILABLE_NOT_IMPLEMENTED` / `captured_unprocessed`). The codebase contains no
 fake-success fallbacks, no fabricated financial identifiers, no fabricated HTTP traffic,
-and no fabricated decrypted payloads.
+and no fabricated decrypted payloads. Generated identifiers are **visibly synthetic**
+(`sim-tx-…`, deterministic `composite_figi`).
 
 ## Status
 
-Roadmap phases 1–7 are complete and verified; Phase 8 (final release audit)
-completed 2026-08-26. Distribution metadata (`pyproject.toml`) and the
-`behavioral_playwright` import surface were added during Phase 8.
+Phases 1–9 were complete and verified; Phases 10–15 completed 2026-08-26
+(resilience, UX consolidation, capability reconciliation, honesty audit,
+wheel verification, CI). Current suite: **334 passed / 0 failed / 0 skipped**.
 
 | Phase | Scope | State |
 |-------|-------|-------|
@@ -22,9 +23,16 @@ completed 2026-08-26. Distribution metadata (`pyproject.toml`) and the
 | 3 | Real implementations / explicit quarantine | Complete |
 | 4 | Self-healing integration + heal memory | Complete |
 | 5 | High-level orchestration facade | Complete |
-| 6 | Full test suite | 199 passed, 0 failed, 0 skipped (141 phase2 + 27 phase4 + 17 phase5 + 14 phase8) |
+| 6 | Full test suite | Complete (185 at the time) |
 | 7 | Documentation | Complete |
-| 8 | Final release audit | Complete (2026-08-26; wheel-build verification blocked locally by missing setuptools — see Limitations) |
+| 8 | Final release audit | Complete (199 tests; wheel build then unverifiable) |
+| 9 | Verified lower-tier self-healing write-back | Complete (230 tests) |
+| 10 | Retry/backoff/jitter/circuit-breaker subsystem | Complete (273 tests) |
+| 11 | Orchestration UX: navigate verb, humanized typing, session manager | Complete (300 tests) |
+| 12 | Historical capability reconciliation + SQLite observability sink | Complete (313 tests) |
+| 13 | Real-implementation/honesty audit (visibly-synthetic ids, auditable skips) | Complete (323 tests) |
+| 14 | Package hardening: real wheel build verified, version 1.1.0 | Complete (334 tests) |
+| 15 | CI workflow (py3.9–3.12 × ubuntu/windows + wheel job) | Complete |
 
 ## Installation & Dependencies
 
@@ -58,15 +66,21 @@ Optional (each degrades honestly when missing):
 ```
 BehavioralPlaywright (facade)
  ├─ DynamicUSGeoIPAligner        geo-sync (locale/timezone/geo) per context
- ├─ SelfHealingSelectorEngine    4-tier selector recovery cascade
- │   └─ SelectorHealMemory       persistent heal memory (JSON, atomic writes)
+ ├─ SelfHealingSelectorEngine    MEMORY→PRIMARY→L1→L2→L3→L4 recovery cascade
+ │   └─ SelectorHealMemory       persistent heal memory (JSON, atomic writes,
+ │                                verified lower-tier write-back)
+ ├─ RetryPolicy                  bounded attempts, exp backoff + jitter,
+ │                                transient/permanent classification, timeouts
+ ├─ CircuitBreaker               CLOSED/OPEN/HALF_OPEN FSM (monotonic clock)
+ ├─ ObservabilitySQLiteSink      durable event journal (stdlib sqlite3)
  ├─ QuantPersistencePipeline     NDJSON persistence + contract sentinel
  │   └─ QuantDataContractSentinel schema/null/throughput gates
  ├─ ContextRotator               bounded context recycling lifecycle
  │   └─ StrictContextManager     isolated contexts (WebRTC spoof intentionally absent)
  ├─ CDPEvasionShield             CDP stack-trace stealth binding
  ├─ HardwareOSSpoofer            WebGL/hardware profile injection
- └─ BiomechanicalInteractionEngine  SigmaDrift mouse trajectories, inertial scroll
+ └─ BiomechanicalInteractionEngine  SigmaDrift mouse trajectories, inertial scroll,
+                                    humanized typing dynamics
 
 Data plane (independent of browser):
  PITQuantEngine · EDGARPiTAligner · CapitalMarketEntityResolver · ITCHParserLOBReconstructor
@@ -76,9 +90,10 @@ Data plane (independent of browser):
  WasmMemoryInterceptor · MicrotaskTimingAligner · BinaryOLE2REDecoder · PyarmorCPythonUnpacker
 ```
 
-## High-Level API (Phase 5)
+## High-Level API
 
-`BehavioralPlaywright` is the single entry point. Three verbs, no autonomous agent:
+`BehavioralPlaywright` remains a small public surface (five verbs plus the
+session context manager), not an agent:
 
 ```python
 bp = BehavioralPlaywright(
@@ -88,66 +103,116 @@ bp = BehavioralPlaywright(
     confidence_threshold=0.80,      # self-healing gate, propagated to the engine
     heal_memory_path="heal.json",   # persistent heal memory (optional)
     recycle_threshold=50,           # context rotation bound (must be >= 1)
+    retry_policy=RetryPolicy(...),       # optional resilience (Phase 10)
+    circuit_breaker=CircuitBreaker(...), # optional fast-fail isolation
 )
 
 await bp.attach_browser(browser)            # binds a live handle, enables rotation
-
+nav     = await bp.navigate(url)            # stealth GET navigation (Phase 11)
 element = await bp.solve("button.submit", "Submit order",
                          logical_name="submit-btn", page=page)
 result  = await bp.run(my_action)           # action(page) behind the stealth stack
 status  = await bp.collect(record, MySchema, event_time=...)   # PiT ingest
 await bp.close()                            # flush buffer + save heal memory
+# or: async with BehavioralPlaywright(...) as bp: ...   # guaranteed close()
 ```
 
 Pipeline semantics per verb:
 
+- **navigate** → validate URL loudly → loop-guard check → acquire/align context →
+  stealth stack → `goto` under retry/breaker → honest `{url, status, ok}` dict;
+  raises `NavigationError`/`NavigationLoopError` rather than inventing success
 - **run** → acquire healthy context → geo-align → CDP shield → hardware spoof → execute → verify/cleanup
 - **solve** → heal-memory fast-path → exact → Levenshtein → semantic/ARIA → spatial/heuristic,
   each tier gated by `confidence_threshold`; raises `ElementResolutionError` instead of guessing
 - **collect** → entity resolution → dual-timestamp PiT validation → schema contract → buffered
   NDJSON persistence; contract breaches raise loudly
 
-Power users can reach `bp.heal_memory`, `bp.selector_engine`, `bp.pipeline`, `bp.sentinel`, `bp.context_rotator`.
+Power users can reach `bp.heal_memory`, `bp.selector_engine`, `bp.pipeline`,
+`bp.sentinel`, `bp.context_rotator`, `bp.retry_policy`, `bp.circuit_breaker`.
 
-## Self-Healing (Phase 4)
+## Resilience (Phase 10)
+
+`RetryPolicy` and `CircuitBreaker` are reusable primitives with injectable
+sleep/clock/rng for fully deterministic testing:
+
+```python
+policy = RetryPolicy(max_attempts=3, base_delay=1.0, max_delay=30.0,
+                     multiplier=2.0, jitter=True,          # exp backoff + jitter
+                     per_attempt_timeout=5.0,              # timeout awareness
+                     on_event=sink.record)                 # observability hook
+breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0,
+                         half_open_max_successes=2, on_event=sink.record)
+
+result = await breaker.execute(lambda: policy.execute(idempotent_read))
+```
+
+- **Retry safety contract**: retries apply ONLY where repetition is semantically
+  safe. The facade wires them exclusively around read-only paths (`solve`,
+  `navigate`); `collect()`/persistence writes are never retried or breaker-gated.
+- Classification: only transient failures retry by default (`TimeoutError`,
+  `ConnectionError`, `OSError`); anything else is a definite answer.
+  `NonRetryableError` forces immediate failure; injectable predicate overrides all.
+- Cancellation safety: `asyncio.CancelledError` propagates immediately — never
+  swallowed, never counted as a failure.
+- Exhaustion re-raises the ORIGINAL last exception; nothing is synthesized.
+
+## Observability (Phase 12)
+
+`ObservabilitySQLiteSink(db_path)` durably journals event dicts (retries,
+breaker transitions, custom workflow events) into a stdlib SQLite database:
+
+```python
+sink = ObservabilitySQLiteSink("runs.db")
+policy = RetryPolicy(on_event=sink.record)
+...
+sink.count("retry"); sink.recent(20); sink.close()
+```
+
+Hook failures are logged and never corrupt protected operations; sink
+validation errors raise loudly.
+
+## Self-Healing (Phase 4/9)
 
 `SelfHealingSelectorEngine.resolve_element(page, selector, expected_content, logical_name, heal_memory)`:
 
-1. **S1 memory fast-path** — remembered selector tried first on a hit
+1. **MEMORY (S1)** remembered selector tried first; below-threshold entries and
+   content-mismatched hits fall through (audit fixes A1/A2)
 2. **PRIMARY** — exact selector (confidence 1.00)
 3. **L1 Levenshtein** — candidate attributes within threshold similarity (distance capped at 5)
-4. **L2 semantic/ARIA** — role/label/text matching (confidence 0.90)
+4. **L2 semantic/ARIA** — accessibility attributes matching (confidence 0.90)
 5. **L3 spatial/text** — bounding-box geometry + text heuristics (confidence 0.85)
 6. **L4 first-button heuristic** — confidence 0.25, deliberately LOW: unreachable at the
-   default threshold; becomes reachable only when a caller explicitly lowers it below 0.25
+   default threshold
 
-Every tier enforces `confidence_threshold ∈ [0.0, 1.0]` (constructor validates); low-confidence
-results never pass. On success through the cascade, the resolution is **remembered**
-(logical name → selector, tier, confidence, UTC timestamp).
+Every tier enforces `confidence_threshold ∈ [0.0, 1.0]`. Successful PRIMARY/L1/L2/L3
+resolutions feed heal memory through the seven-condition verified write-back contract
+(real handle, confidence gate, content verification, provably-stable non-empty selector
+that re-resolves on-page, never downgrading stronger entries). L4 never writes back.
+First solve = recovery; subsequent solves = cheap memory fast-path.
 
-`SelectorHealMemory` records target name, healed selector, strategy tier, confidence and
-update time; persists to JSON via atomic write (`tmp` + `os.replace`); a corrupted file is
-quarantined as `<path>.corrupt` and memory rebuilds empty (recovery never crashes the host);
-capacity-bounded with lowest-confidence/oldest eviction; stale entries fall through to the
-full cascade and are overwritten (`S2`). Lookups never invent results.
+`SelectorHealMemory`: atomic JSON writes (tmp + os.replace); corrupted files quarantined
+as `<path>.corrupt`; capacity-bounded lowest-confidence eviction; stale entries fall
+through to the full cascade (S2) and are refreshed. Lookups never invent results.
 
 ## Point-in-Time Data Correctness
 
 - `PITQuantEngine.generate_quant_ready_feed(events, cutoff)` — filters rows by
-  `event_time ≤ cutoff < knowledge_time` semantics, selects the latest **whole row**
-  per ticker (no column-wise "Frankenstein" stitching), emits a deterministic
-  `composite_figi` derived via stable hash (no invented identifiers). Malformed or
-  missing timestamps raise `PITimestampError` naming the offending column.
+  knowledge-time cutoff, selects the latest **whole row** per ticker (no column-wise
+  "Frankenstein" stitching), emits a deterministic synthetic `composite_figi`.
+  Malformed timestamps raise `PITimestampError` naming the offending column.
 - `EDGARPiTAligner` — filing timestamp validation; raises `FilingTimestampError` on bad input.
-- `CapitalMarketEntityResolver` — resolves only curated known entities (case-insensitive,
-  embedded matches supported); unknown names raise `EntityResolutionError`. Never fabricates ISIN/CUSIP/FIGI.
-- `QuantDataContractSentinel` — schema validation, null-ratio bound (`max_null_ratio`),
-  and minimum throughput gate (`min_expected_throughput` ≥ 0); breaches raise.
+- `CapitalMarketEntityResolver` — resolves only curated known entities (token-boundary
+  match); unknown names raise `EntityResolutionError`. Never fabricates ISIN/CUSIP/FIGI.
+- `QuantDataContractSentinel` — schema validation, null-ratio bound, minimum throughput
+  gate; breaches raise.
 - `BlockchainLakehouseStreamingPipeline` — z-score anomaly scoring against the
-  **pre-existing baseline window** (the newcomer is scored before admission), preventing
-  self-masking of extreme transactions; warm-up (< 2 baseline points) yields `z_score = 0`.
-- `MarketSyntheticGenerator` — GBM-style alternative paths anchored at the seed origin
-  (`series[0] == seed_series[0]`), drift/vol from the seed path, deterministic under `random.seed`.
+  pre-existing baseline window; absent `tx_hash` values are generated **visibly
+  synthetic** (`sim-tx-…`), caller-supplied hashes are never modified.
+- `MarketSyntheticGenerator` — GBM-style alternative paths anchored at the seed origin,
+  deterministic under `random.seed`. When `event_time=None`, `ingest_market_record`
+  invents a bounded extraction-time estimate (≤0.5 s before ingestion); epoch `0.0` is
+  always honored exactly.
 
 ## Explicitly Unavailable / Experimental Capabilities
 
@@ -164,6 +229,9 @@ These are honest non-implementations; APIs are preserved for future work:
 | `TLSJA4Spoofer` w/o curl_cffi | Loud failure | Instantiation raises descriptive `RuntimeError` |
 | WebRTC IP masking (`StrictContextManager`) | Intentionally absent | Invalid default spoofing removed; contexts created without fake WebRTC init scripts |
 | `MicrotaskTimingAligner` Promise patch | Default OFF | Global `Promise.prototype.then` wrapping breaks page timing; opt-in via `enabled=True`, warns when active |
+| Crawling / search-engine / site mapping | Not restored | Gen2 implementations were broken (1-page crawl, mapper count bug) and died with that tree; extraction niche covered by `DOMToMarkdownSimplifier` |
+| OCR / vision detection | Not restored | Provider-dependent (pytesseract/cv2); Gen1 fallbacks were fabricated detections |
+| Webhooks / MCP integrations | Not restored | MCP tools were broken in Gen2; webhook POSTing requires network paths the suite cannot verify honestly |
 
 ## Failure Behavior
 
@@ -173,21 +241,24 @@ These are honest non-implementations; APIs are preserved for future work:
 - Persistence errors and storage-state failures surface to the caller (vault protects
   against silent data loss; corrupted heal-memory files are quarantined, not discarded silently).
 - All logging goes through the module's child loggers; the **root logger is never mutated**.
-  Logging is opt-in via `configure_framework_logging()`.
+  Logging is opt-in via `configure_framework_logging()`. Cascade scan skips are
+  debug-logged, never silent.
 
 ## Security Boundaries
 
 - Credential sanitization in log formatting (`SanitizedLogFormatter`).
 - No secrets, captured traffic, or decrypted payloads are ever synthesized.
+- Generated identifiers are visibly synthetic (`sim-tx-…`) or documented as such.
 - Browser automation requires caller-supplied handles; the framework cannot spawn
   uncontrolled agents (bounded verbs, explicit capabilities).
-- Persistent artifacts: NDJSON output path and optional heal-memory JSON path — both caller-chosen.
+- Persistent artifacts: NDJSON output path, optional heal-memory JSON path and optional
+  observability DB path — all caller-chosen.
 
 ## Testing
 
 ```bash
 python -m pytest tests -q
-# 199 passed
+# 334 passed
 ```
 
 Suites:
@@ -199,32 +270,46 @@ Suites:
 - `tests/test_phase5_ux.py` — facade construction, run/solve/collect, browser attachment
 - `tests/test_phase8_packaging.py` — release metadata validity + clean-interpreter import
   surface (shim re-export identity, no root-logger mutation, dependency honesty)
+- `tests/test_phase9_writeback.py` — verified lower-tier write-back contract
+- `tests/test_phase10_resilience.py` — retry/backoff/jitter/classification/timeouts/
+  cancellation/breaker FSM/facade wiring
+- `tests/test_phase11_ux_orchestration.py` — navigate verb, humanized typing,
+  session context manager, end-to-end workflow proofs
+- `tests/test_phase12_reconciliation.py` — SQLite sink, reconciliation decision pins
+- `tests/test_audit_regressions.py` — A1/A2/A3 audit fixes
+- `tests/test_phase13_honesty_audit.py` — visibly-synthetic identifiers, auditable
+  skips, simulator-convenience pins, classification guards
+- `tests/test_phase14_packaging.py` — real wheel build + contents + metadata
 - `tests/fakes.py` — shared Playwright test doubles (no network, fully deterministic)
 
 ## Limitations
 
 - Single-module implementation by design; distributed via `pyproject.toml`
-  (`behavioral-playwright`) with a thin `behavioral_playwright` import surface.
-  Wheel-build verification was blocked in the audit environment (setuptools/wheel absent);
-  metadata is tomllib-validated and the import surface is subprocess-tested.
-- Platform status: **Windows verified**; Linux/macOS unverified (pure-Python, but unexercised).
+  (`behavioral-playwright` 1.1.0). Wheel build verified locally (setuptools 84 /
+  wheel 0.48): payload = module + shim only; fresh-venv install + import identity checked.
+- Platform status: **Windows verified**; Linux/macOS exercised only via the CI matrix
+  definition (no live runner runs observed from this environment).
 - iXBRL support is header/narrative-section detection, not full fact extraction.
 - Entity resolution covers a curated list only.
 - Balance-sheet parsing, Form 4 XML parsing, OLE2 stream extraction, DEFLATE inflation,
   Pyarmor unpacking, Protobuf decoding and real WebRTC masking remain unimplemented (see table above).
-- Lower-tier heal write-back: only PRIMARY-tier resolutions persist to heal memory;
-  lower tiers return raw element handles (stable-selector extraction pending).
+- Resilience primitives protect only explicitly wired read paths; arbitrary user actions
+  passed to `run()` are never auto-retried (retrying non-idempotent actions is unsafe).
+- All self-healing/resilience verification uses deterministic fakes; no live-browser E2E.
 
 ## Development History
 
 - Phase 1: engineering audit of legacy patch stack (patches 1–28).
-- Phase 2: correctness hardening — removal of all fake-success paths (fabricated HTTP
-  responses, decrypted payloads, unpacked bytecode, WebRTC spoofing defaults), root-logger
-  isolation, sentinel/throughput gates, PiT row-consistency, baseline-window anomaly scoring,
-  origin-anchored synthetic series generation.
-- Phase 3: real implementations with explicit unavailability semantics where genuine work
-  remains (OLE2, Pyarmor, Protobuf decode).
+- Phase 2: correctness hardening — removal of all fake-success paths.
+- Phase 3: real implementations with explicit unavailability semantics.
 - Phase 4: self-healing cascade integration + persistent heal memory.
-- Phase 5: `BehavioralPlaywright` orchestration facade (plan→execute→heal→verify→persist).
-- Phase 6: full regression suite green (185 tests).
-- Phase 7: this document.
+- Phase 5: `BehavioralPlaywright` orchestration facade.
+- Phase 6–7: full regression suite green; documentation.
+- Phase 8: packaging metadata + import shim (199 tests).
+- Phase 9: verified lower-tier self-healing write-back (230 tests).
+- Phase 10: resilience subsystem — retry/backoff/jitter/classification/breaker (273 tests).
+- Phase 11: navigate verb, humanized typing, session context manager (300 tests).
+- Phase 12: capability reconciliation + SQLite observability sink (313 tests).
+- Phase 13: honesty audit — visibly-synthetic ids, auditable skips (323 tests).
+- Phase 14: wheel build verified, version 1.1.0 (334 tests).
+- Phase 15: CI workflow (py3.9–3.12 × ubuntu/windows, wheel job).

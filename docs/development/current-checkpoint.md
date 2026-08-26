@@ -7,7 +7,78 @@
 
 ---
 
-## 0. LATEST CHECKPOINT — PHASE 9 COMPLETE (supersedes everything below where they conflict)
+## 0-NEW. LATEST CHECKPOINT — PHASES 10–16 COMPLETE (supersedes §0 and everything below where they conflict)
+
+```
+CURRENT VERIFIED TEST COUNT:   334  (python -m pytest tests -q => 334 passed /
+                               0 failed / 0 skipped / 0 errors)
+PREVIOUS VERIFIED TEST COUNT:  230
+IMPLEMENTED + COMMITTED (local commits on main, all suite-green):
+   PHASE 10  feat(resilience): RetryPolicy (bounded attempts, exp backoff +
+             jitter, transient/permanent classification incl.
+             NonRetryableError, per-attempt timeout, cancellation safety,
+             injectable sleep/clock/rng, observability events) +
+             CircuitBreaker (CLOSED/OPEN/HALF_OPEN FSM, monotonic clock).
+             Facade wiring: retry_policy=/circuit_breaker= params protect
+             ONLY the read-only solve path; collect() writes never protected
+             (pinned by test). Commit be6a6d3. 43 new tests.
+   PHASE 11  feat(ux): navigate() verb (loud URL validation,
+             NavigationLoopError loop guard via completed-navigation ring
+             buffer, honest {url,status,ok} dicts, resilience-protected),
+             BiomechanicalInteractionEngine.type_like_human() (gaussian key
+             pacing + hesitations, deterministic), async session context
+             manager (__aenter__/__aexit__, never masks body failures).
+             Fakes extended (goto/keyboard/response). 27 new tests.
+   PHASE 12  feat(observability): ObservabilitySQLiteSink (stdlib sqlite3;
+             durable event journal for resilience hooks; loud validation;
+             idempotent close). Reconciliation pins: restored surfaces,
+             preserved self-healing stack, Gen1/Gen2 mock-theater guarded
+             against reintroduction, quarantines still honest. 13 tests.
+   PHASE 13  fix(honesty): generated tx_hash now VISIBLY synthetic
+             ('sim-tx-' + 64 hex; caller hashes untouched); L1-L4 cascade
+             scan skips debug-logged (were silent). Simulator conveniences
+             pinned (bounded event_time fallback; epoch 0.0 honored;
+             composite_figi deterministic+synthetic-labeled). 10 tests.
+   PHASE 14  chore(package): REAL wheel build verified (pip wheel; payload
+             exactly module+shim; metadata matches pyproject; fresh-venv
+             install + dual import-path identity confirmed manually).
+             Version bumped 1.0.0 -> 1.1.0; *.whl ignored. 11 tests.
+   PHASE 15  ci: .github/workflows/ci.yml — py3.9-3.12 x ubuntu/windows,
+             core-deps-only install (providers stay optional), clean-import
+             check, full suite, plus wheel-build job with fresh-venv import
+             identity. Metadata tests fall back to tomli on <3.11.
+   PHASE 16  docs: README synchronized (resilience/observability/navigate/
+             session sections, phase table 10-15, capability table rows for
+             not-restored crawling/search/mapping/OCR/webhooks-MCP,
+             limitations updated — wheel limitation CLOSED), this file.
+
+CURRENT BRANCH:                main
+HEAD AFTER PHASE 16 DOCS:      see git log --oneline -8 (docs commit follows
+                               the six commits listed above, after be6a6d3)
+REMOTE MODIFIED:               NO
+PUSH PERFORMED:                NO
+CURRENT WORKING TREE:          clean after the Phase 16 docs commit
+SAFE RESUME POINT:             POST-PHASE-16
+NEXT WORK:                     Phases 17-22 are final audits only (no new
+                               features queued). If audits surface concrete
+                               defects: fix + regression test + local commit.
+```
+
+### Notes (verified against source + tests)
+
+- Resilience safety contract is enforced by tests: an OPEN breaker cannot gate
+  collect(); solve() never retries a None (definitive negative); malformed
+  navigate URLs burn zero retry attempts.
+- Wheel verification closes the long-standing Phase 8 limitation (setuptools
+  84.0 / wheel 0.48 present this session; fresh venv pulled pydantic 2.13.4
+  from PyPI and both import paths resolved identically, 53 public names).
+- tx_hash format change deliberately altered one pinned expectation in
+  tests/test_phase2_hardening.py (renamed test asserts 'sim-tx-' pattern) --
+  documented honesty decision, not a weakened assertion.
+
+---
+
+## 0. PRIOR CHECKPOINT — PHASE 9 COMPLETE (historical)
 
 ```
 CURRENT VERIFIED TEST COUNT:   230  (python -m pytest tests -q => 230 passed /
