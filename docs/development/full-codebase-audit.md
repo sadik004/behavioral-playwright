@@ -262,8 +262,9 @@ PUSH PERFORMED: NO
 ## 13. ADDENDUM — PHASES 10–16 RECONCILIATION RESULTS (2026-08-26)
 
 This addendum records the outcome of the Phase 12 historical-capability
-reconciliation executed after the audit above. Suite at time of writing:
-**334 passed / 0 failed / 0 skipped / 0 errors**.
+reconciliation executed after the audit above. Suite when authored (post
+Phase 16): 334 passed. Final matrix after Phases 17–19:
+**345 passed / 0 failed / 0 skipped / 0 errors**.
 
 ### Reconciliation decisions (historical capability → disposition)
 

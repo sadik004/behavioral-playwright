@@ -7,10 +7,10 @@
 
 ---
 
-## 0-NEW. LATEST CHECKPOINT — PHASES 10–16 COMPLETE (supersedes §0 and everything below where they conflict)
+## 0-NEW. LATEST CHECKPOINT — PHASES 10–19 COMPLETE, RELEASE AUDIT DONE (supersedes §0 and everything below where they conflict)
 
 ```
-CURRENT VERIFIED TEST COUNT:   334  (python -m pytest tests -q => 334 passed /
+CURRENT VERIFIED TEST COUNT:   345  (python -m pytest tests -q => 345 passed /
                                0 failed / 0 skipped / 0 errors)
 PREVIOUS VERIFIED TEST COUNT:  230
 IMPLEMENTED + COMMITTED (local commits on main, all suite-green):
@@ -53,15 +53,17 @@ IMPLEMENTED + COMMITTED (local commits on main, all suite-green):
              limitations updated — wheel limitation CLOSED), this file.
 
 CURRENT BRANCH:                main
-HEAD AFTER PHASE 16 DOCS:      see git log --oneline -8 (docs commit follows
-                               the six commits listed above, after be6a6d3)
+HEAD:                          see git log --oneline -10; local commits after
+                               be6a6d3 (phase 10) through the final release-audit
+                               docs commit cover phases 11-21.
 REMOTE MODIFIED:               NO
 PUSH PERFORMED:                NO
-CURRENT WORKING TREE:          clean after the Phase 16 docs commit
-SAFE RESUME POINT:             POST-PHASE-16
-NEXT WORK:                     Phases 17-22 are final audits only (no new
-                               features queued). If audits surface concrete
-                               defects: fix + regression test + local commit.
+CURRENT WORKING TREE:          clean after the final documentation commit
+SAFE RESUME POINT:             POST-PHASE-19 / FINAL RELEASE AUDIT DELIVERED
+NEXT WORK:                     Phases 17-19 final audits complete (dead import
+                               removed; self-healing lifecycle pinned incl.
+                               documented absolute-C7 trade-off; full matrix
+                               green). No queued feature work.
 ```
 
 ### Notes (verified against source + tests)

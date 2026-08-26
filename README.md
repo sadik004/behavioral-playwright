@@ -12,9 +12,10 @@ and no fabricated decrypted payloads. Generated identifiers are **visibly synthe
 
 ## Status
 
-Phases 1–9 were complete and verified; Phases 10–15 completed 2026-08-26
+Phases 1–9 were complete and verified; Phases 10–19 completed 2026-08-26
 (resilience, UX consolidation, capability reconciliation, honesty audit,
-wheel verification, CI). Current suite: **334 passed / 0 failed / 0 skipped**.
+wheel verification, CI, final architecture/self-healing/test-matrix audits).
+Current suite: **345 passed / 0 failed / 0 skipped / 0 errors**.
 
 | Phase | Scope | State |
 |-------|-------|-------|
@@ -33,6 +34,10 @@ wheel verification, CI). Current suite: **334 passed / 0 failed / 0 skipped**.
 | 13 | Real-implementation/honesty audit (visibly-synthetic ids, auditable skips) | Complete (323 tests) |
 | 14 | Package hardening: real wheel build verified, version 1.1.0 | Complete (334 tests) |
 | 15 | CI workflow (py3.9–3.12 × ubuntu/windows + wheel job) | Complete |
+| 16 | Documentation synchronization | Complete |
+| 17 | Final architecture audit | Complete (one dead import removed; no other defects) |
+| 18 | Final self-healing lifecycle audit | Complete (345 tests) |
+| 19 | Final test matrix | 345 passed / 0 failed / 0 skipped / 0 errors |
 
 ## Installation & Dependencies
 
@@ -258,7 +263,7 @@ These are honest non-implementations; APIs are preserved for future work:
 
 ```bash
 python -m pytest tests -q
-# 334 passed
+# 345 passed
 ```
 
 Suites:
@@ -280,6 +285,8 @@ Suites:
 - `tests/test_phase13_honesty_audit.py` — visibly-synthetic identifiers, auditable
   skips, simulator-convenience pins, classification guards
 - `tests/test_phase14_packaging.py` — real wheel build + contents + metadata
+- `tests/test_phase18_healing_lifecycle.py` — full healing lifecycle across
+  instances and disk (recovery → cheap memory reuse → staleness → quarantine)
 - `tests/fakes.py` — shared Playwright test doubles (no network, fully deterministic)
 
 ## Limitations
@@ -313,3 +320,7 @@ Suites:
 - Phase 13: honesty audit — visibly-synthetic ids, auditable skips (323 tests).
 - Phase 14: wheel build verified, version 1.1.0 (334 tests).
 - Phase 15: CI workflow (py3.9–3.12 × ubuntu/windows, wheel job).
+- Phase 16: documentation synchronization.
+- Phase 17: final architecture audit (dead-import removal only).
+- Phase 18: final self-healing lifecycle audit; absolute-C7 trade-off documented (345 tests).
+- Phase 19: final test matrix — 345 passed / 0 failed / 0 skipped / 0 errors.
