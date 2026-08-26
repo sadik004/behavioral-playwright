@@ -7,7 +7,10 @@ import ast
 import os
 import subprocess
 import sys
-import tomllib
+try:
+    import tomllib  # Python >= 3.11
+except ModuleNotFoundError:  # pragma: no cover - exercised only on 3.9/3.10 CI
+    import tomli as tomllib  # type: ignore[no-redef]
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PYPROJECT = os.path.join(ROOT, "pyproject.toml")

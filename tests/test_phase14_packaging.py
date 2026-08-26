@@ -6,11 +6,15 @@ limitation is closed. Build tooling is required; failures are honest.
 """
 import subprocess
 import sys
-import tomllib
 import zipfile
 from pathlib import Path
 
 import pytest
+
+try:
+    import tomllib  # Python >= 3.11
+except ModuleNotFoundError:  # pragma: no cover - exercised only on 3.9/3.10 CI
+    import tomli as tomllib  # type: ignore[no-redef]
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_NAME = "behavioral_evasion_ten_patches_hardened_v15"
