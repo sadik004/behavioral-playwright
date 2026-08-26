@@ -22,8 +22,11 @@ class FakeElement:
         title: str = "",
         tag: str = "button",
         box: Optional[Dict[str, float]] = None,
+        attrs: Optional[Dict[str, str]] = None,
     ) -> None:
         self._attrs = {"id": id, "class": cls, "aria-label": aria_label, "title": title}
+        if attrs:
+            self._attrs.update(attrs)
         self._text = text
         self._tag = tag
         self._box = box
@@ -79,8 +82,10 @@ class FakePage:
         self.down_up = 0
         self.closed = False
         self.mouse = FakeMouse(self)
+        self.wait_calls: List[str] = []
 
     async def wait_for_selector(self, selector: str, timeout: Optional[int] = None):
+        self.wait_calls.append(selector)
         if selector in self.wait_results:
             el = self.wait_results[selector]
             if el is _RAISE:

@@ -7,10 +7,83 @@
 
 ---
 
-## 0. LATEST CHECKPOINT — POST-AUDIT VERIFICATION (supersedes everything below where they conflict)
+## 0. LATEST CHECKPOINT — PHASE 9 COMPLETE (supersedes everything below where they conflict)
 
 ```
-CURRENT VERIFIED TEST COUNT:   209  (python -m pytest tests -q => 209 passed /
+CURRENT VERIFIED TEST COUNT:   230  (python -m pytest tests -q => 230 passed /
+                               0 failed / 0 skipped / 0 errors)
+PREVIOUS VERIFIED TEST COUNT:  209
+NEW REGRESSION SUITE:          tests/test_phase9_writeback.py (21 tests --
+                               verified lower-tier self-healing write-back;
+                               21/21 passed in ~1.4 s)
+IMPLEMENTED (verified in source + tests):
+   PHASE 9 lower-tier self-healing write-back:
+     * successful L1/L2/L3 recoveries now feed SelectorHealMemory, but ONLY
+       through the seven-condition verified write-back contract
+       (SelfHealingSelectorEngine._try_verified_write_back):
+       C1 real element handle / C2 confidence >= threshold /
+       C3 verifiable element (expected_content honored) /
+       C4 stable selector extractable / C5 selector non-empty /
+       C6 no transient/generated value / C7 no downgrade of a stronger entry.
+     * stable-selector extraction (_extract_stable_selector): #stable-id ->
+       [data-testid] family -> [aria-label] -> [name] -> [title]; runtime-
+       generated id shapes refused (_is_generated_id); classes, positional
+       and bare-tag selectors NEVER used; "" => no write-back, nothing
+       invented.
+     * derived selectors must RE-RESOLVE on the current page back to the
+       recovered element before anything is stored.
+     * L4 heuristic tier deliberately NEVER writes back.
+     * every refusal is logged with its concrete reason; recovery results
+       are always preserved; persistence stays on the existing save()/close()
+       path (honest False on failure, no fake success).
+     * engine exposes last_writeback (dict on success, None otherwise).
+
+CURRENT BRANCH:                main
+PARENT COMMIT:                 d2e0a8d ("test(audit): harden heal memory and
+                               preserve verified checkpoint")
+PHASE 9 COMMIT:                local commit created AFTER the green 230-test
+                               run, message exactly:
+                               "feat(self-healing): add verified lower-tier
+                               selector write-back"
+REMOTE MODIFIED:               NO
+PUSH PERFORMED:                NO
+CURRENT WORKING TREE:          clean after the Phase 9 commit
+SAFE RESUME POINT:             POST-PHASE-9
+NEXT WORK:                     DO NOT START PHASE 10. Remaining scoped work
+                               (queued, NOT started):
+   1. retry/backoff primitives
+   2. wheel-build verification
+   3. simulator-default tx_hash decision
+   4. quarantined capability decisions
+   5. CI workflow
+```
+
+### Phase 9 notes (verified against source + tests)
+
+- **Self-healing loop**: first solve PRIMARY-fails -> L2 recovers at 0.90 ->
+  verify -> extract stable selector -> re-validate on-page -> persist; second
+  solve hits MEMORY -> A1 confidence gate -> A2 expected_content check ->
+  direct resolution with a single cheap probe (asserted: exactly one
+  `wait_for_selector` call, cascade impossible). Expensive recovery once,
+  cheap reuse afterwards.
+- **Memory safety**: capacity/eviction/stale/corrupt-quarantine/atomic-persist
+  semantics untouched; strictly-stronger entries are never overwritten
+  (PRIMARY @1.0 beats any lower-tier confidence); equal-strength refresh is
+  allowed (S2-style refresh of a stale truth).
+- **Limitations (honest)**: stability heuristics are conservative by design
+  (a genuinely-stable id like `row-100` is refused rather than risked);
+  attribute-value selectors are validated for re-resolution consistency, not
+  global DOM uniqueness; long-term stability across page redesigns cannot be
+  proven at write time -- stale entries are handled by the existing S2/A2
+  recovery paths; all verification is fake-based (no live browser), consistent
+  with the entire suite.
+
+---
+
+## 0b. PRIOR CHECKPOINT — POST-AUDIT VERIFICATION (historical)
+
+```
+VERIFIED TEST COUNT:           209  (python -m pytest tests -q => 209 passed /
                                0 failed / 0 skipped / 0 errors in 15.52 s)
 PREVIOUS VERIFIED TEST COUNT:  199
 NEW REGRESSION SUITE:          tests/test_audit_regressions.py (10 tests:
@@ -116,6 +189,7 @@ curl_cffi ABSENT, frida ABSENT.
 | Phase 6 | Full test suite green | 🟢 VERIFIED COMPLETE | Re-ran entire suite this session: **185 passed, 0 failed, 0 skipped, 0 errors in 6.12s** (`python -m pytest tests -q`). Collection check: 141 + 27 + 17 = 185. |
 | Phase 7 | Documentation | 🟢 VERIFIED COMPLETE | `README.md` present and spot-checked against source: class inventory, facade verbs, heal-memory semantics, and unavailable-capability table all match actual code. |
 | Phase 8 | Final release audit | 🟢 VERIFIED COMPLETE (2026-08-26) | Added `pyproject.toml` (behavioral-playwright 1.0.0, `pydantic>=2`, honest extras pandas/numpy/tls/frida) + thin `behavioral_playwright/__init__.py` re-export surface + `tests/test_phase8_packaging.py` (14 tests). Full suite now **199 passed / 0 failed / 0 skipped**. Wheel build unverifiable locally (setuptools/wheel absent, git absent). README drift fixed (tier labels L1–L4, quarantine table +2 rows, install/limitations, counts). |
+| Phase 9 | Lower-tier self-healing write-back | 🟢 VERIFIED COMPLETE (2026-08-26) | `tests/test_phase9_writeback.py`: **21/21 passed**; full suite **230/230**. Source-verified: `_try_verified_write_back` + `_extract_stable_selector` + `_is_generated_id` + `_selector_resolves_to_recovered_element` in `SelfHealingSelectorEngine`; L1/L2/L3 hooks in `resolve_element`; additive `SelectorHealMemory.entry()` accessor. L4 excluded by design. |
 
 No phase is currently 🔴 BLOCKED and none is 🟡 PARTIAL.
 
@@ -263,9 +337,15 @@ falls through to full cascade and entry refreshed on success.
 uses and fills memory — end-to-end disk persistence tested across instances).
 Power users can reach `bp.heal_memory` / `bp.selector_engine` directly.
 
-**Documented limitation (not hidden)**: only PRIMARY-tier successes are written
-back automatically; lower tiers return raw element handles because stable
-selector extraction from them is not yet implemented.
+**PHASE 9 UPDATE — lower-tier write-back now implemented (not hidden)**:
+successful L1/L2/L3 recoveries are written back through the verified
+seven-condition contract (`_try_verified_write_back`): real handle, confidence
+>= threshold, verifiable element, provably-stable non-empty selector that
+re-resolves on-page, never downgrading a stronger entry. Stable-selector order:
+stable `#id` -> `[data-testid]` family -> `[aria-label]` -> `[name]` ->
+`[title]`; generated-id shapes (Ember/React-useId/UUID/hex/auto-increment) and
+classes/positional/bare-tag selectors are refused; L4 NEVER writes back.
+Covered by `tests/test_phase9_writeback.py` (21 tests).
 
 ---
 
@@ -335,7 +415,7 @@ Compile/import checks performed:
 
 1. **No version control.** The directory is not a git repo and git is not installed. All work is unversioned — highest-priority structural risk. This checkpoint is the only recovery record.
 2. **Tier-label drift between docs and code.** README labels the cascade tiers as "L2 Levenshtein / L3 semantic / L4 spatial", while the code docstring (lines 1108–1115) uses "L1 Levenshtein / L2 aria / L3 spatial / L4 first-button". Semantics identical; naming inconsistent. Documentation-only issue.
-3. **Lower-tier heal write-back unimplemented.** Non-PRIMARY resolutions return raw element handles; stable-selector extraction needed before they can be persisted to heal memory (documented in code, not faked).
+3. **Lower-tier heal write-back — RESOLVED in Phase 9.** L1/L2/L3 recoveries now persist verified stable selectors (seven-condition contract; 21 regression tests). Residual honest limits: conservative stability heuristics may refuse some genuinely-stable ids; attribute selectors are re-resolution-validated but not proven globally unique.
 4. **Environment gaps make two capabilities unverifiable here.** curl_cffi and frida are absent; TLS/JA4 spoofing and native hooking cannot be exercised on this machine (honest degradation paths verified instead).
 5. **No packaging/distribution** (Phase 8 not started): no pyproject/setup metadata; single-module distribution by design so far.
 6. **Windows-only exercise.** POSIX paths accepted but never exercised; no CI exists.

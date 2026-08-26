@@ -1012,6 +1012,16 @@ class SelectorHealMemory:
         entry = self._entries.get(name)
         return entry["selector"] if entry else None
 
+    def entry(self, name: str) -> Optional[Dict[str, Any]]:
+        """
+        PHASE 9: returns a COPY of the full memory entry for ``name``
+        (selector + tier + confidence + updated) or None when unknown.
+        Lets the write-back path inspect entry strength without touching
+        private state.
+        """
+        stored = self._entries.get(name)
+        return dict(stored) if stored else None
+
     def forget(self, name: str) -> bool:
         """Drops a single memory entry. Returns True when something was removed."""
         return self._entries.pop(name, None) is not None
@@ -1133,6 +1143,10 @@ class SelfHealingSelectorEngine:
         self.confidence_threshold = confidence_threshold
         self.last_match_tier: Optional[str] = None
         self.last_match_confidence: Optional[float] = None
+        # PHASE 9: outcome of the most recent lower-tier write-back attempt
+        # (dict with logical_name/selector/tier/confidence on success, None
+        # otherwise). Reset at the start of every resolve_element call.
+        self.last_writeback: Optional[Dict[str, Any]] = None
 
     def _levenshtein_distance(self, s1: str, s2: str) -> int:
         if len(s1) < len(s2):
@@ -1158,6 +1172,279 @@ class SelfHealingSelectorEngine:
             return 0.0
         return 1.0 - (self._levenshtein_distance(target_clean, candidate_clean) / denominator)
 
+    # =================================================================
+    # PHASE 9: VERIFIED LOWER-TIER SELF-HEALING WRITE-BACK
+    # =================================================================
+    # A successful L1/L2/L3 recovery may feed SelectorHealMemory ONLY when
+    # the full seven-condition safety contract holds (see
+    # _try_verified_write_back). Any failed condition => NO write-back,
+    # while the recovery result itself is preserved. Nothing is invented.
+    #
+    # Stable-selector preference order:
+    #   1. stable id                       (#checkout-btn)
+    #   2. unique test-id attributes       ([data-testid="..."] family)
+    #   3. stable aria attributes          ([aria-label="..."])
+    #   4. stable semantic attributes      ([name="..."], then [title="..."])
+    #
+    # Deliberately NEVER used for write-back: random/generated or runtime ids
+    # (Ember/React-useId/UUID/hex-blob/auto-increment shapes), transient
+    # classes, positional/nth selectors, bare tags, page-specific ephemeral
+    # values. If nothing provably stable exists, no selector is stored.
+    _STABLE_ID_CHARSET_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
+    _UNSTABLE_ID_PATTERNS = (
+        re.compile(r"^ember\d+$", re.IGNORECASE),                      # Ember runtime ids
+        re.compile(r"^[0-9a-fA-F]{16,}$"),                             # opaque hex blobs
+        re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}"),   # UUID fragments
+        re.compile(r"\d{6,}$"),                                        # long numeric tails
+    )
+    _TEST_ID_ATTRIBUTES = ("data-testid", "data-test-id", "data-test", "data-qa", "data-cy")
+
+    @classmethod
+    def _is_generated_id(cls, value: str) -> bool:
+        """
+        Conservative instability detector for ``id`` attributes (contract C6).
+
+        Deliberately asymmetric: refusing a genuinely-stable id only costs one
+        write-back opportunity, while persisting a runtime-generated id would
+        poison every future resolution -- so anything that LOOKS generated is
+        treated as unstable:
+
+          * React useId-style runtime ids -> ``:r5:`` (fails the charset rule)
+          * Ember runtime ids             -> ``ember123``
+          * UUID fragments                -> ``a1b2c3d4-e5f6-...``
+          * opaque hex tokens             -> 16+ hex chars
+          * auto-increment suffixes       -> ``btn-submit-1234`` (>= 3 trailing
+            digits after a separator; the canonical dynamic-selector example),
+            ``widget_987654`` (long numeric tails)
+        """
+        candidate = (value or "").strip()
+        if not cls._STABLE_ID_CHARSET_RE.match(candidate):
+            return True
+        if any(pattern.search(candidate) for pattern in cls._UNSTABLE_ID_PATTERNS):
+            return True
+        return bool(re.search(r"(?:^|[-_])\d{3,}$", candidate))
+
+    @staticmethod
+    def _css_attribute_value(value: Any) -> Optional[str]:
+        """Sanitizes an attribute value for safe CSS embedding; None = unusable."""
+        if not isinstance(value, str):
+            return None
+        stripped = value.strip()
+        if not stripped or "\n" in stripped or "\r" in stripped or "\x00" in stripped:
+            return None
+        return stripped.replace("\\", "\\\\").replace('"', '\\"')
+
+    async def _extract_stable_selector(self, element: Any) -> str:
+        """
+        PHASE 9: extracts a provably-stable selector from a recovered element.
+
+        Returns "" when nothing sufficiently stable exists -- callers must
+        then skip write-back entirely (no invented, positional, class-based,
+        or otherwise unprovable selector is ever produced).
+        """
+        if element is None or not hasattr(element, "get_attribute"):
+            return ""
+
+        try:
+            raw_id = await element.get_attribute("id")
+        except Exception:
+            raw_id = None
+        if isinstance(raw_id, str):
+            candidate_id = raw_id.strip()
+            if candidate_id and not self._is_generated_id(candidate_id):
+                return "#" + candidate_id
+
+        async def css_attr_value(name: str) -> Optional[str]:
+            try:
+                raw = await element.get_attribute(name)
+            except Exception:
+                return None
+            return self._css_attribute_value(raw)
+
+        async def tag_prefix() -> str:
+            try:
+                raw_tag = await element.evaluate("el => el.tagName")
+            except Exception:
+                return ""
+            return raw_tag.lower() if isinstance(raw_tag, str) else ""
+
+        tag = await tag_prefix()
+
+        def qualified(attr_selector: str) -> str:
+            return f"{tag}{attr_selector}" if tag else attr_selector
+
+        for attr_name in self._TEST_ID_ATTRIBUTES:
+            value = await css_attr_value(attr_name)
+            if value:
+                return qualified(f'[{attr_name}="{value}"]')
+
+        aria_label = await css_attr_value("aria-label")
+        if aria_label:
+            return qualified(f'[aria-label="{aria_label}"]')
+
+        name_attr = await css_attr_value("name")
+        if name_attr:
+            return qualified(f'[name="{name_attr}"]')
+
+        title_attr = await css_attr_value("title")
+        if title_attr:
+            return qualified(f'[title="{title_attr}"]')
+
+        return ""
+
+    async def _selector_resolves_to_recovered_element(
+        self, page: Any, selector: str, element: Any
+    ) -> bool:
+        """
+        PHASE 9 selector validation: the derived selector must actually
+        re-resolve on the CURRENT page, and what it resolves to must be
+        consistent with the recovered element (identical handle object, or --
+        because real Playwright hands out a fresh JSHandle per query --
+        identical non-empty visible text).
+        """
+        if page is None or not hasattr(page, "wait_for_selector"):
+            return False
+        try:
+            resolved = await page.wait_for_selector(selector, timeout=1500)
+        except Exception:
+            return False
+        if resolved is None:
+            return False
+        if resolved is element:
+            return True
+
+        async def visible_text(node: Any) -> Optional[str]:
+            try:
+                return ((await node.inner_text()) or "").strip()
+            except Exception:
+                return None
+
+        old_text = await visible_text(element)
+        new_text = await visible_text(resolved)
+        return bool(old_text) and new_text == old_text
+
+    async def _try_verified_write_back(
+        self,
+        *,
+        page: Any,
+        element: Any,
+        tier: str,
+        confidence: Optional[float],
+        logical_name: Optional[str],
+        heal_memory: Optional["SelectorHealMemory"],
+        expected_content: Optional[str] = None,
+    ) -> None:
+        """
+        PHASE 9: attempts a VERIFIED lower-tier write-back into heal memory.
+
+        Seven-condition safety contract -- ALL must hold before anything is
+        written; every refusal is logged with its concrete reason and leaves
+        memory untouched (failure honesty). A write-back problem NEVER degrades
+        an otherwise-successful recovery, so this raises nothing.
+
+          C1  a real element handle was recovered;
+          C2  the recovery confidence meets confidence_threshold;
+          C3  the element can be verified (when expected_content is supplied,
+              it must be shown via text/aria/title);
+          C4  a stable selector can be extracted;
+          C5  the selector is non-empty;
+          C6  extraction relies on no transient/generated value
+              (_is_generated_id + attribute-only sources enforce this);
+          C7  storing would not overwrite a strictly stronger existing entry.
+        """
+        self.last_writeback = None
+        name = (logical_name or "").strip()
+        if heal_memory is None or not name:
+            return  # memory not engaged for this solve; nothing attempted
+
+        # C1: real, introspectable element handle required.
+        if element is None or not hasattr(element, "get_attribute"):
+            logger.warning(
+                "SelfHealing [%s]: write-back refused for '%s' -- no usable "
+                "element handle was recovered (C1).", tier, name,
+            )
+            return
+
+        # C2: recovery confidence must meet the configured gate (NaN-safe).
+        try:
+            conf = float(confidence) if confidence is not None else float("nan")
+        except (TypeError, ValueError):
+            conf = float("nan")
+        if not (conf >= self.confidence_threshold):
+            logger.warning(
+                "SelfHealing [%s]: write-back refused for '%s' -- recovery "
+                "confidence %r is below threshold %.2f (C2).",
+                tier, name, confidence, self.confidence_threshold,
+            )
+            return
+
+        # C7: never downgrade a stronger existing memory entry.
+        existing = heal_memory.entry(name)
+        if existing is not None:
+            try:
+                existing_conf = float(existing.get("confidence", 0.0))
+            except (TypeError, ValueError):
+                existing_conf = 0.0
+            if existing_conf > conf:
+                logger.warning(
+                    "SelfHealing [%s]: write-back refused for '%s' -- existing "
+                    "memory entry is stronger (%.2f > %.2f); never downgrading (C7).",
+                    tier, name, existing_conf, conf,
+                )
+                return
+
+        # C3: verify the recovered element actually shows the expected content.
+        if expected_content:
+            haystack_parts: List[str] = []
+            try:
+                haystack_parts.append((await element.inner_text()) or "")
+            except Exception:
+                pass
+            for attr_name in ("aria-label", "title"):
+                try:
+                    haystack_parts.append((await element.get_attribute(attr_name)) or "")
+                except Exception:
+                    continue
+            combined = " ".join(part.strip().lower() for part in haystack_parts)
+            if expected_content.lower() not in combined:
+                logger.warning(
+                    "SelfHealing [%s]: write-back refused for '%s' -- recovered "
+                    "element does not show expected content %r (C3).",
+                    tier, name, expected_content,
+                )
+                return
+
+        # C4/C5/C6: derive and validate the stable selector itself.
+        selector = await self._extract_stable_selector(element)
+        if not selector:
+            logger.warning(
+                "SelfHealing [%s]: write-back skipped for '%s' -- no provably "
+                "stable, non-empty selector exists on the recovered element "
+                "(C4/C5/C6); storing nothing rather than inventing one.",
+                tier, name,
+            )
+            return
+
+        if not await self._selector_resolves_to_recovered_element(page, selector, element):
+            logger.warning(
+                "SelfHealing [%s]: write-back refused for '%s' -- derived "
+                "selector '%s' did not re-resolve to the recovered element on "
+                "the current page.", tier, name, selector,
+            )
+            return
+
+        heal_memory.remember(name, selector, tier=tier, confidence=conf)
+        self.last_writeback = {
+            "logical_name": name,
+            "selector": selector,
+            "tier": tier,
+            "confidence": conf,
+        }
+        logger.info(
+            "SelfHealing [%s]: verified write-back -- logical element '%s' now "
+            "remembers '%s' (confidence %.2f).", tier, name, selector, conf,
+        )
+
     async def resolve_element(
         self,
         page: Any,
@@ -1175,9 +1462,16 @@ class SelfHealingSelectorEngine:
         remembered selector is tried FIRST (strategy S1). A stale remembered
         selector falls through to the normal cascade (S2) and the entry is
         refreshed on success. PRIMARY-tier successes are written back to the
-        memory automatically; lower tiers return raw element handles whose
-        stable selector extraction is not yet implemented (documented
-        limitation -- no pretending otherwise).
+        memory automatically.
+
+        PHASE 9: successful L1/L2/L3 recoveries now also feed the memory --
+        but ONLY after the full verified write-back contract holds (real
+        element handle, confidence >= threshold, verifiable element,
+        provably-stable non-empty selector that re-resolves on the current
+        page, no downgrade of a stronger existing entry). See
+        ``_try_verified_write_back``. The blind L4 heuristic tier deliberately
+        NEVER writes back; when any contract condition fails, the recovered
+        element is still returned but memory stays untouched.
 
         AUDIT FIXES A1/A2: the MEMORY fast-path is a tier like any other --
           * a remembered entry whose stored confidence is below
@@ -1189,6 +1483,7 @@ class SelfHealingSelectorEngine:
         logger.info(f"SelfHealing: Initiating cascading resolution sequence for selector '{target_selector}'.")
         self.last_match_tier = None
         self.last_match_confidence = None
+        self.last_writeback = None
 
         # ---- Phase 4: memory fast-path (S1/S2) --------------------------------
         if heal_memory is not None and logical_name:
@@ -1306,6 +1601,15 @@ class SelfHealingSelectorEngine:
             )
             self.last_match_tier = "L1"
             self.last_match_confidence = best_l1_similarity
+            await self._try_verified_write_back(
+                page=page,
+                element=best_l1_element,
+                tier="L1",
+                confidence=best_l1_similarity,
+                logical_name=logical_name,
+                heal_memory=heal_memory,
+                expected_content=expected_content,
+            )
             return best_l1_element
 
         # L2: Semantic Accessibility Tree & Role Alignment (FIX B18: gated)
@@ -1329,6 +1633,15 @@ class SelfHealingSelectorEngine:
                                 logger.info(f"SelfHealing [L2]: Found matching element through accessibility tree (Label: '{aria_label or title}').")
                                 self.last_match_tier = "L2"
                                 self.last_match_confidence = self.TIER_CONFIDENCE_L2
+                                await self._try_verified_write_back(
+                                    page=page,
+                                    element=el,
+                                    tier="L2",
+                                    confidence=self.TIER_CONFIDENCE_L2,
+                                    logical_name=logical_name,
+                                    heal_memory=heal_memory,
+                                    expected_content=expected_content,
+                                )
                                 return el
                             logger.info(
                                 f"SelfHealing [L2]: Candidate rejected -- tier confidence "
@@ -1351,6 +1664,15 @@ class SelfHealingSelectorEngine:
                                 logger.info(f"SelfHealing [L3]: Spatial bounding-box matches targets dynamically (Text: '{elem_text}').")
                                 self.last_match_tier = "L3"
                                 self.last_match_confidence = self.TIER_CONFIDENCE_L3
+                                await self._try_verified_write_back(
+                                    page=page,
+                                    element=el,
+                                    tier="L3",
+                                    confidence=self.TIER_CONFIDENCE_L3,
+                                    logical_name=logical_name,
+                                    heal_memory=heal_memory,
+                                    expected_content=expected_content,
+                                )
                                 return el
                             logger.info(
                                 f"SelfHealing [L3]: Candidate rejected -- tier confidence "
