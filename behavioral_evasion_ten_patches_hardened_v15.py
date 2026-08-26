@@ -12,7 +12,7 @@ import re
 from collections import deque
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, Any, List, Optional, Type, Callable, Tuple, Union
+from typing import Dict, Any, List, Optional, Type, Callable, Tuple
 from pydantic import BaseModel, ValidationError
 
 # =====================================================================
@@ -1533,9 +1533,8 @@ class SelfHealingSelectorEngine:
 
         PHASE 4: when ``logical_name`` and ``heal_memory`` are supplied, a
         remembered selector is tried FIRST (strategy S1). A stale remembered
-        selector falls through to the normal cascade (S2) and the entry is
-        refreshed on success. PRIMARY-tier successes are written back to the
-        memory automatically.
+        selector falls through to the normal cascade (S2). PRIMARY-tier
+        successes are written back to the memory automatically.
 
         PHASE 9: successful L1/L2/L3 recoveries now also feed the memory --
         but ONLY after the full verified write-back contract holds (real
@@ -1545,6 +1544,15 @@ class SelfHealingSelectorEngine:
         ``_try_verified_write_back``. The blind L4 heuristic tier deliberately
         NEVER writes back; when any contract condition fails, the recovered
         element is still returned but memory stays untouched.
+
+        DOCUMENTED TRADE-OFF (Phase 18 audit): contract C7 is absolute --
+        a strictly stronger stored entry (e.g. PRIMARY @ 1.0) is never
+        overwritten by a lower-tier recovery, EVEN IF its selector just went
+        stale on this page. Consequence: until a PRIMARY-resolution refreshes
+        it, each solve spends one failed probe on the dead selector before
+        cascading. This was deliberately chosen over letting lower-confidence
+        recoveries destroy higher-confidence truths, and is pinned by
+        tests/test_phase18_healing_lifecycle.py.
 
         AUDIT FIXES A1/A2: the MEMORY fast-path is a tier like any other --
           * a remembered entry whose stored confidence is below
