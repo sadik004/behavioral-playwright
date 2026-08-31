@@ -14,7 +14,7 @@ capabilities from the supplied **Hardened Evasion Suite v23**
 | `evasion_v23_documentation.md` | Supplied V23 marketing/spec document (claims audited against source) |
 | `itch_binary.py` | NEW: genuine ITCH-5.0 binary subset parser (Phase 3; isolated module) |
 | `providers/` | Optional provider-gated adapters: playwright, patchright, undetected_chromedriver, curl_cffi, browser_use, stagehand |
-| `tests/` | 48 tests: baseline protection, V23 quarantine pins, honesty hardening, ITCH binary |
+| `tests/` | 66 tests: baseline protection, V23 quarantine pins, honesty hardening, ITCH binary, provider adapters |
 | `docs/development/current-checkpoint.md` | Live capability status, quarantine register, resume point |
 | `docs/development/v23-port-audit-report.md` | Full V23 PORT AUDIT REPORT (initial audit) |
 | `docs/development/v23-reconciliation-report.md` | Phase 1–5 hardening & reconciliation report |
@@ -34,8 +34,8 @@ python -m pytest tests -q    # 66 tests: 65 passed, 0 failed, 1 skipped (opt-in 
 
 - `test_baseline_protection.py` — 13 tests protecting legacy baseline behavior.
 - `test_v23_quarantine.py` — 7 pins proving the rejected V23 theater cannot resurface.
-- `test_honesty_hardening.py` — 10 tests pinning the five Phase 2 honesty fixes.
-- `test_itch_binary.py` — 18 tests for the verified-layout ITCH-5.0 binary parser
+- `test_honesty_hardening.py` — 11 tests pinning the five Phase 2 honesty fixes.
+- `test_itch_binary.py` — 17 tests for the verified-layout ITCH-5.0 binary parser
   (golden fixtures + truncation/unknown-type/lifecycle negative tests).
 - `test_providers.py` — 18 tests: honest provider gating, deterministic-double
   adapter logic for ALL five providers, and LIVE browser integration for the
