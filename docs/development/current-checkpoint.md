@@ -114,3 +114,73 @@ degradation. Full report: `docs/development/v23-port-audit-report.md`.
 - **Tests:** 20 → **48 passed, 0 failed, 0 skipped** (no existing test weakened/deleted).
 - **Final commit:** see `git log` — `feat(release): honesty hardening + ITCH-5.0 binary
   parser (Phases 1-5)`.
+
+---
+
+## UPDATE — 2026-08-31, Phase 4 external tool integration
+
+- New `providers/` package (base / browser / network / agents / factory), fully
+  additive; the V15 core is untouched and runs with zero optional providers.
+- APIs verified from official PyPI metadata before any adapter was written
+  (patchright = drop-in Playwright API; uc.Chrome → selenium WebDriver;
+  curl_cffi.requests + impersonate; browser_use.Agent(task, llm);
+  stagehand.Stagehand.create — async).
+- **Live integration verified on this host:** Playwright AND Patchright each
+  launched real headless Chromium and completed a data:-URL navigation round trip.
+- Provider matrix and exact limitations: see README "Optional provider adapters"
+  and `tests/test_providers.py` (18 new tests).
+- **Tests: 48 → 66 collected — 65 passed, 0 failed, 1 skipped** (UC live launch is
+  opt-in via `SQ_LIVE_UC=1` because it downloads a chromedriver binary).
+- No fabricated capability: absent providers (curl_cffi, browser_use, stagehand)
+  are INTEGRATED but PROVIDER-GATED and report honest unavailable states.
+
+---
+
+## FINAL PROVIDER MATRIX — 2026-08-31 (post Phase 4 verification)
+
+Honest detection result from `providers.provider_matrix()` on this host
+(`E:\SQ`, Windows, the same interpreter pytest is using). No claims of
+"verified" without a meaningful test; no fabrication.
+
+| Provider | Available | Integrated | Tested | Optional Dependency | Status |
+| --- | --- | --- | --- | --- | --- |
+| **Patchright**             | ✔ v1.59.1 | ✔ real `patchright.sync_api.sync_playwright().start()` wired | ✔ LIVE (headless Chromium, data: URL navigation) + adapter doubles | `patchright` | **INTEGRATED / VERIFIED-LIVE** |
+| **Undetected-Chromedriver** | ✔ v3.5.5  | ✔ real `undetected_chromedriver.Chrome(headless=, use_subprocess=True)` wired | ✔ adapter doubles + live opt-in via `SQ_LIVE_UC=1` (skipped by default — downloads chromedriver binary) | `undetected-chromedriver` | **INTEGRATED / PROVIDER-GATED-LIVE** |
+| **curl-cffi**               | ✘          | ✔ real `curl_cffi.requests.<method>(url, impersonate=...)` wired | ✔ adapter doubles + absence raises `ProviderUnavailableError` | `curl-cffi` | **INTEGRATED / PROVIDER-GATED** |
+| **Browser-Use**             | ✘          | ✔ real `browser_use.Agent(task=..., llm=...).run()` wired | ✔ adapter doubles + absence raises `ProviderUnavailableError` (LLM mandatory — adapter never fabricates one) | `browser-use` (+ LLM instance) | **INTEGRATED / PROVIDER-GATED** |
+| **Stagehand**               | ✘          | ✔ real async `stagehand.Stagehand.create(browser=, model=, model_api_key=)` wired | ✔ adapter doubles + absence raises `ProviderUnavailableError` (model + model_api_key mandatory — adapter never fabricates them) | `stagehand` (+ model API key) | **INTEGRATED / PROVIDER-GATED** |
+
+**Definitions (per the Phase 4 mandate):**
+- *Available* — backing module actually importable in the selected interpreter.
+- *Integrated* — real API call wired in code, not a stub.
+- *Tested* — meaningful behavior verified (deterministic double for absent
+  providers; live integration for installed ones).
+- *VERIFIED-LIVE* — a real headless Chromium was launched by this provider
+  in this repo's test suite and navigated to a data: URL successfully.
+- *PROVIDER-GATED* — the adapter is wired but unavailable on this host;
+  every call raises `ProviderUnavailableError` with the exact install hint.
+  No fallback, no synthetic response, no fake session object.
+
+**Architecture preserved (V15 core untouched):**
+- `behavioral_evasion_ten_patches_hardened_v15.py` — unchanged.
+- `itch_binary.py` (Phase 3) — unchanged.
+- The V15 facade remains the authoritative entry point; `providers/` is an
+  optional, additive layer selected via
+  `create_browser_provider("patchright" | "playwright" | "undetected_chromedriver")`,
+  `create_network_provider("curl_cffi")`,
+  `create_agent_provider("browser_use" | "stagehand")`.
+  Unknown names raise `UnknownProviderError` listing the valid choices
+  (machine-detectable — not a `KeyError`).
+
+**Security / honesty compliance:**
+- No provider is described as a guaranteed bypass of any site's security controls.
+- All five adapters are framed strictly as authorized-automation / testing /
+  research tooling (`HONESTY_NOTE` in `providers/base.py`).
+- `BrowserSession.close()` is idempotent (verified by
+  `test_browser_session_close_is_idempotent`).
+- Real network/runtime errors propagate untouched
+  (`test_curl_cffi_adapter_rejects_unsupported_methods_and_errors_propagate`).
+
+**Final test totals (this session):** `65 passed, 0 failed, 1 skipped`
+(66 collected). The 18 new provider tests are listed in
+`tests/test_providers.py`. Caches cleaned.
