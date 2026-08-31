@@ -1197,23 +1197,26 @@ class CapitalMarketEntityResolver:
         for key, val in self.registry.items():
             if key in normalized:
                 logger.info(f"EntityResolver: Resolved '{company_name}' to official ISIN: {val['isin']}")
-                return val
+                return {**val, "synthetic": False}
                 
         # Deterministic generation fallback for unmatched companies to preserve data contracts
         clean_name = re.sub(r"[^a-zA-Z0-9]", "", normalized)[:6].upper().ljust(6, 'X')
         hash_val = abs(hash(normalized)) % 10000000
-        mock_isin = f"US{clean_name}{hash_val:04d}1"
-        mock_cusip = mock_isin[2:11]
-        mock_figi = f"BBG{hash_val:08d}"
+        # Visibly synthetic identifiers: prefixed so they can never masquerade as
+        # real market/entity identifiers (honesty hardening, Phase 2).
+        mock_isin = f"SYNTH-{clean_name}{hash_val:04d}-ISIN"
+        mock_cusip = f"SYNTH-{hash_val:04d}-CUSIP"
+        mock_figi = f"SYNTH-{hash_val:08d}-FIGI"
         mock_ticker = f"{clean_name} US"
         
         resolved_val = {
             "isin": mock_isin,
             "cusip": mock_cusip,
             "figi": mock_figi,
-            "ticker": mock_ticker
+            "ticker": mock_ticker,
+            "synthetic": True,
         }
-        logger.info(f"EntityResolver: Generated deterministic synthetic entity reference for '{company_name}' -> ISIN: {mock_isin}")
+        logger.info(f"EntityResolver: No registry match for '{company_name}'; returned visibly SYNTHETIC identifiers (synthetic=True).")
         return resolved_val
 
 
@@ -1279,8 +1282,11 @@ class QuantPersistencePipeline(BasePersistencePipeline):
         Injects real-time PIT dual-timestamps, executes entity resolution, 
         validates the schema contract, and flushes to disk.
         """
-        # T0: Event Timestamp (When the real-world event happened. If absent, fallback to extraction time minus latency jitter)
-        t0 = event_time if event_time else (time.time() - random.uniform(0.1, 0.5))
+        # T0: Event Timestamp. Used verbatim ONLY when the source explicitly provides
+        # one (including 0.0). When absent the event time is UNKNOWN and is flagged
+        # downstream - never jittered or invented (honesty hardening, Phase 2).
+        event_time_provided = event_time is not None
+        t0 = event_time if event_time_provided else None
         
         # T1: Knowledge Timestamp (The exact millisecond when the scraper ingested and logged the data)
         t1 = time.time()
@@ -1289,6 +1295,16 @@ class QuantPersistencePipeline(BasePersistencePipeline):
         record = dict(raw_record)
         record["event_timestamp"] = t0
         record["knowledge_timestamp"] = t1
+        if t0 is None:
+            # Event time genuinely unavailable: record the knowledge time as a
+            # conservative upper bound and flag it explicitly (never silently
+            # converted into a real event time).
+            record["event_timestamp"] = t1
+            record["event_time_estimated"] = True
+            logger.warning(
+                "QuantPipeline: source provided no event_time; knowledge time recorded "
+                "as conservative event-time upper bound (event_time_estimated=True)."
+            )
         
         # Capital Market Entity Resolution (Map raw company names to Bloomberg/ISIN)
         if "company" in record:
@@ -1355,16 +1371,16 @@ class FridaNativeHookEngine:
             return True
         except ImportError:
             logger.warning("FridaEngine: [ImportError] frida module not found. Run 'pip install frida' if needed.")
-            logger.info("FridaEngine: Operating in EMULATION fallback mode. Emulating local SSL memory extraction.")
-            # Mock receiving a decrypted message for testing
-            mock_data = {
-                "type": "decrypted_ssl_write",
-                "data": '{"company": "Tesla", "rank": 4.5}'
-            }
-            message_callback(mock_data, None)
+            logger.warning(
+                "FridaEngine: Frida provider UNAVAILABLE - no memory interception was performed. "
+                "No payload callback is invoked and no data is fabricated."
+            )
             return False
         except Exception as e:
-            logger.warning(f"FridaEngine: Unable to spawn device or inject hooks: {e}. Emulating local SSL buffers.")
+            logger.warning(
+                f"FridaEngine: Unable to spawn device or inject hooks: {e}. "
+                "No interception performed; no payload callback is invoked."
+            )
             return False
 
 
@@ -1377,9 +1393,15 @@ class MitmproxyStreamInterceptor:
     Extracts raw WebSocket, gRPC, and Protobuf payloads on-the-fly and pipes
     them directly into the Quant Alternative Ingestion Pipeline.
     """
-    def __init__(self, quant_pipeline: Optional[Any] = None, schema_class: Optional[Type[BaseModel]] = None) -> None:
+    def __init__(
+        self,
+        quant_pipeline: Optional[Any] = None,
+        schema_class: Optional[Type[BaseModel]] = None,
+        payload_decoder: Optional[Callable[[bytes], Dict[str, Any]]] = None,
+    ) -> None:
         self.quant_pipeline = quant_pipeline
         self.schema_class = schema_class
+        self.payload_decoder = payload_decoder
         logger.info("MitmproxyInterceptor: Loaded custom Python API Streaming Add-on.")
 
     def response(self, flow: Any) -> None:
@@ -1394,13 +1416,21 @@ class MitmproxyStreamInterceptor:
                 raw_payload = flow.response.content
                 logger.info(f"MitmproxyInterceptor: [Stream Captured] {len(raw_payload)} bytes from host {flow.request.host}")
                 
-                # If we have a connected Quant Ingestion Pipeline, feed decrypted/deserialized data
+                # Honest ingestion: only decoded records enter the pipeline. Captured
+                # raw bytes stay preserved in the flow; nothing synthetic is substituted.
+                if self.payload_decoder is None:
+                    logger.warning(
+                        "MitmproxyInterceptor: No payload decoder configured. "
+                        f"{len(raw_payload)} captured bytes preserved in the flow but NOT ingested; "
+                        "no synthetic payload is substituted."
+                    )
+                    return
+
                 if self.quant_pipeline and self.schema_class:
-                    decoded_payload = {
-                        "id": 110,
-                        "company": "Microsoft",
-                        "rank": 4.8
-                    }
+                    decoded_payload = self.payload_decoder(raw_payload)
+                    if not decoded_payload:
+                        logger.warning("MitmproxyInterceptor: Decoder produced no usable record; skipping ingestion.")
+                        return
                     try:
                         loop = asyncio.get_running_loop()
                         if loop.is_running():
@@ -1696,9 +1726,12 @@ class PITQuantEngine:
             pit_df = pit_df.sort_values(by=['ticker', 'knowledge_time'])
             latest_signals = pit_df.groupby('ticker').last().reset_index()
             
-            # Sync FIGI Identifier (Financial Instrument Global Identifier)
-            latest_signals['composite_figi'] = latest_signals['ticker'].apply(
-                lambda t: f"BBG{hash(t) & 0xFFFFFFFF:08X}"
+            # FIGI: no authoritative identifier registry is wired into this baseline.
+            # Report as unavailable (None) instead of fabricating identifier-shaped strings.
+            latest_signals['composite_figi'] = None
+            logger.warning(
+                "PITQuantEngine: No authoritative FIGI registry configured; "
+                "composite_figi reported as None (not synthesized)."
             )
             
             logger.info(f"PITQuantEngine: Finished processing Point-in-Time matrix. Selected {len(latest_signals)} active tickers.")
@@ -1716,7 +1749,7 @@ class PITQuantEngine:
             fallback_res = []
             for k, ev in dedup.items():
                 ev_copy = dict(ev)
-                ev_copy["composite_figi"] = f"BBG{hash(k) & 0xFFFFFFFF:08X}"
+                ev_copy["composite_figi"] = None  # No registry available; not synthesized.
                 fallback_res.append(ev_copy)
             return fallback_res
 

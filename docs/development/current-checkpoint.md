@@ -1,6 +1,7 @@
 # Current Checkpoint — 2026-08-31 (V23 Port Audit)
 
 Status: **AUDIT COMPLETE — 3× REJECT — baseline intact — quarantines pinned.**
+**UPDATE (same day, later session): Phase 1–5 hardening executed — see "Update" section at the bottom.**
 
 ## Workspace truth (verified on disk, not assumed)
 
@@ -89,3 +90,27 @@ Next phase, step 0: `git init` + initial commit of the current tree (baseline fi
 byte-identical), then optionally add the real remote. Do not rewrite baseline files;
 fix baseline honesty warts (register above) additively with provider-gated honest
 degradation. Full report: `docs/development/v23-port-audit-report.md`.
+
+---
+
+## UPDATE — 2026-08-31, Phase 1–5 hardening session
+
+- **Git:** repository initialized on `main`; protection commit `2e99811`
+  (`chore(release): protect V23 audit baseline`, root commit, 9 files). No remote.
+- **Phase 2 (honesty hardening, all five warts FIXED in v15):**
+  1. Frida fallback no longer fabricates payloads through the hook callback.
+  2. Mitmproxy interceptor no longer fabricates decoded records; optional
+     `payload_decoder` gates ingestion; undecodable → explicit skip.
+  3. `composite_figi` now `None` (registry unavailable) — `hash()` synthesis removed.
+  4. Event time: supplied values (incl. `0.0`) preserved verbatim; missing values
+     flagged `event_time_estimated=True` (knowledge time as explicit upper bound).
+  5. Unresolved entities get visibly `SYNTH-`-prefixed identifiers + `synthetic: True`.
+- **Phase 3:** new isolated `itch_binary.py` — genuine ITCH-5.0 binary subset parser
+  (A/E/X/D/U/P; layouts verified against the official spec tables). Honest scope:
+  NOT full ITCH-5.0; unsupported types are explicit errors, never silently accepted.
+  Dollar bars built ONLY from executed trades/trade messages.
+- **Phase 4:** V23 reconciliation — all 43 classes classified; nothing ported
+  (see `docs/development/v23-reconciliation-report.md`).
+- **Tests:** 20 → **48 passed, 0 failed, 0 skipped** (no existing test weakened/deleted).
+- **Final commit:** see `git log` — `feat(release): honesty hardening + ITCH-5.0 binary
+  parser (Phases 1-5)`.
