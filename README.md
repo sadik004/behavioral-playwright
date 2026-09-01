@@ -100,6 +100,7 @@ if __name__ == "__main__":
 | **`bp.proxy`** | `add_proxy()`, `add_proxy_url()`, `get_proxy(session_id=)`, `report_success()`, `report_failure()` |
 | **`bp.fingerprint`**| `generate(platform=)`, `generate_evasion_script(profile)` |
 | **`bp.storage`** | `export(records, "data.json"\|"data.ndjson"\|"data.csv"\|"data.db")` |
+| **`bp.api`** | `get()`, `post()`, `request(url, cache_ttl=...)`, `cache.clear()` |
 | **`bp.network`** | `measure_response_time()`, `measure_response_time_async()`, `set_custom_headers()`, `set_timeout()` |
 | **`bp.observability`** | `start_trace()`, `end_trace()`, `log_execution()`, `generate_qa_report()`, `audit_compliance_log()` |
 | **`bp.document`** | `ocr_image()`, `ocr_image_with_autocorrect()` |
@@ -108,11 +109,17 @@ if __name__ == "__main__":
 
 ---
 
-## 💻 Command-Line Interface (CLI)
+## 💻 Command-Line Interface & MCP Server
 
-Run automated operations straight from your terminal:
+Run automated operations or start an MCP server directly from your terminal:
 ```bash
-# View provider availability
+# Start standard JSON-RPC 2.0 Stdio MCP Server for Claude Desktop/Cursor
+bp mcp-server
+
+# Generate Claude Desktop configuration entry
+bp mcp-config --python-path python
+
+# View provider availability matrix
 bp matrix
 
 # Fast scrape to JSON or CSV
@@ -133,15 +140,16 @@ Run the full verified test suite:
 ```bash
 python -m pytest tests/ -q
 ```
-**Status**: `164 passed, 1 skipped` (165 collected).
+**Status**: `168 passed, 1 skipped` (169 collected).
 
 - `tests/test_baseline_protection.py` — 13 tests (LOB reconstructor, EDGAR PiT dual-timestamps, sentinels, Frida degradation)
 - `tests/test_honesty_hardening.py` — 11 tests (W1–W5 honesty hardening & synthetic identifier verification)
 - `tests/test_itch_binary.py` — 17 tests (NASDAQ ITCH-5.0 wire parser layout & lifecycle tests)
 - `tests/test_providers.py` — 18 tests (Provider gating & live headless Chromium tests)
 - `tests/test_v23_quarantine.py` — 7 tests (Quarantine pins for V23 hardcoded constants)
-- `tests/unit/` — 96 tests (Browser actions, crawler, config, proxy, fingerprint, storage, CLI, fuzzy/semantic selectors, resilience, observability, OCR, quant namespaces)
+- `tests/unit/` — 100 tests (API client, MCP server & tools, proxy, fingerprint, storage, CLI, browser actions, crawler, config, selectors, resilience, observability, OCR, quant namespaces)
 - `tests/integration/` — 3 tests (Cross-site self-healing & facade integration)
+
 
 ---
 

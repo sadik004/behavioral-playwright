@@ -45,6 +45,13 @@ def build_parser() -> argparse.ArgumentParser:
     qa_p = subparsers.add_parser("qa-report", help="Generate QA compliance summary from metrics DB")
     qa_p.add_argument("--db", default="bp_metrics.db", help="Path to metrics SQLite database")
 
+    # 5. MCP Server command
+    subparsers.add_parser("mcp-server", help="Launch standard JSON-RPC 2.0 stdio MCP server")
+
+    # 6. MCP Config command
+    cfg_p = subparsers.add_parser("mcp-config", help="Generate Claude Desktop JSON configuration")
+    cfg_p.add_argument("--python-path", default="python", help="Python binary path to use in config")
+
     return parser
 
 
@@ -101,6 +108,13 @@ def run_qa_report(db_path: str) -> int:
     return 0
 
 
+def run_mcp_config(python_path: str = "python") -> int:
+    from behavioral_playwright.mcp.server import McpServer
+    cfg = McpServer.generate_claude_config(python_path=python_path)
+    print(json.dumps(cfg, indent=2))
+    return 0
+
+
 def main(args: Optional[List[str]] = None) -> int:
     parser = build_parser()
     parsed = parser.parse_args(args)
@@ -113,12 +127,20 @@ def main(args: Optional[List[str]] = None) -> int:
         return run_matrix()
     elif parsed.command == "qa-report":
         return run_qa_report(parsed.db)
+    elif parsed.command == "mcp-server":
+        from behavioral_playwright.mcp.server import McpServer
+        server = McpServer()
+        asyncio.run(server.run_stdio())
+        return 0
+    elif parsed.command == "mcp-config":
+        return run_mcp_config(parsed.python_path)
     elif parsed.command == "scrape":
         return asyncio.run(run_scrape(parsed.url, parsed.output, parsed.target))
     elif parsed.command == "crawl":
         return asyncio.run(run_crawl(parsed.url, parsed.max_pages, parsed.depth, parsed.output))
     
     return 0
+
 
 
 if __name__ == "__main__":

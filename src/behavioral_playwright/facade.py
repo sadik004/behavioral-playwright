@@ -531,6 +531,23 @@ class StorageNamespace:
         return self.manager.export(records, target_path, format=format, **kwargs)
 
 
+class ApiNamespace:
+    """Optimized async API client with connection pooling and response caching."""
+
+    def __init__(self) -> None:
+        from behavioral_playwright.api.client import AsyncApiClient
+        self.client = AsyncApiClient()
+
+    async def get(self, url: str, **kwargs: Any) -> Any:
+        return await self.client.get(url, **kwargs)
+
+    async def post(self, url: str, data: Optional[Any] = None, **kwargs: Any) -> Any:
+        return await self.client.post(url, data=data, **kwargs)
+
+    async def request(self, method: str, url: str, **kwargs: Any) -> Any:
+        return await self.client.request(method, url, **kwargs)
+
+
 class BP:
     """
     Unified high-level facade orchestrating the Behavioral Playwright framework.
@@ -559,12 +576,14 @@ class BP:
         self.browser = BrowserActionNamespace(self)
         self.metrics = ObservabilityMetrics()
         self.integrations_ext = IntegrationExtensions(self)
-        # Quantitative, Provider, Proxy, Fingerprint & Storage namespaces
+        # Quantitative, Provider, Proxy, Fingerprint, Storage & API namespaces
         self.quant = QuantNamespace()
         self.providers = ProvidersNamespace()
         self.proxy = ProxyNamespace()
         self.fingerprint = FingerprintNamespace()
         self.storage = StorageNamespace()
+        self.api = ApiNamespace()
+
 
 
 
