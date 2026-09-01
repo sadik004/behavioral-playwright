@@ -64,26 +64,28 @@ pinned evidence; `UNREVIEWED` = classified by pattern, kept quarantined honestly
 **Nothing was ported from V23.** No capability satisfied all of: genuinely
 functional, stronger than baseline, non-duplicative, testable, honest.
 
-## 5. Phase 5 — final verification
+## 5. Phase 5 & 6 — final verification
 
-- `python -m pytest tests -q` → **48 passed, 0 failed, 0 skipped**.
-- `python -m compileall .` → exit 0. `python -m pip check` → no dependency breakage
-  (one unrelated global twine/packaging warning outside this project).
+- `python -m pytest tests -q` → **65 passed, 0 failed, 1 skipped** (66 collected).
+- `python -m compileall .` → exit 0. `python -m pip check` → clean.
 - Packaging: none exists (no `pyproject.toml`) → wheel validation **UNIMPLEMENTED**,
   honestly reported rather than faked.
-- Fake-success/TODO/secret scans of new code: clean (only test-double fixture names).
-- One final local commit; no remote, no push, no history rewrite.
+- Provider layer: 5 optional adapters integrated (Playwright/Patchright verified live; UC gated live; curl_cffi/Browser-Use/Stagehand provider-gated).
+- Local commits on `main`; no remote, no push, no history rewrite.
 
-## Capability status legend (current framework)
+## Capability status taxonomy (Framework Standard)
 
-- **REAL:** V15 PIT contract + as-of filtering; EDGAR aligner; data-contract sentinel;
-  legacy ITCH dict simulation; dollar bars (legacy + binary); `itch_binary.py`
-  verified-subset binary parsing; order-book lifecycle/snapshots.
-- **PROVIDER-GATED:** `FridaNativeHookEngine` (real Frida path; honestly degrades
-  when frida/device absent).
-- **EXPERIMENTAL:** none currently.
-- **QUARANTINED:** all of V23 (reference-only file).
-- **UNIMPLEMENTED:** packaging/CI; remaining ITCH-5.0 message types (S/R/H/Y/L/V/W/
-  K/J/h/I/N/Q/B/O); a real FIGI registry; remaining 34 unreviewed V23 classes.
+1. **VERIFIED / REAL**: V15 PIT contract + as-of filtering; EDGAR aligner; data-contract sentinel;
+   legacy ITCH dict simulation; dollar bars (legacy + binary); `itch_binary.py`
+   verified-subset binary parsing; order-book lifecycle/snapshots; Patchright & Playwright live browser launch.
+2. **PROVIDER-GATED**: `FridaNativeHookEngine` (real Frida path; degrades honestly without fake payloads);
+   Undetected-Chromedriver (opt-in live); `curl_cffi`, `Browser-Use`, `Stagehand` adapters.
+3. **DESIGN-ACCEPTED / SYNTHETIC**: `CapitalMarketEntityResolver` visibly synthetic IDs (`SYNTH-*-ISIN/CUSIP/FIGI`
+   with `synthetic: True` and hash salt for disambiguation); legacy V15 ITCH `"C"` dictionary simulation label.
+4. **QUARANTINED**: all 43 classes of V23 (reference-only file `bp_biomechanical_engine-v23.py`).
+5. **UNIMPLEMENTED**: packaging/CI; remaining ITCH-5.0 message types (S/R/H/Y/L/V/W/K/J/h/I/N/Q/B/O);
+   live external FIGI registry; remaining 34 unreviewed V23 classes.
+6. **LIMITATIONS**: UC live test opt-in via `SQ_LIVE_UC=1` to avoid automatic binary downloads;
+   local-only git repository (no remote).
 
 — END OF REPORT —

@@ -90,6 +90,6 @@ Unknown names raise `UnknownProviderError` listing the valid choices (machine-de
 
 ## Git
 
-Local repository on branch `main`. Three commits: the protected V23-audit
-baseline, the Phase 1–5 hardening release, and the provider-integration release.
-**No remote; nothing pushed.**
+Local repository on branch `main`. Commits record the protected V23-audit
+baseline, the Phase 1–5 hardening release, the provider-integration release,
+and final reconciliation. **No remote; nothing pushed.**
