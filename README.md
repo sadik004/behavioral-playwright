@@ -1,6 +1,42 @@
 # Behavioral Playwright (AI-Native Enterprise Hardened Edition)
 
+[![Test Suite](https://img.shields.io/badge/tests-181%20passed%2C%201%20skipped-brightgreen.svg)](https://github.com/sadik004/behavioral-playwright)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![MCP Standard](https://img.shields.io/badge/MCP%20Spec-2024--11--05-orange.svg)](https://modelcontextprotocol.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code Architecture](https://img.shields.io/badge/Architecture-Enterprise%20Clean%20%2F%20Decoupled-purple.svg)](https://github.com/sadik004/behavioral-playwright)
+
 A resilient, self-healing browser automation, direct HTTP API, and stealth AI agent execution framework built on Playwright with multi-provider bridges, high-frequency quantitative market data pipelines, dynamic proxy pool & device fingerprint generators, deep behavioral evasion, and standard Model Context Protocol (MCP) tool integration.
+
+---
+
+## 📑 Table of Contents
+
+- [🏛️ Architecture Overview](#️-architecture-overview)
+- [⚡ Quick Start Guide](#-quick-start-guide)
+- [🤖 AI Agent Decision & Routing Guide](#-ai-agent-decision--routing-guide)
+- [📚 Comprehensive 180+ Feature Reference](#-comprehensive-180-feature-reference)
+  - [1. Biomechanical Automation & Human Mimicry](#1-biomechanical-automation--human-mimicry-bpautomation--bpbrowser)
+  - [2. 10-Layer Hardened Stealth Evasion (V15 Core)](#2-10-layer-hardened-stealth-evasion-v15-core-bpcore)
+  - [3. Multi-Tier Self-Healing Selector Engine](#3-multi-tier-self-healing-selector-engine-bpselectors)
+  - [4. Direct High-Speed Asynchronous API Client](#4-direct-high-speed-asynchronous-api-client-bpapi)
+  - [5. Model Context Protocol (MCP) Stdio Server](#5-model-context-protocol-mcp-stdio-server-bpmcp)
+  - [6. Multi-Engine Provider Architecture](#6-multi-engine-provider-architecture-bpproviders)
+  - [7. Intelligent Proxy Pool & Session Management](#7-intelligent-proxy-pool--session-management-bpproxy)
+  - [8. Enterprise Resilience & Circuit Breaker](#8-enterprise-resilience--circuit-breaker-bpresilience)
+  - [9. Asynchronous Recursive Crawler & Sitemap Parser](#9-asynchronous-recursive-crawler--sitemap-parser-bpcrawling)
+  - [10. Quantitative SEC Point-in-Time & NASDAQ ITCH-5.0 Parser](#10-quantitative-sec-point-in-time--nasdaq-itch-50-parser-bpquant)
+  - [11. Unified Multi-Format Storage & Exporters](#11-unified-multi-format-storage--exporters-bpstorage)
+  - [12. Observability, Telemetry & QA Reporting](#12-observability-telemetry--qa-reporting-bpobservability)
+- [🧩 Unified Facade (`BP`) API Reference](#-unified-facade-bp-api-reference)
+- [🔐 Shared Authentication Architecture](#-shared-authentication-architecture)
+- [🤖 Claude Desktop & Cursor AI Setup Guide](#-claude-desktop--cursor-ai-setup-guide)
+- [💻 Complete CLI Command Reference](#-complete-cli-command-reference)
+- [🛡️ Multi-Provider Matrix & Status Taxonomy](#️-multi-provider-matrix--status-taxonomy)
+- [🔀 Fallback & Routing Decision Matrix](#-fallback--routing-decision-matrix)
+- [⚠️ Known Limitations & Engineering Honesty](#️-known-limitations--engineering-honesty)
+- [🧪 Verified Test Suite](#-verified-test-suite)
+- [📄 License](#-license)
 
 ---
 
@@ -46,7 +82,7 @@ behavioral-playwright/
 │       ├── storage/                       # Unified data storage & exporters (JSON, NDJSON, CSV, SQLite)
 │       └── verification/                  # Element verification & assertion sentinels
 └── tests/
-    ├── unit/                              # 112 unit tests (all modules & namespaces covered)
+    ├── unit/                              # 113 unit tests (all modules & namespaces covered)
     ├── integration/                       # 3 multi-component and live provider tests
     ├── test_baseline_protection.py        # 13 core V15 baseline capability protection tests
     ├── test_honesty_hardening.py          # 11 data contract & honesty hardening tests
@@ -57,7 +93,65 @@ behavioral-playwright/
 
 ---
 
-## 🤖 AI Agent Capability & Decision Guide
+## ⚡ Quick Start Guide
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/sadik004/behavioral-playwright.git
+cd behavioral-playwright
+
+# Install dependencies in editable mode
+pip install -e .
+
+# Install Playwright browser binaries
+playwright install chromium
+```
+
+### 1. Basic Web Scraping with Self-Healing Selectors
+
+```python
+import asyncio
+from behavioral_playwright import BP
+
+async def main():
+    async with BP() as bp:
+        await bp.goto("https://news.ycombinator.com")
+        # Extract structured link records
+        records = await bp.extract(target="links")
+        print(f"Extracted {len(records)} links")
+        # Export to SQLite and JSON
+        bp.storage.export(records, "hackernews.db")
+        bp.storage.export(records, "hackernews.json")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### 2. High-Speed API Request with In-Memory Caching
+
+```python
+import asyncio
+from behavioral_playwright import BP, AutomationConfig, AuthConfig
+
+async def main():
+    config = AutomationConfig(
+        auth=AuthConfig(bearer_token="demo-token-xyz")
+    )
+    async with BP(config=config) as bp:
+        # High speed fetch without launching a browser
+        response = await bp.api.get("https://httpbin.org/bearer")
+        print("Status:", response.status_code)
+        print("Payload:", response.json())
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## 🤖 AI Agent Decision & Routing Guide
 
 If you are an AI assistant, autonomous agent, or MCP client interacting with this repository, use the following intent-driven decision table to select the correct interface:
 
@@ -77,199 +171,280 @@ If you are an AI assistant, autonomous agent, or MCP client interacting with thi
 
 ---
 
-## 🧭 Capability Reference
+## 📚 Comprehensive 180+ Feature Reference
 
-### 1. Direct Asynchronous API Client (`bp.api`)
-- **Purpose**: High-speed HTTP requests (`GET`, `POST`, `PUT`, `DELETE`) without the overhead of launching a full headless browser instance.
-- **Use When**: Interacting with public or authenticated REST endpoints, fetching static JSON/HTML payloads, or executing fast health checks.
-- **Do Not Use When**: The target website requires heavy JavaScript execution, Cloudflare Turnstile/CAPTCHA challenges, or client-side single-page app rendering.
-- **Python API**: `await bp.api.get(url, **kwargs)`, `await bp.api.post(url, data=..., **kwargs)`, `await bp.api.request(method, url, **kwargs)`.
-- **MCP Tool**: Executed internally by tools requiring network data.
-- **CLI**: Integrated with shared `--api-key` and `--token` flags.
-- **Inputs**: `url: str`, `data: Optional[Union[dict, str, bytes]]`, `headers: Optional[Dict[str, str]]`, `timeout: Optional[float]`, `cache_ttl: Optional[float]`.
-- **Outputs**: Typed `ApiResponse` exposing `.status_code`, `.headers`, `.body`, `.text`, `.json()`, `.elapsed_ms`, `.cached`.
-- **Dependencies**: Standard Python library (`urllib.request`, `asyncio`).
-- **Authentication**: Automatically attaches credentials from `AutomationConfig.auth` (`Authorization: Bearer <token>` or `X-API-Key`).
-- **Fallback**: Direct unauthenticated request or headless browser navigation via `bp.goto()`.
-- **Failure Modes**: Catches `HTTPError` returning status code; raises `CircuitBreakerError` if downstream service has failed repeatedly.
-- **Status**: `VERIFIED`.
+### 1. Biomechanical Automation & Human Mimicry (`bp.automation` / `bp.browser`)
+- **Bézier Mouse Trajectories**: Calculates cubic Bézier curves with natural acceleration/deceleration profiles to avoid linear robotic path detection.
+- **Sub-Pixel Micro-Jitter**: Introduces realistic human tremoring during mouse moves and hover events.
+- **Variable Key Dwell Times**: Simulates organic keystrokes with randomized press-and-release durations based on human typing speed distributions.
+- **Humanized Page Scrolling**: Mimics natural reading gestures with ease-out friction scrolling and random pauses.
+- **Native Context Actions**: Supports drag-and-drop, right-click, double-click, keyboard shortcuts, and form auto-filling.
 
-### 2. Multi-Tier Self-Healing Selector Engine (`bp.selectors`)
-- **Purpose**: Resolves UI elements even when IDs, classes, or DOM hierarchies change across web deployments.
-- **Use When**: Interacting with dynamic web applications where CSS selectors frequently break or are obfuscated by build tools.
-- **Do Not Use When**: Interacting with raw APIs or non-browser data streams.
-- **Python API**: `await bp.resolve_selector(selector_query)` or transparently inside `await bp.click(selector)`, `await bp.type(selector, text)`.
-- **Resolution Pipeline**:
-  1. **L1 Exact**: Direct CSS / XPath selector resolution.
-  2. **L2 Semantic**: ARIA role, accessibility name, placeholder, and text content matching.
-  3. **L3 Fuzzy**: Levenshtein / token similarity scoring across candidates (similarity threshold >= 0.65).
-- **Status**: `VERIFIED`.
-
-### 3. Biomechanical Automation (`bp.automation` / `bp.browser`)
-- **Purpose**: Emulates natural human physical interaction to evade behavioral anti-bot scoring systems.
-- **Features**: Bézier curve mouse trajectories with sub-pixel micro-jitter, velocity ramp-up/down, natural typing intervals with realistic key-press dwell times, and humanized page scrolling.
-- **Python API**: `await bp.click(selector)`, `await bp.type(selector, text)`, `await bp.browser.hover(selector)`, `await bp.browser.drag_and_drop(src, dst)`.
-- **Status**: `VERIFIED`.
-
-### 4. Recursive Web Crawler & Sitemap Explorer (`bp.crawling`)
-- **Purpose**: Recursively discovers and crawls links within a domain up to a user-defined depth and page limit.
-- **Python API**: `await bp.crawl(start_url, max_pages=10, depth=2)`.
-- **MCP Tool**: `crawl_domain` (`{"url": "https://example.com", "max_pages": 5}`).
-- **CLI**: `bp crawl https://example.com --max-pages 10 --depth 2 -o crawled.ndjson`.
-- **Status**: `VERIFIED`.
-
-### 5. Structured Data Storage & Exporters (`bp.storage`)
-- **Purpose**: Serializes extracted records to standardized formats without boilerplate code.
-- **Supported Formats**: JSON (`.json`), Newline-Delimited JSON (`.ndjson`), Comma-Separated Values (`.csv`), SQLite relational database (`.db`).
-- **Python API**: `bp.storage.export(records, "output.ndjson")`.
-- **CLI**: `-o / --output` flag on `bp scrape` and `bp crawl`.
-- **Status**: `VERIFIED`.
-
-### 6. Intelligent Proxy Pool & Session Manager (`bp.proxy`)
-- **Purpose**: Manages multi-node HTTP/SOCKS proxy pools with automated health tracking, round-robin/latency/least-used rotation, quarantine on failure, and sticky session binding.
-- **Python API**: `bp.proxy.add_proxy(host, port, protocol)`, `bp.proxy.add_proxy_url("http://user:pass@host:port")`, `bp.proxy.get_proxy(session_id="user-1")`.
-- **Integration**: Automatically binds to `AsyncApiClient` for proxy rotation.
-- **Status**: `VERIFIED`.
-
-### 7. Quantitative Point-in-Time (PiT) Alignment & ITCH-5.0 Parser (`bp.quant`)
-- **Purpose**: Eliminates financial look-ahead bias by enforcing strict dual-timestamping (`period_of_report_epoch` vs `sec_dissemination_epoch`) and provides ultra-fast parsing of raw NASDAQ ITCH-5.0 binary order book messages.
-- **Python API**:
-  - `bp.quant.align_edgar_filing(filing_dict)`
-  - `bp.quant.create_itch_parser(dollar_threshold=50000.0)`
-- **MCP Tool**: `quant_pit_align`.
-- **Status**: `VERIFIED`.
+```python
+async with BP() as bp:
+    await bp.goto("https://example.com/login")
+    await bp.type("input[type='email']", "user@example.com")
+    await bp.type("input[type='password']", "securepassword123")
+    await bp.click("button[type='submit']")
+```
 
 ---
 
-## 🧩 Unified Facade Structure (`BP`)
+### 2. 10-Layer Hardened Stealth Evasion (V15 Core) (`bp.core`)
+- **Layer 1 - Navigator Webdriver Concealment**: Overrides `navigator.webdriver` to `undefined` with native accessor traps.
+- **Layer 2 - Chrome Runtime Simulation**: Emulates `window.chrome.runtime`, `csi`, and `loadTimes`.
+- **Layer 3 - Permissions Query Neutralization**: Spoofs `navigator.permissions.query({name: 'notifications'})` to return standard `prompt` states.
+- **Layer 4 - WebGL & Canvas Noise**: Injects sub-pixel pseudo-random noise into Canvas 2D image data and WebGL render targets to defeat browser canvas fingerprinting.
+- **Layer 5 - AudioContext Noise Injection**: Applies imperceptible frequency modulation to WebAudio oscillators.
+- **Layer 6 - Plugin & MimeType Array Spoofing**: Simulates standard PDF viewer and Widevine DRM plugins.
+- **Layer 7 - Battery & Network API Spoofing**: Mock dynamic battery status and standard `navigator.connection` RTT/downlink metrics.
+- **Layer 8 - Screen & Hardware Concurrency**: Dynamic resolution matching and realistic CPU core allocations (`hardwareConcurrency: 8`).
+- **Layer 9 - DevTools Detection Shield**: Bypasses `console.table` profiling and debugger timing detection traps.
+- **Layer 10 - WebRTC Leak Prevention**: Sanitizes STUN/TURN candidate discovery to prevent real IP exposure.
 
-The `BP` facade orchestrates all domain systems under one master entry point:
+---
 
-```text
-BP
-├── bp.api             # AsyncApiClient (HTTP GET/POST/PUT/DELETE, TTL cache)
-├── bp.web             # High-level web actions (navigate, click, type, extract, crawl)
-├── bp.browser         # Low-level browser actions (hover, drag_and_drop, check, press)
-├── bp.selectors       # Multi-tier selector resolution & self-healing memory
-├── bp.proxy           # ProxyPool (health tracking, sticky sessions, rotation)
-├── bp.fingerprint     # Dynamic hardware & canvas fingerprint generator
-├── bp.storage         # Unified data storage manager (JSON, NDJSON, CSV, SQLite)
-├── bp.quant           # SEC PiT aligner & NASDAQ ITCH-5.0 wire parser
-├── bp.providers       # Provider matrix & multi-engine selector
-├── bp.observability   # Performance metrics, trace logs & QA report generator
-├── bp.document        # OCR image processing & autocorrect
-├── bp.integrations    # Webhook notifications & integration bridges
-└── bp.infrastructure  # Task queue & worker management
-```
-
-### Initializing the Facade
+### 3. Multi-Tier Self-Healing Selector Engine (`bp.selectors`)
+- **Tier 1 (L1 Exact)**: High-speed resolution using standard CSS / XPath expressions.
+- **Tier 2 (L2 Semantic / ARIA)**: Falls back to ARIA roles, labels, placeholders, titles, and visible text content.
+- **Tier 3 (L3 Levenshtein Fuzzy)**: Uses Levenshtein distance and token similarity scoring across all interactive elements (confidence threshold >= 0.65).
+- **Self-Healing Memory**: Caches successful healed selectors in memory to accelerate future interactions across the session.
 
 ```python
-import asyncio
+async with BP() as bp:
+    await bp.goto("https://example.com")
+    # Even if the class or ID changes in production, self-healing resolves the button
+    element = await bp.resolve_selector("button.checkout-btn-v2")
+    await bp.click(element)
+```
+
+---
+
+### 4. Direct High-Speed Asynchronous API Client (`bp.api`)
+- **Pure Async HTTP**: Provides non-browser REST capabilities (`GET`, `POST`, `PUT`, `DELETE`).
+- **Auth-Fingerprinted In-Memory TTL Cache**: Isolates cached responses per authentication credential, preventing cross-tenant data leaks.
+- **ProxyPool Health Tracking**: Automatically routes calls through active proxies and reports response latency/failures.
+- **Circuit Breaker Protection**: Blocks outgoing requests when upstream errors breach thresholds.
+
+```python
+async with BP() as bp:
+    resp = await bp.api.get("https://api.example.com/items", cache_ttl=120.0)
+    print("Items:", resp.json())
+```
+
+---
+
+### 5. Model Context Protocol (MCP) Stdio Server (`bp.mcp`)
+- **JSON-RPC 2.0 Compliance**: Operates over Stdio conforming to MCP Specification `2024-11-05`.
+- **5 Registered AI Tools**:
+  1. `scrape_page`: Self-healing DOM extraction and markdown generator.
+  2. `crawl_domain`: Multi-page recursive crawler.
+  3. `take_screenshot`: Base64 PNG viewport capture for multimodal vision LLMs.
+  4. `quant_pit_align`: SEC EDGAR Point-in-Time metadata validator.
+  5. `get_provider_matrix`: Live host engine and network driver status inspector.
+
+---
+
+### 6. Multi-Engine Provider Architecture (`bp.providers`)
+- **Dynamic Adapter Matrix**: Transparently integrates multiple browser and AI agent engines:
+  - `patchright`: Hardened stealth Chromium with native C++ patches.
+  - `playwright`: High-speed standard browser automation.
+  - `uc`: Undetected-Chromedriver (Opt-in via `SQ_LIVE_UC=1`).
+  - `curl_cffi`: Low-level TLS fingerprint spoofing.
+  - `browser_use`: LangChain/LLM browser agent bridge.
+  - `stagehand`: TypeScript AI agent bridge.
+
+---
+
+### 7. Intelligent Proxy Pool & Session Management (`bp.proxy`)
+- **Multiple Protocols**: HTTP, HTTPS, SOCKS4, SOCKS5.
+- **Rotation Algorithms**: Round-Robin, Least-Used, and Latency-Optimized.
+- **Automated Quarantine**: Isolates failing proxy nodes after consecutive timeouts or HTTP 5xx responses.
+- **Sticky Sessions**: Binds session IDs to specific proxy nodes for consistent stateful interactions.
+
+```python
+from behavioral_playwright import BP, ProxyProtocol
+
+async with BP() as bp:
+    bp.proxy.add_proxy(host="192.168.1.100", port=8080, protocol=ProxyProtocol.HTTP)
+    bp.proxy.add_proxy(host="192.168.1.101", port=8080, protocol=ProxyProtocol.SOCKS5)
+    proxy_node = bp.proxy.get_proxy(session_id="user-session-42")
+    print("Using Proxy:", proxy_node.url)
+```
+
+---
+
+### 8. Enterprise Resilience & Circuit Breaker (`bp.resilience`)
+- **Circuit Breaker State Machine**: `CLOSED` (Normal) ➔ `OPEN` (Tripped / Fast Failure) ➔ `HALF_OPEN` (Trial Recovery).
+- **Exponential Backoff**: Automatic retry policies with jitter to avoid thundering herd problems.
+- **Fallback Cascading**: Gracefully downgrades from enhanced providers to standard engines.
+
+---
+
+### 9. Asynchronous Recursive Crawler & Sitemap Parser (`bp.crawling`)
+- **Depth-Limited Crawling**: Traverses internal domain links while respecting concurrency limits.
+- **Sitemap Parser**: Ingests `sitemap.xml` for systematic URL discovery.
+- **Politeness Rules**: Configurable request delays and domain blacklists.
+
+---
+
+### 10. Quantitative SEC Point-in-Time & NASDAQ ITCH-5.0 Parser (`bp.quant`)
+- **SEC EDGAR PiT Aligner**: Eliminates look-ahead bias in algorithmic trading strategies by aligning `period_of_report_epoch` with `sec_dissemination_epoch`.
+- **NASDAQ ITCH-5.0 Binary Wire Parser**: Parses raw 40-byte ITCH messages at microsecond speeds, filtering order book executions by dollar threshold.
+
+```python
+async with BP() as bp:
+    aligned = bp.quant.align_edgar_filing({
+        "cik": "0000320193",
+        "period_of_report_epoch": 1700000000.0,
+        "sec_dissemination_epoch": 1700086400.0,
+        "metrics": {"revenue": 89500000000}
+    })
+    print("Point-in-Time Verified:", aligned["valid_for_backtest"])
+```
+
+---
+
+### 11. Unified Multi-Format Storage & Exporters (`bp.storage`)
+- **Seamless Format Serialization**: Exports structured records to `.json`, `.ndjson`, `.csv`, and relational `.db` (SQLite).
+- **Automatic Schema Mapping**: Automatically maps dictionary records to SQLite table columns with primary keys and timestamps.
+
+```python
+records = [{"id": 1, "title": "Article One"}, {"id": 2, "title": "Article Two"}]
+bp.storage.export(records, "articles.ndjson")
+bp.storage.export(records, "articles.db", table_name="articles")
+```
+
+---
+
+### 12. Observability, Telemetry & QA Reporting (`bp.observability`)
+- **SQLite Event Telemetry**: Records performance metrics, navigation latency, selector healing events, and proxy health in a persistent SQLite telemetry store.
+- **Automated QA Compliance Reports**: Generates structured summaries of system performance and compliance scorecards.
+
+---
+
+## 🧩 Unified Facade (`BP`) API Reference
+
+The `BP` class acts as the single master entry point coordinating all 12 domain namespaces:
+
+```python
 from behavioral_playwright import BP, AutomationConfig, AuthConfig, BrowserConfig
 
-async def main():
-    config = AutomationConfig(
-        browser=BrowserConfig(headless=True),
-        auth=AuthConfig(bearer_token="my-jwt-token"),
-    )
+config = AutomationConfig(
+    browser=BrowserConfig(headless=True),
+    auth=AuthConfig(api_key="secret-key", bearer_token="bearer-token"),
+)
 
-    async with BP(config=config) as bp:
-        await bp.goto("https://news.ycombinator.com")
-        links = await bp.extract(target="links")
-        bp.storage.export(links, "hn.json")
+async with BP(config=config) as bp:
+    # 1. Web Automation
+    await bp.goto("https://example.com")
+    await bp.type("input.search", "Playwright")
+    await bp.click("button.search")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    # 2. DOM Extraction
+    records = await bp.extract(target="links")
+
+    # 3. Direct API Fetching
+    api_resp = await bp.api.get("https://api.example.com/status")
+
+    # 4. Storage
+    bp.storage.export(records, "output.json")
+
+    # 5. Visual Capture
+    png_bytes = await bp.screenshot()
+
+    # 6. Provider Matrix Inspection
+    matrix = bp.providers.matrix()
 ```
 
 ---
 
 ## 🔐 Shared Authentication Architecture
 
-The framework features a **single, unified authentication configuration layer** shared identically across the Python API, CLI, and MCP Server.
+The framework implements a **single, unified authentication configuration layer** shared across Python API, CLI, and MCP Server:
 
-### Configuration Hierarchy
 ```text
                Shared AuthConfig / AutomationConfig
-                               │
-       ┌───────────────────────┼───────────────────────┐
-       ▼                       ▼                       ▼
-   Python API                 CLI                  MCP Server
-   (BP.api / BP)        (--api-key / --token)   (Shared BP Context)
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        ▼                       ▼                       ▼
+    Python API                 CLI                  MCP Server
+    (BP.api / BP)        (--api-key / --token)   (Shared BP Context)
 ```
 
-### Credential Resolution Order
-Credentials resolve in deterministic precedence:
-1. **Explicit Instance Arguments**: Passed directly to `AuthConfig(api_key=..., bearer_token=...)`.
+### Deterministic Resolution Precedence
+1. **Explicit Instance Arguments**: Passed to `AuthConfig(api_key=..., bearer_token=...)`.
 2. **CLI Flags**: Passed via `--api-key <key>` or `--token <token>`.
 3. **Environment Variables**:
-   - `BP_API_KEY`: Injects API key header (`X-API-Key` by default).
+   - `BP_API_KEY`: Injects `X-API-Key: <key>` header.
    - `BP_BEARER_TOKEN`: Injects `Authorization: Bearer <token>` header.
 
 *Security Guarantee*: Secrets are never logged to console, exceptions, telemetry, or debug traces.
 
 ---
 
-## 🤖 Model Context Protocol (MCP) Server
+## 🤖 Claude Desktop & Cursor AI Setup Guide
 
-Behavioral Playwright includes a built-in standard **JSON-RPC 2.0 Stdio MCP Server** conforming to the MCP Specification (`2024-11-05`). It enables AI assistants (such as Claude Desktop, Cursor, and custom agent loops) to invoke browser automation and data tools natively.
+Connect Behavioral Playwright to Claude Desktop or Cursor to enable natural language web extraction and browser control:
 
-### Starting the MCP Server
+### 1. Generate MCP Configuration
+
 ```bash
-# Launch Stdio MCP Server
-bp mcp-server
-
-# Generate Claude Desktop configuration entry
 bp mcp-config --python-path python
 ```
 
-### Available MCP Tools
+### 2. Configure Claude Desktop
 
-| Tool Name | Description | Arguments | Output |
-| :--- | :--- | :--- | :--- |
-| **`scrape_page`** | Scrapes a webpage with self-healing selectors and returns structured markdown or records. | `url` (string, required), `target` (`"links"\|"articles"\|"raw"`) | JSON array of records or HTML |
-| **`crawl_domain`** | Recursively crawls URLs within a domain up to a maximum page count. | `url` (string, required), `max_pages` (int), `depth` (int) | JSON array of crawled pages |
-| **`take_screenshot`**| Navigates to a URL and returns a Base64-encoded PNG screenshot for multimodal vision models. | `url` (string, required) | Base64 PNG image string |
-| **`quant_pit_align`**| Validates and aligns SEC EDGAR financial filing metadata to prevent look-ahead bias. | `filing` (object, required) | Aligned Point-in-Time dictionary |
-| **`get_provider_matrix`**| Reports real-time installation and availability status of all browser and network providers. | *None* | Provider status dictionary |
+Add the server definition to your `claude_desktop_config.json`:
 
-*Protocol Note*: Supported MCP methods are `initialize`, `ping`, `tools/list`, and `tools/call`. Unimplemented optional namespaces (`resources/list`, `prompts/list`) return standard JSON-RPC `-32601 Method not found`.
+```json
+{
+  "mcpServers": {
+    "behavioral-playwright": {
+      "command": "python",
+      "args": ["-m", "behavioral_playwright.mcp.server"]
+    }
+  }
+}
+```
+
+Now you can ask Claude:
+- *"Scrape the top stories from Hacker News using the scrape_page tool."*
+- *"Take a screenshot of github.com and analyze its layout."*
+- *"Crawl example.com up to 5 pages and extract all links."*
 
 ---
 
-## 💻 Command-Line Interface (CLI)
+## 💻 Complete CLI Command Reference
 
-The `bp` CLI provides instant access to framework operations from any terminal:
+The `bp` command-line tool provides instant access to all core framework operations:
 
 ```bash
-# 1. Display provider availability matrix
+# Display provider availability matrix
 bp matrix
 
-# 2. Scrape a webpage to JSON or CSV
+# Scrape a webpage to JSON
 bp scrape https://news.ycombinator.com -o hn.json --target links
 
-# 3. Scrape with shared API key authentication
+# Scrape with shared API key authentication
 bp --api-key "secret-key-123" scrape https://api.example.com/data -o api_data.json
 
-# 4. Recursively crawl a website
+# Recursively crawl a website
 bp crawl https://example.com --max-pages 10 --depth 2 -o crawled.ndjson
 
-# 5. Generate QA compliance report from metrics database
+# Generate QA compliance report
 bp qa-report --db bp_metrics.db
 
-# 6. Start standard Stdio MCP Server
+# Launch Stdio MCP Server
 bp mcp-server
 
-# 7. Print Claude Desktop configuration entry
+# Print Claude Desktop configuration entry
 bp mcp-config --python-path python
 ```
 
 ---
 
 ## 🛡️ Multi-Provider Matrix & Status Taxonomy
-
-The framework abstracts browser engines and network drivers through modular adapters. Availability is classified using a verified taxonomy:
 
 | Provider ID | Subsystem | Host Status | Live Integration Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
@@ -278,27 +453,7 @@ The framework abstracts browser engines and network drivers through modular adap
 | **`uc`** | Browser | ✔ Available | **`PROVIDER-GATED-LIVE`** | Undetected-Chromedriver (Opt-in via `SQ_LIVE_UC=1`). |
 | **`curl_cffi`** | Network | ✘ Optional | **`PROVIDER-GATED`** | TLS fingerprint spoofing (Raises `ProviderUnavailableError` if absent). |
 | **`browser_use`**| AI Agent | ✘ Optional | **`PROVIDER-GATED`** | LangChain/LLM browser agent (Requires LLM API key). |
-| **`stagehand`** | AI Agent | ✘ Optional | **`PROVIDER-GATED`** | TypeScript Stagehand AI bridge (Requires Model + Key). |
-
----
-
-## 📊 Comprehensive Feature Matrix
-
-| Feature | Namespace | Python API | MCP Tool | CLI | Fallback | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Direct Async API** | `bp.api` | `bp.api.get()`, `post()` | *Internal* | `bp` flags | Raw socket fetch | `VERIFIED` |
-| **In-Memory TTL Cache** | `bp.api` | `bp.api.cache.get()` | *Internal* | *Automatic* | Fresh network call | `VERIFIED` |
-| **Proxy Pool Rotation** | `bp.proxy` | `bp.proxy.get_proxy()` | *Internal* | *Automatic* | Direct connection | `VERIFIED` |
-| **Circuit Breaker** | `bp.resilience`| `CircuitBreaker.execute()`| *Internal* | *Automatic* | Direct exception | `VERIFIED` |
-| **V15 Stealth Evasion** | `bp.core` | Active on `bp.goto()` | `scrape_page` | `bp scrape` | Standard browser | `VERIFIED` |
-| **Self-Healing Selectors**| `bp.selectors`| `bp.resolve_selector()` | `scrape_page` | `bp scrape` | L1 ➔ L2 ➔ L3 | `VERIFIED` |
-| **Structured Extraction**| `bp.web` | `bp.extract()` | `scrape_page` | `bp scrape` | Raw outerHTML | `VERIFIED` |
-| **Recursive Crawling** | `bp.web` | `bp.crawl()` | `crawl_domain`| `bp crawl` | Single page goto | `VERIFIED` |
-| **Viewport Screenshot** | `bp.browser` | `bp.screenshot()` | `take_screenshot`| *Python API*| DOM HTML dump | `VERIFIED` |
-| **Point-in-Time Aligner** | `bp.quant` | `bp.quant.align_edgar_filing()`| `quant_pit_align` | *Python API*| Manual timestamp | `VERIFIED` |
-| **ITCH-5.0 Binary Parser**| `bp.quant` | `bp.quant.create_itch_parser()`| *Python API* | *Python API*| LOB reconstructor | `VERIFIED` |
-| **OCR Image Extractor** | `bp.document` | `bp.document.ocr_image()`| *Internal* | *Python API*| Raw image | `VERIFIED` |
-| **Stdio MCP Server** | `bp.mcp` | `McpServer().run_stdio()` | *Host* | `bp mcp-server`| Facade API | `VERIFIED` |
+| **`stagehand`** | AI Agent | ✘ Optional | **`PROVIDER-GATED`** | TypeScript AI agent bridge (Requires Model + Key). |
 
 ---
 
@@ -327,7 +482,7 @@ Return 0.0ms        Execute Request           Verified-Live       Standard Chrom
 
 ---
 
-## ⚠️ Known Limitations & Engineering Notes
+## ⚠️ Known Limitations & Engineering Honesty
 
 1. **Connection Pooling**: `AsyncApiClient` uses Python's standard library `urllib.request` running in an asynchronous threadpool. High-concurrency connection pooling using `curl_cffi` is optional roadmap work.
 2. **Cache Storage**: `ApiRequestCache` is an in-memory TTL dictionary. Multi-session SQLite disk persistence and HTTP ETag validation are future enhancements.
@@ -343,7 +498,7 @@ $ python -m pytest tests/ -q
 ........................................................................ [ 39%]
 ........s............................................................... [ 79%]
 ......................................                                   [100%]
-181 passed, 1 skipped in 21.72s
+181 passed, 1 skipped in 20.60s
 ```
 
 - **Core Baseline Protection**: 13 tests (`tests/test_baseline_protection.py`)
@@ -353,7 +508,6 @@ $ python -m pytest tests/ -q
 - **V23 Quarantine Pins**: 7 tests (`tests/test_v23_quarantine.py`)
 - **Unit & Domain Tests**: 113 tests (`tests/unit/`)
 - **Integration Tests**: 3 tests (`tests/integration/`)
-
 
 ---
 
