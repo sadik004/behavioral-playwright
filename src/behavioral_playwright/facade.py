@@ -532,11 +532,22 @@ class StorageNamespace:
 
 
 class ApiNamespace:
-    """Optimized async API client with connection pooling and response caching."""
+    """Optimized async API client with connection pooling, caching, proxy pool, and resilience."""
 
-    def __init__(self) -> None:
+    def __init__(self, bp: Optional[Any] = None) -> None:
         from behavioral_playwright.api.client import AsyncApiClient
-        self.client = AsyncApiClient()
+        from behavioral_playwright.resilience.circuit_breaker import CircuitBreaker
+
+        proxy_pool = getattr(getattr(bp, "proxy", None), "pool", None)
+        circuit_breaker = CircuitBreaker(bp.config.circuit_breaker) if bp else None
+        auth_config = bp.config.auth if bp else None
+
+
+        self.client = AsyncApiClient(
+            proxy_pool=proxy_pool,
+            circuit_breaker=circuit_breaker,
+            auth_config=auth_config,
+        )
 
     async def get(self, url: str, **kwargs: Any) -> Any:
         return await self.client.get(url, **kwargs)
@@ -582,7 +593,8 @@ class BP:
         self.proxy = ProxyNamespace()
         self.fingerprint = FingerprintNamespace()
         self.storage = StorageNamespace()
-        self.api = ApiNamespace()
+        self.api = ApiNamespace(bp=self)
+
 
 
 

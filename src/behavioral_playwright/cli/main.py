@@ -23,6 +23,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"behavioral-playwright {behavioral_playwright.__version__}",
     )
+    parser.add_argument(
+        "--api-key",
+        help="Shared API key (or set BP_API_KEY environment variable)",
+    )
+    parser.add_argument(
+        "--token",
+        help="Shared Bearer token (or set BP_BEARER_TOKEN environment variable)",
+    )
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
     # 1. Scrape command
@@ -55,8 +63,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-async def run_scrape(url: str, output: Optional[str] = None, target: str = "links") -> int:
-    async with BP() as bp:
+def resolve_cli_config(parsed: argparse.Namespace) -> Any:
+    from behavioral_playwright.config.settings import AuthConfig, AutomationConfig
+    auth = AuthConfig(
+        api_key=getattr(parsed, "api_key", None),
+        bearer_token=getattr(parsed, "token", None),
+    ).resolve()
+    return AutomationConfig(auth=auth)
+
+
+async def run_scrape(url: str, output: Optional[str] = None, target: str = "links", config: Optional[Any] = None) -> int:
+    async with BP(config=config) as bp:
         await bp.goto(url)
         records = await bp.extract(target=target)
         raw = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
@@ -69,8 +86,8 @@ async def run_scrape(url: str, output: Optional[str] = None, target: str = "link
     return 0
 
 
-async def run_crawl(url: str, max_pages: int = 5, depth: int = 2, output: Optional[str] = None) -> int:
-    async with BP() as bp:
+async def run_crawl(url: str, max_pages: int = 5, depth: int = 2, output: Optional[str] = None, config: Optional[Any] = None) -> int:
+    async with BP(config=config) as bp:
         records = await bp.crawl(url, max_pages=max_pages)
         raw = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
         
@@ -82,8 +99,8 @@ async def run_crawl(url: str, max_pages: int = 5, depth: int = 2, output: Option
     return 0
 
 
-def run_matrix() -> int:
-    bp = BP()
+def run_matrix(config: Optional[Any] = None) -> int:
+    bp = BP(config=config)
     matrix = bp.providers.matrix()
     print("\n=======================================================")
     print("      BEHAVIORAL PLAYWRIGHT: PROVIDER MATRIX          ")
@@ -98,8 +115,8 @@ def run_matrix() -> int:
     return 0
 
 
-def run_qa_report(db_path: str) -> int:
-    bp = BP()
+def run_qa_report(db_path: str, config: Optional[Any] = None) -> int:
+    bp = BP(config=config)
     report = bp.observability.generate_qa_report(db_path=db_path)
     if isinstance(report, dict):
         print(json.dumps(report, indent=2))
@@ -123,23 +140,26 @@ def main(args: Optional[List[str]] = None) -> int:
         parser.print_help()
         return 0
 
+    config = resolve_cli_config(parsed)
+
     if parsed.command == "matrix":
-        return run_matrix()
+        return run_matrix(config=config)
     elif parsed.command == "qa-report":
-        return run_qa_report(parsed.db)
+        return run_qa_report(parsed.db, config=config)
     elif parsed.command == "mcp-server":
         from behavioral_playwright.mcp.server import McpServer
-        server = McpServer()
+        server = McpServer(config=config)
         asyncio.run(server.run_stdio())
         return 0
     elif parsed.command == "mcp-config":
         return run_mcp_config(parsed.python_path)
     elif parsed.command == "scrape":
-        return asyncio.run(run_scrape(parsed.url, parsed.output, parsed.target))
+        return asyncio.run(run_scrape(parsed.url, parsed.output, parsed.target, config=config))
     elif parsed.command == "crawl":
-        return asyncio.run(run_crawl(parsed.url, parsed.max_pages, parsed.depth, parsed.output))
+        return asyncio.run(run_crawl(parsed.url, parsed.max_pages, parsed.depth, parsed.output, config=config))
     
     return 0
+
 
 
 

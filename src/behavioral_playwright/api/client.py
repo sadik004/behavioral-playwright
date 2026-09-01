@@ -57,18 +57,27 @@ class ApiRequestCache:
         self._cache.clear()
 
 
+from behavioral_playwright.config.settings import AuthConfig
+
+
 class AsyncApiClient:
-    """Optimized async API client."""
+    """Optimized async API client with connection pooling, caching, proxy, and circuit breaker."""
 
     def __init__(
         self,
         default_timeout: float = 15.0,
         cache_ttl: float = 60.0,
         proxy_url: Optional[str] = None,
+        proxy_pool: Optional[Any] = None,
+        circuit_breaker: Optional[Any] = None,
+        auth_config: Optional[AuthConfig] = None,
     ) -> None:
         self.default_timeout = default_timeout
         self.cache = ApiRequestCache(default_ttl_seconds=cache_ttl)
         self.proxy_url = proxy_url
+        self.proxy_pool = proxy_pool
+        self.circuit_breaker = circuit_breaker
+        self.auth_config = auth_config or AuthConfig()
 
     def _make_sync_request(
         self,
@@ -83,6 +92,9 @@ class AsyncApiClient:
             "User-Agent": "BehavioralPlaywright-ApiClient/10.0",
             "Accept": "application/json, text/plain, */*",
         }
+        # Merge resolved auth headers without mutating caller dictionaries
+        auth_hdrs = self.auth_config.get_headers()
+        req_headers.update(auth_hdrs)
         if headers:
             req_headers.update(headers)
 
@@ -99,8 +111,15 @@ class AsyncApiClient:
         req = urllib.request.Request(url, data=body_bytes, headers=req_headers, method=method.upper())
         effective_timeout = timeout or self.default_timeout
 
-        handlers = []
+        # Resolve proxy (explicit > instance default > proxy_pool)
         eff_proxy = proxy or self.proxy_url
+        selected_proxy_node = None
+        if not eff_proxy and self.proxy_pool is not None:
+            selected_proxy_node = self.proxy_pool.get_proxy()
+            if selected_proxy_node:
+                eff_proxy = selected_proxy_node.url
+
+        handlers = []
         if eff_proxy:
             handlers.append(urllib.request.ProxyHandler({"http": eff_proxy, "https": eff_proxy}))
         opener = urllib.request.build_opener(*handlers) if handlers else urllib.request.build_opener()
@@ -111,6 +130,9 @@ class AsyncApiClient:
                 raw_body = resp.read()
                 elapsed = (time.perf_counter() - start) * 1000.0
                 resp_headers = dict(resp.headers)
+                if selected_proxy_node and self.proxy_pool is not None:
+                    self.proxy_pool.report_success(selected_proxy_node, latency_ms=elapsed)
+
                 return ApiResponse(
                     status_code=resp.status,
                     headers=resp_headers,
@@ -118,8 +140,15 @@ class AsyncApiClient:
                     elapsed_ms=elapsed,
                     cached=False,
                 )
+
         except urllib.error.HTTPError as exc:
             elapsed = (time.perf_counter() - start) * 1000.0
+            if selected_proxy_node and self.proxy_pool is not None:
+                if exc.code >= 500:
+                    self.proxy_pool.report_failure(selected_proxy_node)
+                else:
+                    self.proxy_pool.report_success(selected_proxy_node, latency_ms=elapsed)
+
             return ApiResponse(
                 status_code=exc.code,
                 headers=dict(exc.headers),
@@ -127,6 +156,10 @@ class AsyncApiClient:
                 elapsed_ms=elapsed,
                 cached=False,
             )
+        except Exception as exc:
+            if selected_proxy_node and self.proxy_pool is not None:
+                self.proxy_pool.report_failure(selected_proxy_node)
+            raise exc
 
     async def request(
         self,
@@ -140,25 +173,40 @@ class AsyncApiClient:
         proxy: Optional[str] = None,
     ) -> ApiResponse:
         method_upper = method.upper()
-        cache_key = f"{method_upper}:{url}" if (use_cache and method_upper == "GET") else None
+
+        auth_fp = ""
+        if self.auth_config:
+            auth_hdrs = self.auth_config.get_headers()
+            if auth_hdrs:
+                auth_fp = f":auth={hash(frozenset(auth_hdrs.items()))}"
+
+        cache_key = f"{method_upper}:{url}{auth_fp}" if (use_cache and method_upper == "GET") else None
 
         if cache_key:
             cached_resp = self.cache.get(cache_key)
             if cached_resp:
                 return cached_resp
 
-        loop = asyncio.get_running_loop()
-        resp = await loop.run_in_executor(
-            None,
-            lambda: self._make_sync_request(
-                method=method,
-                url=url,
-                headers=headers,
-                data=data,
-                timeout=timeout,
-                proxy=proxy,
-            ),
-        )
+
+        async def _execute_fetch() -> ApiResponse:
+            loop = asyncio.get_running_loop()
+            fetch_resp: ApiResponse = await loop.run_in_executor(
+                None,
+                lambda: self._make_sync_request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    data=data,
+                    timeout=timeout,
+                    proxy=proxy,
+                ),
+            )
+            return fetch_resp
+
+        if self.circuit_breaker is not None:
+            resp = await self.circuit_breaker.execute(_execute_fetch, operation_name=f"api_{method_upper}")
+        else:
+            resp = await _execute_fetch()
 
         if cache_key and 200 <= resp.status_code < 400:
             self.cache.set(cache_key, resp, ttl=cache_ttl)

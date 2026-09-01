@@ -53,6 +53,29 @@ async def test_mcp_server_protocol():
     data = json.loads(content_raw)
     assert data["result"]["event_timestamp"] == 100.0
 
-    # 4. Generate Claude Desktop Config
+    # 4. Ping
+    ping_req = {"jsonrpc": "2.0", "id": 4, "method": "ping", "params": {}}
+    ping_resp = await server.handle_request(ping_req)
+    assert ping_resp["id"] == 4
+    assert ping_resp["result"] == {}
+
+    # 5. Unknown Method (-32601)
+    unk_req = {"jsonrpc": "2.0", "id": 5, "method": "resources/list", "params": {}}
+    unk_resp = await server.handle_request(unk_req)
+    assert unk_resp["id"] == 5
+    assert unk_resp["error"]["code"] == -32601
+
+    # 6. Unknown Tool Call (isError: True)
+    bad_tool_req = {
+        "jsonrpc": "2.0",
+        "id": 6,
+        "method": "tools/call",
+        "params": {"name": "non_existent_tool", "arguments": {}},
+    }
+    bad_tool_resp = await server.handle_request(bad_tool_req)
+    assert bad_tool_resp["id"] == 6
+    assert bad_tool_resp["result"]["isError"] is True
+
+    # 7. Generate Claude Desktop Config
     cfg = McpServer.generate_claude_config(python_path="python.exe")
     assert "behavioral-playwright" in cfg["mcpServers"]

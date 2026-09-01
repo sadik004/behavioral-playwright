@@ -47,9 +47,49 @@ class CircuitBreakerConfig:
 
 
 @dataclass
+class AuthConfig:
+    """
+    Shared authentication and credential configuration.
+    Resolves credentials with deterministic precedence:
+      1. Explicit instance arguments
+      2. Environment variables (BP_API_KEY, BP_BEARER_TOKEN)
+    """
+    api_key: Optional[str] = None
+    bearer_token: Optional[str] = None
+    api_key_header: str = "X-API-Key"
+    custom_headers: dict[str, str] = field(default_factory=dict)
+
+    def resolve(self) -> "AuthConfig":
+        """Returns a resolved copy with environment variable fallbacks."""
+        import os
+        resolved_api_key = self.api_key or os.environ.get("BP_API_KEY")
+        resolved_bearer_token = self.bearer_token or os.environ.get("BP_BEARER_TOKEN")
+        return AuthConfig(
+            api_key=resolved_api_key,
+            bearer_token=resolved_bearer_token,
+            api_key_header=self.api_key_header,
+            custom_headers=dict(self.custom_headers),
+        )
+
+    def get_headers(self) -> dict[str, str]:
+        """
+        Builds HTTP headers for authentication.
+        Merges custom_headers, Bearer token, and API key header without mutating state.
+        """
+        resolved = self.resolve()
+        headers = dict(resolved.custom_headers)
+        if resolved.bearer_token:
+            headers["Authorization"] = f"Bearer {resolved.bearer_token}"
+        if resolved.api_key:
+            headers[resolved.api_key_header] = resolved.api_key
+        return headers
+
+
+@dataclass
 class AutomationConfig:
     """Root configuration container for dependency injection."""
     browser: BrowserConfig = field(default_factory=BrowserConfig)
     resolver: ResolverConfig = field(default_factory=ResolverConfig)
     retry: RetryConfig = field(default_factory=RetryConfig)
     circuit_breaker: CircuitBreakerConfig = field(default_factory=CircuitBreakerConfig)
+    auth: AuthConfig = field(default_factory=AuthConfig)

@@ -7,14 +7,20 @@ import json
 import sys
 from typing import Any, Dict, Optional
 
+from behavioral_playwright.config.settings import AutomationConfig
 from behavioral_playwright.mcp.tools import MCP_TOOL_DEFINITIONS, McpToolDispatcher
 
 
 class McpServer:
     """Stdio-based JSON-RPC 2.0 server for Claude Desktop, Cursor, and AI Agents."""
 
-    def __init__(self) -> None:
-        self.dispatcher = McpToolDispatcher()
+    def __init__(
+        self,
+        config: Optional[AutomationConfig] = None,
+        bp: Optional[Any] = None,
+    ) -> None:
+        self.dispatcher = McpToolDispatcher(bp=bp, config=config)
+
 
     async def handle_request(self, request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         req_id = request.get("id")
