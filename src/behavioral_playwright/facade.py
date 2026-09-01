@@ -483,6 +483,54 @@ class ProvidersNamespace:
         return provider_matrix()
 
 
+class ProxyNamespace:
+    """Intelligent proxy pool, rotation, and sticky session management."""
+
+    def __init__(self) -> None:
+        from behavioral_playwright.proxy.pool import ProxyPool
+        self.pool = ProxyPool()
+
+    def add_proxy(self, host: str, port: int, **kwargs: Any) -> Any:
+        return self.pool.add_proxy(host, port, **kwargs)
+
+    def add_proxy_url(self, url: str) -> Any:
+        return self.pool.add_proxy_url(url)
+
+    def get_proxy(self, session_id: Optional[str] = None, **kwargs: Any) -> Any:
+        return self.pool.get_proxy(session_id=session_id, **kwargs)
+
+    def report_success(self, node: Any, latency_ms: float = 0.0) -> None:
+        self.pool.report_success(node, latency_ms)
+
+    def report_failure(self, node: Any, quarantine_seconds: Optional[float] = None) -> None:
+        self.pool.report_failure(node, quarantine_seconds)
+
+
+class FingerprintNamespace:
+    """Dynamic hardware signature and real device fingerprint generation."""
+
+    def __init__(self) -> None:
+        from behavioral_playwright.fingerprint.generator import FingerprintGenerator
+        self.generator = FingerprintGenerator()
+
+    def generate(self, **kwargs: Any) -> Any:
+        return self.generator.generate(**kwargs)
+
+    def generate_evasion_script(self, profile: Any) -> str:
+        return self.generator.generate_evasion_script(profile)
+
+
+class StorageNamespace:
+    """Data export, serialization, and persistence pipelines."""
+
+    def __init__(self) -> None:
+        from behavioral_playwright.storage.exporters import DataStorageManager
+        self.manager = DataStorageManager()
+
+    def export(self, records: Any, target_path: str, format: Optional[str] = None, **kwargs: Any) -> str:
+        return self.manager.export(records, target_path, format=format, **kwargs)
+
+
 class BP:
     """
     Unified high-level facade orchestrating the Behavioral Playwright framework.
@@ -511,9 +559,13 @@ class BP:
         self.browser = BrowserActionNamespace(self)
         self.metrics = ObservabilityMetrics()
         self.integrations_ext = IntegrationExtensions(self)
-        # Quantitative & Provider namespaces
+        # Quantitative, Provider, Proxy, Fingerprint & Storage namespaces
         self.quant = QuantNamespace()
         self.providers = ProvidersNamespace()
+        self.proxy = ProxyNamespace()
+        self.fingerprint = FingerprintNamespace()
+        self.storage = StorageNamespace()
+
 
 
     async def boot(self) -> "BP":

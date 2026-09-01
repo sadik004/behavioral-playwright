@@ -20,7 +20,12 @@ dependencies = [
     "pillow"
 ]
 
+[project.scripts]
+behavioral-playwright = "behavioral_playwright.cli.main:main"
+bp = "behavioral_playwright.cli.main:main"
+
 [project.optional-dependencies]
+
 ocr = ["pytesseract"]
 dev = [
     "pytest>=8.0.0",
