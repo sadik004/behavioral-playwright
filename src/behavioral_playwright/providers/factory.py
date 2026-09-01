@@ -11,13 +11,10 @@ from typing import Any, Dict, Type
 
 from .agents import BrowserUseProvider, StagehandProvider
 from .base import (
-    HONESTY_NOTE,
     ProviderInfo,
-    ProviderUnavailableError,
     UnknownProviderError,
 )
 from .browser import (
-    BrowserSession,
     PatchrightProvider,
     PlaywrightProvider,
     UndetectedChromedriverProvider,

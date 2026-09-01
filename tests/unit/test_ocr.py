@@ -1,8 +1,6 @@
 import pytest
 
 import sys
-import os
-import pytest
 from unittest.mock import MagicMock, patch
 from PIL import Image, ImageDraw
 

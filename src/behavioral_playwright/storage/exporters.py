@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import sqlite3
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 from behavioral_playwright.storage.base import BaseExporter
 

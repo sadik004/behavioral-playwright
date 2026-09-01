@@ -1,10 +1,8 @@
 """Tests for Phase 7.2: Shared Authentication and API Resilience Hardening."""
 
-import os
 import unittest.mock
 import pytest
-from behavioral_playwright import BP
-from behavioral_playwright.api.client import ApiResponse, AsyncApiClient
+from behavioral_playwright.api.client import AsyncApiClient
 from behavioral_playwright.cli.main import build_parser, resolve_cli_config
 from behavioral_playwright.config.settings import (
     AuthConfig,
@@ -13,8 +11,7 @@ from behavioral_playwright.config.settings import (
 )
 from behavioral_playwright.exceptions import CircuitBreakerError
 from behavioral_playwright.mcp.server import McpServer
-from behavioral_playwright.mcp.tools import McpToolDispatcher
-from behavioral_playwright.proxy.models import ProxyNode, ProxyProtocol
+from behavioral_playwright.proxy.models import ProxyProtocol
 from behavioral_playwright.proxy.pool import ProxyPool
 from behavioral_playwright.resilience.circuit_breaker import CircuitBreaker, CircuitState
 

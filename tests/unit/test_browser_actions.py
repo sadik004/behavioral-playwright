@@ -1,7 +1,5 @@
 import pytest
 
-import sys
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 # Legacy sys.modules stub block removed during src-layout refactor.

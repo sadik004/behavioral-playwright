@@ -10,7 +10,7 @@ import asyncio
 import json
 import urllib.error
 import urllib.request
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict
 
 _MCP_MANIFEST = {
     "mcp_version": "1.0.0",
@@ -107,7 +107,7 @@ class IntegrationExtensions:
     def mcp_call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """Sync bridge over :meth:`mcp_call_tool_async`."""
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
         except RuntimeError:
             return asyncio.run(self.mcp_call_tool_async(tool_name, arguments))
         # Already inside a loop: run in a worker thread with its own loop.
@@ -125,7 +125,6 @@ class IntegrationExtensions:
     @staticmethod
     def integrations_health_check(db_path: str = "bp_tasks.db"
                                   ) -> Dict[str, Any]:
-        import os
         import sqlite3
         healthy = True
         try:

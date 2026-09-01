@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import re
 import sqlite3
-import time
 from typing import Any, Callable, Coroutine, Dict, List, Optional
 from urllib.parse import urljoin, urlparse, urldefrag
 
@@ -82,10 +81,10 @@ class CrawlingService:
         if result is not None:
             candidate = getattr(result, "links", None)
             if isinstance(candidate, list):
-                links.extend(str(l) for l in candidate)
+                links.extend(str(item) for item in candidate)
             elif isinstance(result, dict) and isinstance(
                     result.get("links"), list):
-                links.extend(str(l) for l in result["links"])
+                links.extend(str(item) for item in result["links"])
 
         if html_content:
             if _HAS_BS4:

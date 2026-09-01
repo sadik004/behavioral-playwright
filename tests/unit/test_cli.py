@@ -1,6 +1,5 @@
 """Unit tests for Behavioral Playwright CLI."""
 
-import pytest
 from behavioral_playwright.cli.main import build_parser, main
 
 

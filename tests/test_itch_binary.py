@@ -17,7 +17,6 @@ import pytest
 BASE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE))
 
-import itch_binary  # noqa: E402
 from itch_binary import (  # noqa: E402
     EXPECTED_LENGTHS,
     ItchBinaryParser,

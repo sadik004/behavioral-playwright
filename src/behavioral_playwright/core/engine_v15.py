@@ -3,12 +3,11 @@ import sys
 import time
 import asyncio
 import logging
-import sqlite3
 import random
 import math
 import json
 import re
-from typing import Dict, Any, List, Optional, Type, Callable, Tuple, Union
+from typing import Dict, Any, List, Optional, Type, Callable, Tuple
 from pydantic import BaseModel, ValidationError
 
 # =====================================================================
@@ -118,15 +117,13 @@ class CDPEvasionShield:
         """Injects non-serializable WeakMap-based toString protection into the page."""
         logger.info("CDPEvasionShield: Mounting V8 native representation toString and prepareStackTrace wrappers.")
         
-        try:
-            from patchright.async_api import async_playwright
+        import importlib.util
+        if importlib.util.find_spec("patchright") is not None:
             logger.info("CDPEvasionShield: Patchright async-api successfully imported.")
-        except ImportError:
-            try:
-                import rebrowser_patches
-                logger.info("CDPEvasionShield: rebrowser-patches module successfully integrated.")
-            except ImportError:
-                logger.warning("CDPEvasionShield: Using fallback CDP evasion via runtime bindings.")
+        elif importlib.util.find_spec("rebrowser_patches") is not None:
+            logger.info("CDPEvasionShield: rebrowser-patches module successfully integrated.")
+        else:
+            logger.warning("CDPEvasionShield: Using fallback CDP evasion via runtime bindings.")
 
         stealth_js = """
         (() => {
@@ -1248,7 +1245,7 @@ class QuantDataContractSentinel:
             schema_class(**record)
         except ValidationError as e:
             logger.critical(f"DataContractSentinel: CRITICAL SCHEMA DRIFT! Data contract violated: {e}")
-            raise RuntimeError(f"Ingestion Halted: Schema drift detected by contract sentinel.")
+            raise RuntimeError("Ingestion Halted: Schema drift detected by contract sentinel.")
             
         # Inspect for NULL value spikes
         for key, val in record.items():

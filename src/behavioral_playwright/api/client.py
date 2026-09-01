@@ -8,8 +8,10 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, Optional, Union
+
+from behavioral_playwright.config.settings import AuthConfig
 
 
 @dataclass
@@ -55,9 +57,6 @@ class ApiRequestCache:
 
     def clear(self) -> None:
         self._cache.clear()
-
-
-from behavioral_playwright.config.settings import AuthConfig
 
 
 class AsyncApiClient:

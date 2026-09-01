@@ -6,7 +6,7 @@ import argparse
 import asyncio
 import json
 import sys
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import behavioral_playwright
 from behavioral_playwright import BP

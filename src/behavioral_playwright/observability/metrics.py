@@ -6,7 +6,6 @@ initialization (tracked via ``_initialized_dbs``).
 
 from __future__ import annotations
 
-import os
 import sqlite3
 import time
 from typing import Any, Dict, List

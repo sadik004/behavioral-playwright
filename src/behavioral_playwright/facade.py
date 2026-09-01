@@ -6,12 +6,10 @@ domain namespaces: web, infrastructure, observability, network, integrations.
 
 import asyncio
 import json
-import re
 import sqlite3
 import time
 import urllib.error
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Coroutine, Dict, List, Optional, TypeVar
 from types import SimpleNamespace
 
@@ -185,7 +183,7 @@ class InfrastructureNamespace:
                 (url, operation, priority, time.strftime("%Y-%m-%dT%H:%M:%S")),
             )
             conn.commit()
-            return int(cur.lastrowid)
+            return int(cur.lastrowid or 0)
         finally:
             conn.close()
 
@@ -614,12 +612,14 @@ class BP:
             execute_safe_hover=None, execute_safe_click=None)
         # A plain booted marker: browser namespace falls back to page methods
         self._humanizer = object()  # truthy sentinel; methods looked up dynamically
+        return self
 
     async def open(self, url: str) -> None:
         """Navigates to the specified URL."""
         if not self.page:
             await self.boot()
-        await self.page.goto(url)
+        if self.page:
+            await self.page.goto(url)
 
     async def goto(self, url: str) -> None:
         """Alias for open()."""

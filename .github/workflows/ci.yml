@@ -33,10 +33,10 @@ jobs:
         run: python -m playwright install
       - name: Code Quality & Linting (Ruff)
         run: |
-          ruff check behavioral_playwright/ tests/
+          ruff check src/ tests/
       - name: Type Checking (MyPy)
         run: |
-          mypy behavioral_playwright/
+          mypy src/
       - name: Run Pytest Suite
         run: |
           pytest

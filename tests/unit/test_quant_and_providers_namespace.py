@@ -1,6 +1,5 @@
 """Unit tests for BP facade quant and providers namespaces."""
 
-import pytest
 from behavioral_playwright import BP
 from behavioral_playwright.core.itch_binary import ItchBinaryParser
 

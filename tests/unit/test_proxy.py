@@ -1,7 +1,5 @@
 """Unit tests for proxy pool, rotation, and health management."""
 
-import time
-import pytest
 from behavioral_playwright.proxy.models import ProxyNode, ProxyProtocol, ProxyRotationStrategy
 from behavioral_playwright.proxy.pool import ProxyPool
 
@@ -27,8 +25,8 @@ def test_proxy_node_properties():
 def test_proxy_pool_rotation_strategies():
     pool = ProxyPool(strategy=ProxyRotationStrategy.ROUND_ROBIN)
     p1 = pool.add_proxy("1.1.1.1", 8080, tags=["us"])
-    p2 = pool.add_proxy("2.2.2.2", 8080, tags=["uk"])
-    p3 = pool.add_proxy("3.3.3.3", 8080, tags=["us"])
+    pool.add_proxy("2.2.2.2", 8080, tags=["uk"])
+    pool.add_proxy("3.3.3.3", 8080, tags=["us"])
 
     assert pool.total_count == 3
     assert pool.available_count == 3

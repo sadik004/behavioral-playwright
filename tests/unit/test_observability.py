@@ -1,9 +1,7 @@
 import pytest
 
-import sys
 import sqlite3
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 # Legacy sys.modules stub block removed during src-layout refactor.
 

@@ -2,8 +2,7 @@
 
 import os
 import tempfile
-import pytest
-from behavioral_playwright import BP, ProxyPool, FingerprintGenerator, DataStorageManager
+from behavioral_playwright import BP
 
 
 def test_bp_facade_extended_namespaces():

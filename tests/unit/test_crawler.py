@@ -1,8 +1,5 @@
 import pytest
 
-import sys
-import os
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 # Legacy sys.modules stub block removed during src-layout refactor.
@@ -155,11 +152,11 @@ async def test_url_normalization_and_filtering(mock_bp):
 
     assert "https://example.com/path/page" in filtered
     assert "https://example.com/section" in filtered
-    assert not any(l.endswith(".png") for l in filtered)
-    assert not any(l.endswith(".css") for l in filtered)
-    assert not any("otherdomain.com" in l for l in filtered)
-    assert not any("javascript:" in l for l in filtered)
-    assert not any("mailto:" in l for l in filtered)
+    assert not any(url_link.endswith(".png") for url_link in filtered)
+    assert not any(url_link.endswith(".css") for url_link in filtered)
+    assert not any("otherdomain.com" in url_link for url_link in filtered)
+    assert not any("javascript:" in url_link for url_link in filtered)
+    assert not any("mailto:" in url_link for url_link in filtered)
 
 
 @pytest.mark.asyncio

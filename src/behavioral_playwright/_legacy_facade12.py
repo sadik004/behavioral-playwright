@@ -24,7 +24,7 @@ import asyncio
 import hashlib
 import urllib.request
 import urllib.error
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from behavioral_playwright.core.config import AutomationConfig
 from behavioral_playwright.core.exceptions import ProviderError
@@ -36,8 +36,8 @@ from behavioral_playwright.core.v10_core import (
     VisualVerification,
 )
 
-from behavioral_playwright.acquisition.exceptions import ProviderUnavailableError, InvalidRequestError
-from behavioral_playwright.acquisition.models import AcquisitionRequest, AcquisitionResult, AcquiredPage
+from behavioral_playwright.acquisition.exceptions import ProviderUnavailableError
+from behavioral_playwright.acquisition.models import AcquisitionRequest, AcquisitionResult
 from behavioral_playwright.acquisition.router import AcquisitionRouter
 from behavioral_playwright.acquisition.handoff import PlaywrightHandoff
 
@@ -171,9 +171,9 @@ class WebNamespace:
 
         if result is not None:
             if hasattr(result, "links") and isinstance(result.links, list):
-                raw_links.extend([str(l) for l in result.links if l])
+                raw_links.extend([str(item) for item in result.links if item])
             elif isinstance(result, dict) and isinstance(result.get("links"), list):
-                raw_links.extend([str(l) for l in result["links"] if l])
+                raw_links.extend([str(item) for item in result["links"] if item])
 
         if html_content and isinstance(html_content, str):
             try:
@@ -774,7 +774,7 @@ class DocumentNamespace:
         if not lines:
             return ""
         
-        double_space_lines = sum(1 for l in lines if "    " in l or "\t" in l)
+        double_space_lines = sum(1 for line_str in lines if "    " in line_str or "\t" in line_str)
         is_double_column = (double_space_lines / len(lines)) > 0.15
         
         if is_double_column:
@@ -1220,7 +1220,7 @@ class NetworkNamespace:
             try:
                 with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
                     pass
-            except urllib.error.HTTPError as e:
+            except urllib.error.HTTPError:
                 # HTTP status codes (2xx, 3xx, 4xx, 5xx) completed a valid network round-trip
                 pass
             except urllib.error.URLError as e:

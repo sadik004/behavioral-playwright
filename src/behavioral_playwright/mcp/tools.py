@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import json
 from typing import Any, Dict, List, Optional
 from behavioral_playwright.config.settings import AutomationConfig
 
@@ -88,6 +87,7 @@ class McpToolDispatcher:
         if not isinstance(arguments, dict):
             arguments = {}
         bp = self._get_bp()
+        res: Any = None
 
         try:
             if tool_name == "scrape_page":

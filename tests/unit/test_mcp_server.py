@@ -3,7 +3,7 @@
 import json
 import pytest
 from behavioral_playwright.mcp.server import McpServer
-from behavioral_playwright.mcp.tools import MCP_TOOL_DEFINITIONS, McpToolDispatcher
+from behavioral_playwright.mcp.tools import MCP_TOOL_DEFINITIONS
 
 
 def test_mcp_tool_definitions():

@@ -1,7 +1,6 @@
 """Unit tests for dynamic fingerprint and hardware profile generator."""
 
-import pytest
-from behavioral_playwright.fingerprint.models import OSPlatform, FingerprintProfile
+from behavioral_playwright.fingerprint.models import OSPlatform
 from behavioral_playwright.fingerprint.generator import FingerprintGenerator
 
 
