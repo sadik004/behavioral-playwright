@@ -54,24 +54,41 @@ from behavioral_playwright.storage.exporters import DataStorageManager
 from behavioral_playwright.facade import BP
 from behavioral_playwright.powerplay import Bpp
 import behavioral_playwright.powerplay as powerplay
+from behavioral_playwright.providers import (
+    BaseBrowserProvider,
+    PatchrightProvider,
+    UndetectedChromedriverProvider,
+    BrowserUseProvider,
+    StagehandProvider,
+    CurlCffiProvider,
+    create_browser_provider,
+    create_network_provider,
+    create_agent_provider,
+    provider_matrix,
+)
 
 __all__ = [
     "__version__",
     "AutomationConfig",
+    "BaseBrowserProvider",
     "BehavioralPlaywrightError",
     "BoundingBox",
     "BP",
     "Bpp",
-    "powerplay",
     "BrowserConfig",
     "BrowserProvider",
     "BrowserProviderError",
     "BrowserSession",
+    "BrowserUseProvider",
     "CircuitBreaker",
     "CircuitBreakerConfig",
     "CircuitBreakerError",
     "CircuitState",
     "ConfigurationError",
+    "create_agent_provider",
+    "create_browser_provider",
+    "create_network_provider",
+    "CurlCffiProvider",
     "DataStorageManager",
     "DOMElement",
     "DOMExtractor",
@@ -86,7 +103,10 @@ __all__ = [
     "NavigationError",
     "PageSession",
     "PageStateEntry",
+    "PatchrightProvider",
     "PlaywrightProvider",
+    "powerplay",
+    "provider_matrix",
     "ProxyPool",
     "ResolutionResult",
     "ResolutionStrategy",
@@ -96,7 +116,9 @@ __all__ = [
     "ScrollController",
     "SelfHealingResolver",
     "SemanticResolverStrategy",
+    "StagehandProvider",
     "StateTracker",
     "TimeoutError",
+    "UndetectedChromedriverProvider",
 ]
 
