@@ -1,0 +1,61 @@
+name: Publish to TestPyPI
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: Build, Validate & Publish to TestPyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/behavioral-playwright
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install build and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build twine pytest pytest-asyncio
+
+      - name: Run Pytest suite
+        run: |
+          pytest
+
+      - name: Build Wheel and sdist
+        run: |
+          python -m build
+
+      - name: Validate artifacts metadata with Twine
+        run: |
+          python -m twine check dist/*
+
+      - name: Verify release artifact safety and version (10.0.0)
+        run: |
+          python -c "
+          import os, sys
+          artifacts = sorted(os.listdir('dist'))
+          expected = ['behavioral_playwright-10.0.0-py3-none-any.whl', 'behavioral_playwright-10.0.0.tar.gz']
+          if artifacts != expected:
+              sys.exit(f'Artifact safety error: found {artifacts}, expected {expected}')
+          print(f'Artifact safety PASS: exactly expected 10.0.0 release artifacts present: {artifacts}')
+          "
+
+      - name: Publish distribution to TestPyPI (OIDC Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/

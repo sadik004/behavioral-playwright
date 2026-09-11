@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "behavioral-playwright"
+version = "10.0.0"
+description = "A resilient browser automation and self-healing AI framework"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Sadik", email = "author@example.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "playwright",
+    "beautifulsoup4",
+    "pypdf",
+    "python-docx",
+    "pillow"
+]
+
+[project.scripts]
+behavioral-playwright = "behavioral_playwright.cli.main:main"
+bp = "behavioral_playwright.cli.main:main"
+
+[project.optional-dependencies]
+
+ocr = ["pytesseract"]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "build>=1.0.0",
+    "twine>=5.0.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = ["src", "."]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+follow_imports = "silent"
+check_untyped_defs = false
+disallow_untyped_defs = false
+warn_redundant_casts = false
+warn_unused_ignores = false
+disable_error_code = [
+    "import-untyped",
+    "import-not-found",
+    "union-attr",
+    "misc",
+    "arg-type",
+    "index",
+    "attr-defined",
+    "assignment",
+    "operator",
+    "dict-item",
+    "return-value",
+    "var-annotated",
+    "no-redef"
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501", "E741"]
+
