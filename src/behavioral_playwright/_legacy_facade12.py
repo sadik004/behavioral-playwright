@@ -587,7 +587,7 @@ class InfrastructureNamespace:
         decrypted = bytes(b ^ digest[i % len(digest)] for i, b in enumerate(enc_bytes))
         return decrypted.decode("utf-8")
 
-    def execute_transaction_with_backoff(self, db_path: str, action_func, max_retries: int = 5) -> Any:
+    async def execute_transaction_with_backoff(self, db_path: str, action_func, max_retries: int = 5) -> Any:
         for attempt in range(max_retries):
             try:
                 conn = self._concurrency_safe_db(db_path)
@@ -597,7 +597,7 @@ class InfrastructureNamespace:
             except sqlite3.OperationalError as e:
                 if "locked" in str(e).lower() and attempt < max_retries - 1:
                     sleep_time = (2 ** attempt) * 0.05 + random.uniform(0.01, 0.05)
-                    time.sleep(sleep_time)
+                    await asyncio.sleep(sleep_time)
                 else:
                     raise
 
