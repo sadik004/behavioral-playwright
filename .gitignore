@@ -10,3 +10,6 @@ venv/
 forensics/
 *.db
 .DS_Store
+dist/
+build/
+*.egg-info/

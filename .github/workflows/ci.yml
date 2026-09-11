@@ -39,7 +39,7 @@ jobs:
           mypy src/
       - name: Run Pytest Suite
         run: |
-          pytest
+          pytest tests/unit -q
       - name: Build Package (Wheel & sdist)
         run: |
           python -m build

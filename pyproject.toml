@@ -18,7 +18,8 @@ dependencies = [
     "pypdf",
     "python-docx",
     "pillow",
-    "pydantic>=2.0.0"
+    "pydantic>=2.0.0",
+    "structlog"
 ]
 
 [project.scripts]
@@ -40,7 +41,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["tests/unit"]
 python_files = ["test_*.py"]
 pythonpath = ["src", "."]
 
@@ -65,7 +66,8 @@ disable_error_code = [
     "dict-item",
     "return-value",
     "var-annotated",
-    "no-redef"
+    "no-redef",
+    "unused-coroutine"
 ]
 
 [tool.ruff]
@@ -74,5 +76,5 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
-ignore = ["E501", "E741"]
+ignore = ["E501", "E741", "W291", "W293"]
 

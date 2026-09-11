@@ -17,7 +17,6 @@ Covers:
 import asyncio
 import math
 import os
-import pytest
 import numpy as np
 
 # ---------------------------------------------------------------------------

@@ -5,8 +5,6 @@ Unified entrypoint encapsulating all 10 mathematical and behavioral subsystems.
 
 from behavioral_playwright.powerplay.tracking import StatefulEvasionTracker
 from behavioral_playwright.powerplay.os_bridge import (
-    VirtualDisplayManager,
-    OSLevelInputBridge,
     OSLevelDisplayInputBridge,
 )
 from behavioral_playwright.powerplay.biomechanics import BiomechanicalTremorEngine
