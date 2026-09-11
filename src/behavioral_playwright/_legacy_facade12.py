@@ -804,7 +804,10 @@ class DocumentNamespace:
     async def parse_pdf(self, file_path: str) -> Dict[str, Any]:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"PDF file not found: {file_path}")
-        import pypdf
+        try:
+            import pypdf
+        except ImportError as exc:
+            raise ProviderUnavailableError("PDF engine 'pypdf' is not installed.") from exc
         reader = pypdf.PdfReader(file_path)
         full_text = []
         for i, page in enumerate(reader.pages):
@@ -830,7 +833,10 @@ class DocumentNamespace:
     async def parse_docx(self, file_path: str) -> Dict[str, Any]:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"DOCX file not found: {file_path}")
-        import docx
+        try:
+            import docx
+        except ImportError as exc:
+            raise ProviderUnavailableError("DOCX engine 'python-docx' is not installed.") from exc
         doc = docx.Document(file_path)
         paragraphs = [p.text for p in doc.paragraphs if p.text]
         checksum = self._get_sha256(file_path)
@@ -868,7 +874,10 @@ class DocumentNamespace:
     async def convert_pdf_to_images(self, file_path: str) -> Dict[str, Any]:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"PDF file not found: {file_path}")
-        import pypdf
+        try:
+            import pypdf
+        except ImportError as exc:
+            raise ProviderUnavailableError("PDF engine 'pypdf' is not installed.") from exc
         reader = pypdf.PdfReader(file_path)
         images_found = 0
         for page in reader.pages:
@@ -931,7 +940,10 @@ class DocumentNamespace:
     async def extract_tables_from_pdf(self, file_path: str) -> Dict[str, Any]:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"PDF file not found: {file_path}")
-        import pypdf
+        try:
+            import pypdf
+        except ImportError as exc:
+            raise ProviderUnavailableError("PDF engine 'pypdf' is not installed.") from exc
         reader = pypdf.PdfReader(file_path)
         extracted_tables = []
         for i, page in enumerate(reader.pages):
