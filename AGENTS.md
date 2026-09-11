@@ -8,7 +8,7 @@
   - Never mutate historical database records without double-entry audit trails.
   - Zero raw SQL in routers/services; enforce parameterization and Protocol repository abstractions.
 - **Web Automation, Scraping, Playwright, & Crawler Tasks**:
-  - Strictly enforce and adhere to `.agents/skills/browser-automation/SKILL.md`.
+  - Strictly enforce and adhere to `.agents/skills/scraping-production/SKILL.md` and `.agents/skills/browser-automation/SKILL.md`.
   - Enforce Single Browser multi-context pooling (`BrowserPoolManager`); never launch a new browser process per request.
   - Strictly ban arbitrary sleeps (`time.sleep`, `asyncio.sleep` with magic numbers, `page.wait_for_timeout`); enforce auto-waiting and dynamic DOM mutation checks.
   - Enforce route-level asset abortion (images, fonts, stylesheets, tracking beacons) to preserve bandwidth and heap memory.
