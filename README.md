@@ -28,6 +28,7 @@ A resilient, self-healing browser automation, direct HTTP API, and stealth AI ag
   - [10. Quantitative SEC Point-in-Time & NASDAQ ITCH-5.0 Parser](#10-quantitative-sec-point-in-time--nasdaq-itch-50-parser-bpquant)
   - [11. Unified Multi-Format Storage & Exporters](#11-unified-multi-format-storage--exporters-bpstorage)
   - [12. Observability, Telemetry & QA Reporting](#12-observability-telemetry--qa-reporting-bpobservability)
+  - [13. Level-4 Hardened Behavioral Evasion Framework (`behavioral_evasion_suite`)](#13-level-4-hardened-behavioral-evasion-framework-behavioral_evasion_suite)
 - [🧩 Unified Facade (`BP`) API Reference](#-unified-facade-bp-api-reference)
 - [? PowerPlay Integration Subsystem (`bp.powerplay` / `Bpp`)](#-powerplay-integration-subsystem-bppowerplay--bpp)
 - [🔐 Shared Authentication Architecture](#-shared-authentication-architecture)
@@ -54,6 +55,19 @@ behavioral-playwright/
 │   ├── core/                              # Stealth evasion, biomechanics, self-healing
 │   ├── usage/                             # Cookbooks, API quick reference, crawling guides
 │   └── development/                       # Audit registers, checkpoints & reconciliation reports
+├── behavioral_evasion_suite/              # Level-4 Hardened Behavioral Evasion & Biometrics
+│   ├── powerhand_master.py                # Master orchestrator & Playwright runner
+│   ├── mouse_physics.py                   # Saccadic Costello Bezier curves & tremor
+│   ├── keystroke_engine.py                # Weibull key dynamics & typo simulation
+│   ├── cdp_evasion.py                     # CDP WeakMap & Runtime.enable shield
+│   ├── v8_shield.py                       # V8 prototype reflection protection
+│   ├── canvas_shader_spoofer.py           # Mulberry32 PRNG dynamic canvas noise
+│   ├── webauthn_virtual_tpm.py            # Chromium CDP Virtual Authenticator & TPM
+│   ├── tls_ja4_spoofer.py                 # JA4 / TLS cipher suite impersonation
+│   ├── honeypot_shield.py                 # Occlusion & zero-rect trap filtering
+│   ├── circuit_breaker.py                 # Status-granular circuit breaker
+│   ├── swarm_orchestrator.py              # Multi-tab concurrency coordinator
+│   └── persona_matrix.py                  # Sticky proxy & digital soul rotation
 ├── src/
 │   └── behavioral_playwright/
 │       ├── __init__.py                    # Global exports: BP, AutomationConfig, AuthConfig, ProxyPool
@@ -85,6 +99,8 @@ behavioral-playwright/
 └── tests/
     ├── unit/                              # 113 unit tests (all modules & namespaces covered)
     ├── integration/                       # 3 multi-component and live provider tests
+    ├── test_evasion_suite.py              # Multi-patch evasion integration tests
+    ├── test_ks_statistical.py             # Kolmogorov-Smirnov Weibull & CreepJS tests
     ├── test_baseline_protection.py        # 13 core V15 baseline capability protection tests
     ├── test_honesty_hardening.py          # 11 data contract & honesty hardening tests
     ├── test_itch_binary.py                # 17 NASDAQ ITCH-5.0 wire parser verification tests
@@ -321,6 +337,43 @@ bp.storage.export(records, "articles.db", table_name="articles")
 ### 12. Observability, Telemetry & QA Reporting (`bp.observability`)
 - **SQLite Event Telemetry**: Records performance metrics, navigation latency, selector healing events, and proxy health in a persistent SQLite telemetry store.
 - **Automated QA Compliance Reports**: Generates structured summaries of system performance and compliance scorecards.
+
+---
+
+### 13. Level-4 Hardened Behavioral Evasion Framework (`behavioral_evasion_suite`)
+A production-grade biometric simulation and stealth defense evasion suite designed to bypass sophisticated bot detection systems (Cloudflare Turnstile, DataDome, Kasada, CreepJS):
+
+| Module | Patch / Mechanism | Capability |
+| :--- | :--- | :--- |
+| **`powerhand_master.py`** | Master Facade | Unified orchestrator binding all evasion shields, physical bridges, and sessions |
+| **`keystroke_engine.py`** | Biometric Keystrokes | Weibull key-dwell & flight times, QWERTY scan codes, adjacent typos & backspacing |
+| **`mouse_physics.py`** | Biomechanical Mouse | Costello Saccadic Bezier curves with 8-12Hz neuromuscular tremor (passes CreepJS) |
+| **`dma_kernel_bridge.py`** | SMT-Verified Bridges | SMT-verified NaN/Inf clamped Linux `/dev/uinput` and PCIe DMA Screamer bridges |
+| **`webauthn_virtual_tpm.py`**| Dual WebAuthn | Native Chromium CDP Virtual Authenticator (P-256) + Sandboxed Iframe Fallback |
+| **`canvas_shader_spoofer.py`**| Dynamic Noise | Mulberry32 PRNG canvas noise + UNMASKED_VENDOR WebGL constants alignment |
+| **`cdp_evasion.py`** | CDP WeakMap Shield | `Function.prototype.toString` V8 native representation against `Runtime.enable` traps |
+| **`v8_shield.py`** | Prototype Reflection | `Object.getOwnPropertyDescriptor` and `Error.prepareStackTrace` sanitization |
+| **`honeypot_shield.py`** | Atomic DOM Re-Check | 0x0 rect, invisible CSS, off-screen, and transparent occlusion trap filtering |
+| **`tls_ja4_spoofer.py`** | JA4 / TLS Handshake | Impersonates Chrome 124+ cipher suites & TCP options order via curl_cffi |
+| **`context_rotator.py`** | Memory Recycling | Automated BrowserContext recycling & V8 network cache purging |
+| **`os_resource_guard.py`** | File Descriptor Guard| POSIX ulimit dynamic clamping preventing socket exhaustion (`Errno 24`) |
+| **`circuit_breaker.py`** | Status-Granular Breaker| Intelligent cooldowns with Gaussian jitter for IP bans (429/403) and schema drift |
+| **`quality_sentinel.py`** | Pydantic Sentinel | Real-time schema validation, data loss detection, and honeypot DOM screening |
+| **`swarm_orchestrator.py`**| Multi-Tab Swarm | Concurrent tab batching with isolated browser socket contexts |
+| **`persona_matrix.py`** | Digital Soul & Anchor | Sticky residential proxy rotation with TLA+ verified deadlock-free fallback |
+
+```python
+import asyncio
+from behavioral_evasion_suite import PowerHandPlaywrightRunner
+
+async def main():
+    runner = PowerHandPlaywrightRunner(seed=42069)
+    result = await runner.execute_stealth_session("https://bot.sannysoft.com")
+    print("Session result:", result)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
 
 ---
 
