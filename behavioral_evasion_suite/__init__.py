@@ -1,5 +1,5 @@
 """
-Behavioral Evasion Suite & PowerHand Unified Master Engine (Enterprise v5)
+Behavioral Evasion Suite & PowerHand Unified Master Engine (Hardened Enterprise v5.1 - Level 4 Edition)
 Unified Modular Anti-Bot Evasion Architecture & Statistical Biometric Engine
 """
 
@@ -28,6 +28,39 @@ from .webauthn_virtual_tpm import VirtualTPMWebAuthnRelay, attach_cdp_virtual_au
 from .canvas_shader_spoofer import CanvasWebGLShaderSpoofer
 from .swarm_orchestrator import MultiTabSwarmOrchestrator
 from .powerhand_master import PowerHandMaster, PowerHandPlaywrightRunner
+
+# Formally Verified PowerHand Frontiers
+from .powerhand_master import (
+    SmartDataExtractionEngine,
+    JSDeobfuscator,
+    WASMPoWSolver,
+    PayloadDecryptor,
+    ReverseEngineeringEngine,
+    DiffusionBiomechanicalTrajectoryEngine,
+    ZeroDOMVLAMultimodalAgent,
+    SourceLevelChromiumPatcher,
+    PQTLSMLEKEMFingerprinter,
+    RLHFBiomechanicalController,
+    PCIeTLPFPGAIPCore,
+    EBPFXDPNetworkCoProcessor,
+    DecentralizedSwarmConsensus,
+    ZKTelemetryGenerator,
+)
+
+# Optional Level 4 Additions: Coherent Profiles & High-Level Developer API
+try:
+    from .coherent_profile_loader import CoherentProfileLoader, CoherentDeviceProfile
+except ImportError:
+    CoherentProfileLoader = None  # type: ignore
+    CoherentDeviceProfile = None  # type: ignore
+
+try:
+    from .stealth_session import StealthSession, stealth_async, human_type, human_click
+except ImportError:
+    StealthSession = None  # type: ignore
+    stealth_async = None  # type: ignore
+    human_type = None  # type: ignore
+    human_click = None  # type: ignore
 
 __all__ = [
     "NATIVE_SPOOF_JS",
@@ -62,4 +95,24 @@ __all__ = [
     "MultiTabSwarmOrchestrator",
     "PowerHandMaster",
     "PowerHandPlaywrightRunner",
+    "SmartDataExtractionEngine",
+    "JSDeobfuscator",
+    "WASMPoWSolver",
+    "PayloadDecryptor",
+    "ReverseEngineeringEngine",
+    "DiffusionBiomechanicalTrajectoryEngine",
+    "ZeroDOMVLAMultimodalAgent",
+    "SourceLevelChromiumPatcher",
+    "PQTLSMLEKEMFingerprinter",
+    "RLHFBiomechanicalController",
+    "PCIeTLPFPGAIPCore",
+    "EBPFXDPNetworkCoProcessor",
+    "DecentralizedSwarmConsensus",
+    "ZKTelemetryGenerator",
+    "CoherentProfileLoader",
+    "CoherentDeviceProfile",
+    "StealthSession",
+    "stealth_async",
+    "human_type",
+    "human_click",
 ]
