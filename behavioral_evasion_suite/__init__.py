@@ -1,6 +1,6 @@
-"""
-Behavioral Evasion Suite & PowerHand Unified Master Engine (Hardened Enterprise v5.1 - Level 4 Edition)
-Unified Modular Anti-Bot Evasion Architecture & Statistical Biometric Engine
+﻿"""
+Behavioral Evasion Suite & PowerHand Unified Master Engine (v6.0.0 Level 5 Quantum Edition)
+Unified Modular Anti-Bot Evasion Architecture, Statistical Biometric Engine, and Quantum Shields
 """
 
 from .utils import NATIVE_SPOOF_JS, SanitizedLogFormatter, setup_sanitized_logger
@@ -29,40 +29,28 @@ from .canvas_shader_spoofer import CanvasWebGLShaderSpoofer
 from .swarm_orchestrator import MultiTabSwarmOrchestrator
 from .powerhand_master import PowerHandMaster, PowerHandPlaywrightRunner
 
-# Formally Verified PowerHand Frontiers
-from .powerhand_master import (
-    SmartDataExtractionEngine,
-    JSDeobfuscator,
-    WASMPoWSolver,
-    PayloadDecryptor,
-    ReverseEngineeringEngine,
-    DiffusionBiomechanicalTrajectoryEngine,
-    ZeroDOMVLAMultimodalAgent,
-    SourceLevelChromiumPatcher,
-    PQTLSMLEKEMFingerprinter,
-    RLHFBiomechanicalController,
-    PCIeTLPFPGAIPCore,
-    EBPFXDPNetworkCoProcessor,
-    DecentralizedSwarmConsensus,
-    ZKTelemetryGenerator,
+# Level 5 Quantum Edition Shields
+from .worker_universal_shield import WorkerUniversalShield, WorkerShieldConfig
+from .subpixel_font_shield import SubpixelFontShield, FontMetricConfig
+from .virtual_hardware_synthesizer import (
+    VirtualHardwareSynthesizer,
+    MediaDeviceDescriptor,
+    HardwareSynthesisConfig
 )
+from .cognitive_gaze_physics import (
+    CognitiveGazePhysics,
+    GazePhysicsConfig,
+    ScrollTrajectoryPoint,
+    human_scroll,
+    cognitive_reading_pause
+)
+from .os_network_stack_spoofer import OSNetworkStackSpoofer, NetworkStackConfig
+from .stealth_session import StealthSession, human_click, human_type, stealth_async
 
-# Optional Level 4 Additions: Coherent Profiles & High-Level Developer API
-try:
-    from .coherent_profile_loader import CoherentProfileLoader, CoherentDeviceProfile
-except ImportError:
-    CoherentProfileLoader = None  # type: ignore
-    CoherentDeviceProfile = None  # type: ignore
-
-try:
-    from .stealth_session import StealthSession, stealth_async, human_type, human_click
-except ImportError:
-    StealthSession = None  # type: ignore
-    stealth_async = None  # type: ignore
-    human_type = None  # type: ignore
-    human_click = None  # type: ignore
+__version__ = "6.0.0"
 
 __all__ = [
+    "__version__",
     "NATIVE_SPOOF_JS",
     "SanitizedLogFormatter",
     "setup_sanitized_logger",
@@ -95,24 +83,22 @@ __all__ = [
     "MultiTabSwarmOrchestrator",
     "PowerHandMaster",
     "PowerHandPlaywrightRunner",
-    "SmartDataExtractionEngine",
-    "JSDeobfuscator",
-    "WASMPoWSolver",
-    "PayloadDecryptor",
-    "ReverseEngineeringEngine",
-    "DiffusionBiomechanicalTrajectoryEngine",
-    "ZeroDOMVLAMultimodalAgent",
-    "SourceLevelChromiumPatcher",
-    "PQTLSMLEKEMFingerprinter",
-    "RLHFBiomechanicalController",
-    "PCIeTLPFPGAIPCore",
-    "EBPFXDPNetworkCoProcessor",
-    "DecentralizedSwarmConsensus",
-    "ZKTelemetryGenerator",
-    "CoherentProfileLoader",
-    "CoherentDeviceProfile",
+    "WorkerUniversalShield",
+    "WorkerShieldConfig",
+    "SubpixelFontShield",
+    "FontMetricConfig",
+    "VirtualHardwareSynthesizer",
+    "MediaDeviceDescriptor",
+    "HardwareSynthesisConfig",
+    "CognitiveGazePhysics",
+    "GazePhysicsConfig",
+    "ScrollTrajectoryPoint",
+    "human_scroll",
+    "cognitive_reading_pause",
+    "OSNetworkStackSpoofer",
+    "NetworkStackConfig",
     "StealthSession",
-    "stealth_async",
-    "human_type",
     "human_click",
+    "human_type",
+    "stealth_async",
 ]
