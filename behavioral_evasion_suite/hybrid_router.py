@@ -20,19 +20,23 @@ class SmartAcquisitionRouter:
         self.rotator = browser_context_rotator
         self.spoofer = TLSJA4Spoofer()
 
-    async def acquire_target(self, url: str) -> Dict[str, Any]:
+    async def acquire_target(self, url: str, force_browser: bool = False) -> Dict[str, Any]:
         logger.info(f"SmartRoute: Assessing routing path for {url}.")
 
-        # Fast Path: JA4 TCP/TLS spoofed HTTP Session
-        session = self.spoofer.get_session()
-        response = await session.get(url)
+        if not force_browser:
+            try:
+                # Fast Path: JA4 TCP/TLS spoofed HTTP Session
+                session = self.spoofer.get_session()
+                response = await session.get(url)
 
-        if response.status_code == 200 and "blocked" not in response.text:
-            logger.info("SmartRoute: Fast Path succeeded ($0 CPU billing cost).")
-            return {"engine": "fast_path_protocol", "html": response.text, "status_code": 200}
+                if response.status_code == 200 and "blocked" not in response.text.lower():
+                    logger.info("SmartRoute: Fast Path succeeded ($0 CPU billing cost).")
+                    return {"engine": "fast_path_protocol", "html": response.text, "status_code": 200}
+            except Exception as e:
+                logger.warning(f"SmartRoute: Fast Path exception ({e}). Escalating to Heavy Path.")
 
         # Heavy Path Fallback: Evasive Browser Engine
-        logger.warning("SmartRoute: Fast Path blocked. Redirecting transaction to Heavy Path Browser Context.")
+        logger.warning("SmartRoute: Escalating transaction to Heavy Path Browser Context.")
         context = await self.rotator.get_healthy_context()
         page = await context.new_page()
         await page.goto(url)

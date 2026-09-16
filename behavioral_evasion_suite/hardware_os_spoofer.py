@@ -18,39 +18,56 @@ class HardwareOSSpoofer:
     def __init__(self, page: Any) -> None:
         self.page = page
 
-    async def inject_hardware_stealth(self) -> None:
-        """Injects a secure proxy layer over WebGL parameter query calls."""
-        logger.info("HardwareOSSpoofer: Spoofing WebGL active hardware profiles on prototype chain.")
-        spoof_js = f"""
+    @classmethod
+    def get_spoof_js(cls) -> str:
+        return f"""
         (() => {{
             {NATIVE_SPOOF_JS}
 
             // Sync navigator properties securely
-            Object.defineProperty(navigator, 'platform', {{
-                get: window.makeNative(() => 'Win32', 'get platform'),
-                configurable: true
-            }});
+            try {{
+                Object.defineProperty(navigator, 'platform', {{
+                    get: window.makeNative(() => 'Win32', 'get platform'),
+                    configurable: true
+                }});
+            }} catch (e) {{}}
 
             // Intercept WebGL context queries safely
-            if (window.WebGLRenderingContext) {{
-                const originalGetParameter = WebGLRenderingContext.prototype.getParameter;
-                const customGetParameter = function(parameter) {{
-                    if (parameter === 37445) {{ // UNMASKED_VENDOR_WEBGL
-                        return "Google Inc. (NVIDIA)";
-                    }}
-                    if (parameter === 37446) {{ // UNMASKED_RENDERER_WEBGL
-                        return "ANGLE (NVIDIA GeForce RTX 4070 Laptop GPU Direct3D11 vs_5_0 ps_5_0)";
-                    }}
-                    return originalGetParameter.apply(this, arguments);
-                }};
-                window.makeNative(customGetParameter, 'getParameter');
-                WebGLRenderingContext.prototype.getParameter = customGetParameter;
+            try {{
+                if (window.WebGLRenderingContext) {{
+                    const originalGetParameter = WebGLRenderingContext.prototype.getParameter;
+                    const customGetParameter = function(parameter) {{
+                        if (parameter === 37445) {{ // UNMASKED_VENDOR_WEBGL
+                            return "Google Inc. (NVIDIA)";
+                        }}
+                        if (parameter === 37446) {{ // UNMASKED_RENDERER_WEBGL
+                            return "ANGLE (NVIDIA GeForce RTX 4070 Laptop GPU Direct3D11 vs_5_0 ps_5_0)";
+                        }}
+                        return originalGetParameter.apply(this, arguments);
+                    }};
+                    if (window.makeNative) window.makeNative(customGetParameter, 'getParameter');
+                    WebGLRenderingContext.prototype.getParameter = customGetParameter;
 
-                if (window.WebGL2RenderingContext) {{
-                    WebGL2RenderingContext.prototype.getParameter = customGetParameter;
+                    if (window.WebGL2RenderingContext) {{
+                        WebGL2RenderingContext.prototype.getParameter = customGetParameter;
+                    }}
                 }}
-            }}
+            }} catch (e) {{}}
         }})();
         """
-        if hasattr(self.page, "evaluate"):
-            await self.page.evaluate(spoof_js)
+
+    @classmethod
+    async def apply(cls, target: Any) -> None:
+        """
+        Class method to apply hardware & WebGL spoofing to a Playwright BrowserContext or Page.
+        """
+        spoof_js = cls.get_spoof_js()
+        if hasattr(target, "add_init_script"):
+            await target.add_init_script(spoof_js)
+        elif hasattr(target, "evaluate"):
+            await target.evaluate(spoof_js)
+
+    async def inject_hardware_stealth(self) -> None:
+        """Injects a secure proxy layer over WebGL parameter query calls."""
+        logger.info("HardwareOSSpoofer: Spoofing WebGL active hardware profiles on prototype chain.")
+        await self.apply(self.page)

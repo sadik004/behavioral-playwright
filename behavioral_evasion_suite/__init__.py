@@ -59,6 +59,10 @@ from .unified_quantum_facade import (
     OrchestrationDomain
 )
 
+# Ergonomic Presets & Fluent Developer API (Code UX)
+from .presets import Preset, StealthConfig
+from .stealth_browser import StealthBrowser, StealthPage
+
 __version__ = "6.0.0"
 
 __all__ = [
@@ -120,5 +124,9 @@ __all__ = [
     "HardwareNetworkDomain",
     "BiometricKinematicsDomain",
     "SecurityDataDomain",
-    "OrchestrationDomain"
+    "OrchestrationDomain",
+    "Preset",
+    "StealthConfig",
+    "StealthBrowser",
+    "StealthPage"
 ]

@@ -45,19 +45,26 @@ class V8BytecodeShield:
                 return res;
             };
 
-            const maskProp = (obj, prop, val) => {
-                const getter = function() { return val; };
-                hookedFunctions.set(getter, `function get ${prop}() { [native code] }`);
+            const maskProp = (obj, prop, getterFn) => {
+                hookedFunctions.set(getterFn, `function get ${prop}() { [native code] }`);
                 Object.defineProperty(obj, prop, {
-                    get: getter,
+                    get: getterFn,
+                    set: undefined,
                     enumerable: true,
                     configurable: true
                 });
             };
 
-            maskProp(navigator, 'webdriver', false);
-            maskProp(navigator, 'languages', ['en-US', 'en']);
-            maskProp(navigator, 'plugins', [1, 2, 3, 4, 5]);
+            // navigator.webdriver concealment: delete from navigator and make Navigator.prototype.webdriver undefined
+            try {
+                delete Object.getPrototypeOf(navigator).webdriver;
+            } catch (e) {}
+            try {
+                delete navigator.webdriver;
+            } catch (e) {}
+
+            maskProp(Navigator.prototype, 'webdriver', () => undefined);
+            maskProp(Navigator.prototype, 'languages', () => ['en-US', 'en']);
 
             const origPrepareStackTrace = Error.prepareStackTrace;
             Error.prepareStackTrace = (err, stack) => {

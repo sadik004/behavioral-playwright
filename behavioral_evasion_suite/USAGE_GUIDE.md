@@ -183,3 +183,43 @@ To run the automated verification test suite:
 ```bash
 python -m behavioral_evasion_suite.main
 ```
+
+---
+
+# 🚀 Level 5 Quantum Edition: Fluent Developer API (Code UX)
+
+For the cleanest developer experience with **zero boilerplate**, use `StealthBrowser` and `Preset`:
+
+```python
+import asyncio
+from behavioral_evasion_suite import StealthBrowser, Preset
+
+async def main():
+    # Launches Chromium with all 31 shields, DirectWrite fonts, and Windows kernel input
+    async with StealthBrowser.launch(preset=Preset.MAX_QUANTUM, headless=True) as page:
+        await page.goto("https://bot.sannysoft.com")
+        
+        # Biomechanical neuromuscular human click
+        await page.human_click("#submit-btn")
+        
+        # Cognitive human typing with typo correction
+        await page.human_type("#username", "john_doe")
+        
+        # Newtonian inertial human scroll
+        await page.human_scroll(delta_y=800, duration_s=1.2)
+        
+        # Statistical cognitive comprehension reading pause
+        await page.cognitive_pause(min_seconds=1.0, max_seconds=2.0)
+        
+        # Token-optimized interactive DOM tree for LLMs
+        dom_tree = await page.extract_compact_dom()
+        print(f"Discovered {len(dom_tree['elements'])} interactive elements")
+
+asyncio.run(main())
+```
+
+### Available Presets:
+1. `Preset.MAX_QUANTUM`: All 31 shields, DirectWrite ClearType font metrics, WebWorker isolation, 1ms Windows timer, and OS kernel input bridge.
+2. `Preset.BALANCED`: Optimal for high-throughput distributed scraping.
+3. `Preset.HEADLESS_UNDETECTABLE`: Tuned specifically to defeat headless heuristics on Cloudflare and DataDome.
+4. `Preset.FAST_BYPASS`: Lightweight CDP and TLS JA4 bypass with minimal CPU overhead.

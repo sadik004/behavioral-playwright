@@ -27,9 +27,9 @@ class ContextRotator:
             if self.current_context is not None:
                 logger.info("ContextRotator: Session threshold reached. V8 caches cleared and Context rotated smoothly.")
                 try:
-                    pages = await self.current_context.pages()
+                    pages = self.current_context.pages
                     if pages:
-                        cdp = await pages[0].context.new_cdp_session(pages[0])
+                        cdp = await self.current_context.new_cdp_session(pages[0])
                         await cdp.send("Network.clearBrowserCache")
                 except Exception:
                     pass
@@ -40,6 +40,15 @@ class ContextRotator:
                 self.current_context = await manager.create_isolated_context()
             else:
                 self.current_context = await self.browser.new_context()
+
+            try:
+                from .cdp_evasion import CDPEvasionShield
+                from .hardware_os_spoofer import HardwareOSSpoofer
+                await CDPEvasionShield.apply(self.current_context)
+                await HardwareOSSpoofer.apply(self.current_context)
+            except Exception:
+                pass
+
             self.request_count = 0
             logger.info("ContextRotator: Spawned a completely fresh and un-cached BrowserContext.")
 
