@@ -47,6 +47,18 @@ from .cognitive_gaze_physics import (
 from .os_network_stack_spoofer import OSNetworkStackSpoofer, NetworkStackConfig
 from .stealth_session import StealthSession, human_click, human_type, stealth_async
 
+# Unified Quantum Architecture & MCP Orchestration Layer
+from .unified_quantum_facade import (
+    UnifiedQuantumFacade,
+    PersistentSessionManager,
+    TokenOptimizedDOMReader,
+    HardenedBrowserDomain,
+    HardwareNetworkDomain,
+    BiometricKinematicsDomain,
+    SecurityDataDomain,
+    OrchestrationDomain
+)
+
 __version__ = "6.0.0"
 
 __all__ = [
@@ -101,4 +113,12 @@ __all__ = [
     "human_click",
     "human_type",
     "stealth_async",
+    "UnifiedQuantumFacade",
+    "PersistentSessionManager",
+    "TokenOptimizedDOMReader",
+    "HardenedBrowserDomain",
+    "HardwareNetworkDomain",
+    "BiometricKinematicsDomain",
+    "SecurityDataDomain",
+    "OrchestrationDomain"
 ]
