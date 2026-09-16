@@ -62,6 +62,7 @@ from .unified_quantum_facade import (
 # Ergonomic Presets & Fluent Developer API (Code UX)
 from .presets import Preset, StealthConfig
 from .stealth_browser import StealthBrowser, StealthPage
+from .stealthify import stealthify, AutonomousChallengeSolver
 
 __version__ = "6.0.0"
 
@@ -128,5 +129,7 @@ __all__ = [
     "Preset",
     "StealthConfig",
     "StealthBrowser",
-    "StealthPage"
+    "StealthPage",
+    "stealthify",
+    "AutonomousChallengeSolver"
 ]

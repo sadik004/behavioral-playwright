@@ -50,6 +50,11 @@ class HardenedBrowserDomain:
             HardwareOSSpoofer.get_spoof_js()
         ])
 
+    async def harden_page(self, page: Any) -> None:
+        """Injects consolidated Level 5 Quantum browser shields into a Playwright page or context."""
+        if hasattr(page, "add_init_script"):
+            await page.add_init_script(self.get_bundled_shield_scripts())
+
 
 # -----------------------------------------------------------------------------
 # DOMAIN 2: HARDWARE & NETWORK SIGNATURES

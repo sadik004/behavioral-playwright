@@ -16,6 +16,9 @@ from behavioral_evasion_suite.keystroke_engine import CognitiveKeystrokeEngine
 
 
 def test_keystroke_weibull_cadence():
+    import random
+    random.seed(42)
+    np.random.seed(42)
     print("\n[TEST 1] Keystroke Flight-Time Weibull KS-Test...")
     keystroke_delays = []
     engine = CognitiveKeystrokeEngine(base_wpm=65.0, typo_probability=0.05)
