@@ -266,6 +266,8 @@ async def handle_tool_call(tool_name: str, args: Dict[str, Any]) -> Dict[str, An
                 "os": "Win32",
                 "user_agent": anchor.user_agent,
                 "viewport": anchor.viewport,
+                "timezone_id": anchor.timezone_id,
+                "locale": anchor.locale,
                 "hardware": {
                     "concurrency": 8,
                     "memory": 16,
@@ -312,38 +314,25 @@ async def handle_tool_call(tool_name: str, args: Dict[str, Any]) -> Dict[str, An
 
 
 # =============================================================================
-# JSON-RPC PROTOCOL LOOP OVER STDIO
+# JSON-RPC PROTOCOL LOOP OVER STDIO (CROSS-PLATFORM THREADED STDIN)
 # =============================================================================
 
 async def run_stdio_server():
     """Main JSON-RPC stdio event loop."""
     logger.info("Behavioral Playwright MCP Server started on stdio.")
 
-    loop = asyncio.get_event_loop()
-    reader = asyncio.StreamReader()
-    protocol = asyncio.StreamReaderProtocol(reader)
-    await loop.connect_read_pipe(lambda: protocol, sys.stdin)
-
-    writer_transport, writer_protocol = await loop.connect_write_pipe(
-        asyncio.streams.FlowControlMixin, sys.stdout
-    )
-    writer = asyncio.StreamWriter(writer_transport, writer_protocol, reader, loop)
-
-    buffer = ""
-
     while True:
         try:
-            line = await reader.readline()
+            line = await asyncio.to_thread(sys.stdin.readline)
             if not line:
                 break
 
-            decoded = line.decode("utf-8")
-            buffer += decoded
+            line = line.strip()
+            if not line:
+                continue
 
-            # Attempt JSON parse
             try:
-                msg = json.loads(buffer)
-                buffer = ""
+                msg = json.loads(line)
             except json.JSONDecodeError:
                 continue
 
@@ -415,9 +404,9 @@ async def run_stdio_server():
                     }
                 }
 
-            payload = json.dumps(response) + "\n"
-            writer.write(payload.encode("utf-8"))
-            await writer.drain()
+            payload = json.dumps(response)
+            sys.stdout.write(payload + "\n")
+            sys.stdout.flush()
 
         except Exception as e:
             logger.error(f"Fatal error in stdio server loop: {e}", exc_info=True)
@@ -428,4 +417,3 @@ if __name__ == "__main__":
         asyncio.run(run_stdio_server())
     except (KeyboardInterrupt, SystemExit):
         pass
-
