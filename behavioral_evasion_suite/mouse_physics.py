@@ -1,11 +1,51 @@
-"""
+﻿"""
 Patch 3: Biomechanical Mouse Physics with Neuromuscular Inertia Filter
 Models high-fidelity human cursor movements based on Cubic Bézier curves,
 physiological neuromuscular micro-tremors (Colored Pink Noise), and Logarithmic Deceleration.
+Enhanced with Windows 1ms High-Resolution Multimedia Timer (winmm.timeBeginPeriod).
 """
+import sys
 import math
 import random
-from typing import List, Tuple
+import asyncio
+from typing import Any, List, Tuple, Optional, NamedTuple
+
+
+class WindowsHighResolutionTimer:
+    """
+    Overrides the default Windows OS 15.6ms timer interrupt tick rate using winmm.timeBeginPeriod(1).
+    Ensures 1ms sub-millisecond precision for continuous USB HID polling emulation (125Hz-1000Hz).
+    """
+    def __init__(self):
+        self.is_active = False
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                self._winmm = ctypes.windll.winmm
+                self._winmm.timeBeginPeriod(1)
+                self.is_active = True
+            except Exception:
+                pass
+
+    def close(self):
+        if self.is_active:
+            try:
+                self._winmm.timeEndPeriod(1)
+                self.is_active = False
+            except Exception:
+                pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+
+class MousePoint(NamedTuple):
+    x: float
+    y: float
+    timestamp_delta: float = 0.015
 
 
 class BiomechanicalMousePhysics:
@@ -13,22 +53,47 @@ class BiomechanicalMousePhysics:
     Models high-fidelity human cursor movements based on Cubic Bézier curves,
     physiological neuromuscular micro-tremors (Colored Pink Noise), and Logarithmic Deceleration.
     """
-    def __init__(self) -> None:
-        pass
+    def __init__(self, page: Any = None) -> None:
+        self.page = page
+        self.timer = WindowsHighResolutionTimer()
+
+    async def human_move_to(
+        self, x: float, y: float, steps: int = 30, start: Tuple[float, float] = (100.0, 100.0)
+    ) -> None:
+        """
+        Smoothly moves the mouse to (x, y) on the configured page following
+        biomechanical trajectory with sub-millisecond micro-delays.
+        """
+        if not self.page:
+            raise ValueError("Page instance is required for human_move_to")
+        trajectory = self.generate_trajectory(start=start, end=(x, y), steps=steps)
+        with WindowsHighResolutionTimer():
+            for pt in trajectory:
+                await self.page.mouse.move(pt.x, pt.y)
+                await asyncio.sleep(0.005)
 
     def generate_trajectory(
-        self, start: Tuple[float, float], end: Tuple[float, float], steps: int = 30
-    ) -> List[Tuple[float, float]]:
+        self,
+        start: Optional[Tuple[float, float]] = None,
+        end: Optional[Tuple[float, float]] = None,
+        steps: int = 30,
+        start_pos: Optional[Tuple[float, float]] = None,
+        target_pos: Optional[Tuple[float, float]] = None,
+        duration: Optional[float] = None,
+        target_size: Optional[float] = None,
+    ) -> List[MousePoint]:
         """
         Creates authentic trajectory coordinate steps with Neuromuscular Inertia and Logarithmic Correction.
         """
-        points = []
-        x1, y1 = start
-        x2, y2 = end
+        s = start if start is not None else (start_pos if start_pos is not None else (0.0, 0.0))
+        e = end if end is not None else (target_pos if target_pos is not None else (100.0, 100.0))
+        points: List[MousePoint] = []
+        x1, y1 = s
+        x2, y2 = e
 
         distance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
         if distance == 0:
-            return [start]
+            return [MousePoint(x1, y1)]
 
         # Fitts's Law Target Overshoot math
         overshoot_factor = 0.08 if distance > 150 else 0.02
@@ -60,11 +125,11 @@ class BiomechanicalMousePhysics:
             curr_x += filtered_jitter_x * scale
             curr_y += filtered_jitter_y * scale
 
-            points.append((curr_x, curr_y))
+            points.append(MousePoint(curr_x, curr_y))
 
         # Part 2: Logarithmic Correction (Humans adjusting to target center smoothly)
         correction_steps = 8
-        last_x, last_y = points[-1]
+        last_x, last_y = points[-1].x, points[-1].y
         for i in range(correction_steps):
             t = (i + 1) / float(correction_steps)
             # Logarithmic deceleration curve
@@ -72,6 +137,6 @@ class BiomechanicalMousePhysics:
 
             curr_x = last_x + (x2 - last_x) * log_t
             curr_y = last_y + (y2 - last_y) * log_t
-            points.append((curr_x, curr_y))
+            points.append(MousePoint(curr_x, curr_y))
 
         return points
