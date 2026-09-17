@@ -64,6 +64,35 @@ from .presets import Preset, StealthConfig
 from .stealth_browser import StealthBrowser, StealthPage
 from .stealthify import stealthify, AutonomousChallengeSolver
 
+
+# Unified Security Auditor v5 Integration
+try:
+    from .unified_security_auditor_v5 import (
+        UnifiedSecurityAuditorV5,
+        attach_dom_sink_auditor,
+        get_dom_sink_events,
+        DualContextAuditor,
+        MCPSchemaAuditor,
+        StateDiffAuditor,
+        PoCEngine,
+        AgentHijackAuditor,
+        ClosedLoopFuzzer,
+        DesyncEngine,
+        CVEReproducer,
+    )
+except ImportError:
+    UnifiedSecurityAuditorV5 = None
+    attach_dom_sink_auditor = None
+    get_dom_sink_events = None
+    DualContextAuditor = None
+    MCPSchemaAuditor = None
+    StateDiffAuditor = None
+    PoCEngine = None
+    AgentHijackAuditor = None
+    ClosedLoopFuzzer = None
+    DesyncEngine = None
+    CVEReproducer = None
+
 __version__ = "6.0.0"
 
 __all__ = [
@@ -131,5 +160,16 @@ __all__ = [
     "StealthBrowser",
     "StealthPage",
     "stealthify",
-    "AutonomousChallengeSolver"
+    "AutonomousChallengeSolver",
+    "UnifiedSecurityAuditorV5",
+    "attach_dom_sink_auditor",
+    "get_dom_sink_events",
+    "DualContextAuditor",
+    "MCPSchemaAuditor",
+    "StateDiffAuditor",
+    "PoCEngine",
+    "AgentHijackAuditor",
+    "ClosedLoopFuzzer",
+    "DesyncEngine",
+    "CVEReproducer"
 ]

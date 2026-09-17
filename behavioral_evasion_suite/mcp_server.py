@@ -1,4 +1,4 @@
-﻿"""
+"""
 Behavioral Playwright MCP Server - Level 5+ Enterprise Standard
 Provides Model Context Protocol (MCP) JSON-RPC 2.0 interface over stdio for
 Cursor, Antigravity IDE, and Claude Desktop.
@@ -141,6 +141,19 @@ AVAILABLE_TOOLS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {}
+        }
+    },
+    {
+        "name": "run_security_audit_on_page",
+        "description": "Executes an in-depth security audit on an active or target page (DOM sinks, IDOR candidate capture, MCP schema check, DOM state diff, and header desync assessment) using UnifiedSecurityAuditorV5.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string", "description": "Optional active session_id. If omitted, target_url must be provided."},
+                "target_url": {"type": "string", "description": "Target URL to open and audit if session_id is not provided."},
+                "audit_dom_sinks": {"type": "boolean", "default": True, "description": "Attach DOM sink auditor to detect eval/innerHTML sink flows."},
+                "audit_context_overflow": {"type": "boolean", "default": True, "description": "Audit page text against agent context window overflow limits."}
+            }
         }
     }
 ]
@@ -306,6 +319,33 @@ async def handle_tool_call(tool_name: str, args: Dict[str, Any]) -> Dict[str, An
                 "status": "HEALTHY"
             }
 
+        elif tool_name == "run_security_audit_on_page":
+            from behavioral_evasion_suite.unified_security_auditor_v5 import UnifiedSecurityAuditorV5
+            session_id = args.get("session_id")
+            target_url = args.get("target_url")
+
+            created_temp = False
+            if not session_id and target_url:
+                open_res = await facade.open_stealth_page(target_url)
+                session_id = open_res.get("session_id")
+                created_temp = True
+
+            session = session_manager.get_session(session_id) if session_id else None
+            if not session or not session.page:
+                return {"error": f"Valid active session or target_url required. Received session_id='{session_id}'"}
+
+            auditor = UnifiedSecurityAuditorV5(page=session.page)
+            audit_result = await auditor.run_full_page_audit(session.page)
+
+            if created_temp and session_id:
+                await session_manager.close_session(session_id)
+
+            return {
+                "status": "success",
+                "session_id": session_id,
+                "audit_report": audit_result
+            }
+
         return {"error": f"Tool '{tool_name}' not implemented."}
 
     except Exception as exc:
@@ -412,8 +452,13 @@ async def run_stdio_server():
             logger.error(f"Fatal error in stdio server loop: {e}", exc_info=True)
 
 
-if __name__ == "__main__":
+def main():
     try:
         asyncio.run(run_stdio_server())
     except (KeyboardInterrupt, SystemExit):
         pass
+
+
+if __name__ == "__main__":
+    main()
+
