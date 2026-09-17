@@ -135,7 +135,29 @@ except ImportError:
     SecurityFinding = None
     AuditResultDTO = None
 
+
+# Out-Of-Band (OOB) Interaction Subsystem
+try:
+    from .oob_listener import (
+        OOBInteractionDTO,
+        OOBProviderProtocol,
+        MockOOBProvider,
+        InteractshOOBProvider,
+        MasterOOBClient
+    )
+except ImportError:
+    OOBInteractionDTO = None
+    OOBProviderProtocol = None
+    MockOOBProvider = None
+    InteractshOOBProvider = None
+    MasterOOBClient = None
+
 __all__ = [
+    "OOBInteractionDTO",
+    "OOBProviderProtocol",
+    "MockOOBProvider",
+    "InteractshOOBProvider",
+    "MasterOOBClient",
     "SecurityAuditorProtocol",
     "BaseSecurityAuditor",
     "SecurityFinding",

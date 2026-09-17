@@ -838,6 +838,15 @@ class SecurityNamespace:
         except ImportError:
             return None
 
+    def oob_listener(self, server_url: str = "https://oast.pro", use_mock: bool = False) -> Any:
+        try:
+            from behavioral_evasion_suite.oob_listener import MasterOOBClient, InteractshOOBProvider, MockOOBProvider
+            if use_mock:
+                return MasterOOBClient(provider=MockOOBProvider())
+            return MasterOOBClient(provider=InteractshOOBProvider(server_url=server_url))
+        except ImportError:
+            return None
+
     async def audit_graphql(self, target_url: str) -> Dict[str, Any]:
         auditor = self.graphql_auditor(target_url=target_url)
         if not auditor:

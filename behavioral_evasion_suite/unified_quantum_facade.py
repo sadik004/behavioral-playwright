@@ -112,6 +112,20 @@ class SecurityDataDomain:
         self.queue = BackpressureQueue()
         self._auditor = None
         self._graphql_engine = None
+        self._oob_client = None
+
+    @property
+    def oob(self) -> Any:
+        if self._oob_client is None:
+            from .oob_listener import MasterOOBClient
+            self._oob_client = MasterOOBClient(use_mock=True)
+        return self._oob_client
+
+    def create_oob_client(self, server_url: str = "https://oast.pro", use_mock: bool = False) -> Any:
+        from .oob_listener import MasterOOBClient, InteractshOOBProvider, MockOOBProvider
+        if use_mock:
+            return MasterOOBClient(provider=MockOOBProvider())
+        return MasterOOBClient(provider=InteractshOOBProvider(server_url=server_url))
 
     @property
     def auditor(self) -> Any:
@@ -365,6 +379,10 @@ class UnifiedQuantumFacade:
     @property
     def graphql_auditor(self) -> Any:
         return self.security.graphql
+
+    @property
+    def oob_listener(self) -> Any:
+        return self.security.oob
 
     def get_master_injection_script(self) -> str:
         """Bundles all JS scripts from all operational domains into one payload."""
