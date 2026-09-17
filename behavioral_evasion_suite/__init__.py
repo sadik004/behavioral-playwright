@@ -71,6 +71,8 @@ try:
         UnifiedSecurityAuditorV5,
         attach_dom_sink_auditor,
         get_dom_sink_events,
+        SAMLTrustChainAuditor,
+        OAuth2TrustChainAuditor,
         DualContextAuditor,
         MCPSchemaAuditor,
         StateDiffAuditor,
@@ -84,6 +86,8 @@ except ImportError:
     UnifiedSecurityAuditorV5 = None
     attach_dom_sink_auditor = None
     get_dom_sink_events = None
+    SAMLTrustChainAuditor = None
+    OAuth2TrustChainAuditor = None
     DualContextAuditor = None
     MCPSchemaAuditor = None
     StateDiffAuditor = None
@@ -164,6 +168,8 @@ __all__ = [
     "UnifiedSecurityAuditorV5",
     "attach_dom_sink_auditor",
     "get_dom_sink_events",
+    "SAMLTrustChainAuditor",
+    "OAuth2TrustChainAuditor",
     "DualContextAuditor",
     "MCPSchemaAuditor",
     "StateDiffAuditor",
