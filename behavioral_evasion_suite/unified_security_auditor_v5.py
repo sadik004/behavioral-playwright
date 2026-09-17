@@ -1,3 +1,4 @@
+from .graphql_security_auditor import MasterGraphQLDeepLogicEngine
 """
 Unified Security Auditor v5 (Enterprise Async Production Ready)
 Module: unified_security_auditor_v5.py
@@ -647,6 +648,7 @@ class UnifiedSecurityAuditorV5:
         self.context_b = context_b
         self.target_url = target_url
 
+        self.graphql_auditor = MasterGraphQLDeepLogicEngine(target_url)
         self.saml_auditor = SAMLTrustChainAuditor(target_url)
         self.oauth_auditor = OAuth2TrustChainAuditor()
         self.idor_auditor = DualContextAuditor(context_a, context_b)

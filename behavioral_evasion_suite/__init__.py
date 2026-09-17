@@ -97,6 +97,27 @@ except ImportError:
     DesyncEngine = None
     CVEReproducer = None
 
+
+# GraphQL Deep Logic & Protected Attribute Security Engine Integration
+try:
+    from .graphql_security_auditor import (
+        GraphQLIntrospectionAuditor,
+        GraphQLProtectedAttributeAuditor,
+        GraphQLAliasedBatchingAuditor,
+        GraphQLQueryComplexityAuditor,
+        GraphQLCSRFAuditor,
+        GraphQLPoCEngine,
+        MasterGraphQLDeepLogicEngine,
+    )
+except ImportError:
+    GraphQLIntrospectionAuditor = None
+    GraphQLProtectedAttributeAuditor = None
+    GraphQLAliasedBatchingAuditor = None
+    GraphQLQueryComplexityAuditor = None
+    GraphQLCSRFAuditor = None
+    GraphQLPoCEngine = None
+    MasterGraphQLDeepLogicEngine = None
+
 __version__ = "6.0.0"
 
 __all__ = [
@@ -178,4 +199,11 @@ __all__ = [
     "ClosedLoopFuzzer",
     "DesyncEngine",
     "CVEReproducer"
+    "GraphQLIntrospectionAuditor",
+    "GraphQLProtectedAttributeAuditor",
+    "GraphQLAliasedBatchingAuditor",
+    "GraphQLQueryComplexityAuditor",
+    "GraphQLCSRFAuditor",
+    "GraphQLPoCEngine",
+    "MasterGraphQLDeepLogicEngine",
 ]
