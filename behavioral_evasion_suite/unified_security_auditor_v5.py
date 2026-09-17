@@ -72,6 +72,34 @@ DOM_SINK_HOOK_SCRIPT = """
             }
         });
     } catch(e) {}
+
+    try {
+        const origSetTimeout = window.setTimeout;
+        window.setTimeout = function(handler, timeout, ...args) {
+            if (typeof handler === 'string') {
+                logSink('setTimeout[string]', 'window', handler);
+            }
+            return origSetTimeout.call(this, handler, timeout, ...args);
+        };
+    } catch(e) {}
+
+    try {
+        const origSetInterval = window.setInterval;
+        window.setInterval = function(handler, timeout, ...args) {
+            if (typeof handler === 'string') {
+                logSink('setInterval[string]', 'window', handler);
+            }
+            return origSetInterval.call(this, handler, timeout, ...args);
+        };
+    } catch(e) {}
+
+    try {
+        const origFunction = window.Function;
+        window.Function = function(...args) {
+            logSink('Function', 'window', args.join('; '));
+            return origFunction.apply(this, args);
+        };
+    } catch(e) {}
 })();
 """
 
@@ -138,22 +166,34 @@ class DualContextAuditor:
                 status_code = response.status
                 body = await response.text()
                 body_clean = body.strip().lower()
+
+                # Semantic False-Positive Filters
+                is_rejection = any(term in body_clean for term in [
+                    "error", "unauthorized", "forbidden", "access denied", 
+                    "invalid token", "session expired", "please login", "redirecting"
+                ])
+                is_empty = body_clean in ["", "[]", "{}", "null", "none"]
+
+                # Leakage Heuristic: Sensitive PII / Entity Fields reflected
+                sensitive_fields = ["id", "uuid", "email", "username", "account", "balance", "role", "admin", "token"]
+                has_sensitive_data = any(f'"{field}"' in body_clean or f"'{field}'" in body_clean for field in sensitive_fields)
+
                 is_idor_risk = (
-                    status_code == 200
-                    and len(body_clean) > 2
-                    and "error" not in body_clean
-                    and "unauthorized" not in body_clean
-                    and "forbidden" not in body_clean
-                    and "login" not in body_clean
-                    and body_clean not in ["[]", "{}", "null"]
+                    status_code in [200, 201]
+                    and not is_rejection
+                    and not is_empty
+                    and len(body_clean) > 5
+                    and has_sensitive_data
                 )
+
                 findings.append({
                     "url": req["url"],
                     "method": req["method"],
                     "status_code": status_code,
                     "response_length": len(body),
+                    "has_sensitive_data": has_sensitive_data,
                     "idor_risk_detected": is_idor_risk,
-                    "risk_level": "HIGH" if is_idor_risk else "LOW"
+                    "risk_level": "CRITICAL" if is_idor_risk else "LOW"
                 })
             except Exception as e:
                 findings.append({

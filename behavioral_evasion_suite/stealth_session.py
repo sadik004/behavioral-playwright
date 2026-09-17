@@ -1,4 +1,4 @@
-﻿"""
+"""
 StealthSession & Human Input Emulation Helpers - Level 5 Quantum Edition
 Unified Level-5 Quantum Hardened Session Context Manager for Behavioral Playwright.
 Coordinates WorkerUniversalShield, SubpixelFontShield, VirtualHardwareSynthesizer,
@@ -55,9 +55,10 @@ class StealthSession:
     Applies V8 reflection shields, Canvas subpixel PRNG shaders, CDP evasion hooks,
     Worker universal sandboxing, DirectWrite subpixel fonts, and synthesized media hardware.
     """
-    def __init__(self, profile: str = "win11_nvidia_rtx4070", headless: bool = True):
+    def __init__(self, profile: str = "win11_nvidia_rtx4070", headless: bool = True, abort_media: bool = False):
         self.profile = profile
         self.headless = headless
+        self.abort_media = abort_media
         self.master = PowerHandMaster()
         self.worker_shield = WorkerUniversalShield()
         self.subpixel_font_shield = SubpixelFontShield()
@@ -95,6 +96,24 @@ class StealthSession:
             await self.context.add_init_script(all_scripts)
 
             self.page = await self.context.new_page()
+
+            # Enterprise Route-Level Asset Abortion (Optimization & Memory Guard)
+            if self.abort_media:
+                async def route_filter(route):
+                    req = route.request
+                    url = req.url.lower()
+                    blocked_types = ["image", "media", "font"]
+                    blocked_exts = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".woff", ".woff2", ".ttf", ".eot"]
+                    blocked_domains = ["google-analytics.com", "doubleclick.net", "hotjar.com", "facebook.net"]
+
+                    if req.resource_type in blocked_types or any(url.endswith(ext) for ext in blocked_exts) or any(d in url for d in blocked_domains):
+                        await route.abort()
+                    else:
+                        await route.continue_()
+
+                await self.page.route("**/*", route_filter)
+                logger.info("Route-level asset abortion active (media, fonts, analytics blocked).")
+
             logger.info(f"StealthSession active with profile {self.profile} (v6.0.0 Level 5 Quantum CDP hardened).")
             return self
         except Exception as e:
