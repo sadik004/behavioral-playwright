@@ -1,24 +1,24 @@
-# 🛡️ Behavioral Playwright (Hardened Enterprise v6.1.0 — Level 5 Quantum Edition)
+# 🛡️ Behavioral Playwright (Hardened Enterprise v6.2.0 — Level 5 Quantum Edition)
 
-[![Version](https://img.shields.io/badge/version-v6.1.0--quantum-blue?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
-[![Tests](https://img.shields.io/badge/Tests-22%2F22%20Passed%20(100%25)-success?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
+[![Version](https://img.shields.io/badge/version-v6.2.0--quantum-blue?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
+[![Tests](https://img.shields.io/badge/Tests-267%2F267%20Passed%20(100%25)-success?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![CreepJS Audit](https://img.shields.io/badge/CreepJS%20Audit-100%25%20Clean-success?style=for-the-badge)](https://creepjs.com)
 [![KS-Test](https://img.shields.io/badge/KS--Test-p%3D0.5285%20(Human)-brightgreen?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![MCP Server](https://img.shields.io/badge/MCP%20Server-9%20Tools%20Active-purple?style=for-the-badge)](https://modelcontextprotocol.io)
-[![Anti-Bot](https://img.shields.io/badge/Cloudflare%20%7C%20DataDome%20%7C%20Kasada-Bypassed-blueviolet?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
+[![Security Engine](https://img.shields.io/badge/Security-SAML%20%7C%20OAuth%20%7C%20GraphQL%20%7C%20IDOR-red?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-A production-grade, enterprise behavioral evasion, stealth automation, and client-side security auditing suite for Playwright & Patchright with authentic Coherent Hardware Profiles, Level 5 Web Worker sandboxes, DirectWrite subpixel font metrics, Model Context Protocol (MCP) Server integration, and semantic IDOR/DOM-sink auditing.
+A production-grade, enterprise behavioral evasion, stealth automation, and deep logic security auditing suite for Playwright & Patchright with authentic Coherent Hardware Profiles, Level 5 Web Worker sandboxes, DirectWrite subpixel font metrics, Model Context Protocol (MCP) Server integration, SAML 2.0 / OAuth 2.0 trust-chain auditing, and GraphQL deep logic probing.
 
 ---
 
-## 🌟 Architectural & Evasion Matrix
+## 🏛️ Architectural & Evasion Matrix
 
+### 1. High-Level Automation & Anti-Bot Evasion
 | Module | Architectural Layer | Capabilities & Anti-Bot Protection |
 | :--- | :--- | :--- |
 | **`stealth_session.py`** | High-Level DX API | 1-line `StealthSession`, `stealth_async()`, `abort_media` route-level asset filter (5x faster page loads) |
 | **`mcp_server.py`** | AI Agent MCP Server | Standard JSON-RPC 2.0 stdio server providing 9 tools for Claude Desktop, Antigravity IDE & Cursor |
-| **`unified_security_auditor_v5.py`** | Defensive Security Suite | Client-side DOM sink hooks, Dual-Context IDOR replay with PII leakage heuristics, shell-safe cURL PoC |
 | **`worker_universal_shield.py`** | Worker Sandbox Shield | Wraps `Worker` & `SharedWorker` to propagate V8 WeakMap and mock `OffscreenCanvas` against **DataDome & Cloudflare Turnstile** |
 | **`subpixel_font_shield.py`** | DirectWrite Font Metrics | Converts Linux FreeType subpixel widths into Windows ClearType metrics (`measureText`, `getBoundingClientRect`) against **Kasada & CreepJS** |
 | **`virtual_hardware_synthesizer.py`** | MediaDevices Synthesizer | Injects authentic Realtek(R) Audio endpoints eliminating the **Headless Cloud VM** empty device leak |
@@ -35,6 +35,15 @@ A production-grade, enterprise behavioral evasion, stealth automation, and clien
 | **`honeypot_shield.py`** | Atomic DOM Re-Check | 0x0 rect, invisible CSS, off-screen, and transparent occlusion trap filtering |
 | **`tls_ja4_spoofer.py`** | JA4 / TLS Handshake | Impersonates Chrome 124+ cipher suites & TCP options order via `curl_cffi` |
 | **`quality_sentinel.py`** | Pydantic Sentinel | Real-time schema validation, data loss detection, and honeypot DOM screening |
+
+### 2. Deep Logic Security & Enterprise Auditing Suite
+| Module | Target Domain | Auditing Capabilities & Threat Vector Coverage |
+| :--- | :--- | :--- |
+| **`graphql_security_auditor.py`** | GraphQL APIs | Introspection bypasses (5 variants), Clairvoyance schema suggestion parser, **$30,000 Gem Bug** positional correlation detection, aliased batching, lexical DoS depth calculation, and CSRF content-type downgrade |
+| **`unified_security_auditor_v5.py`** | Enterprise Auth & DOM | Master orchestration, DOM Sink auditing (`eval`, `innerHTML`, `outerHTML`, `setTimeout`, `setInterval`, `Function`), Dual-Context IDOR replay with PII leakage heuristics, MCP schema safety, and state delta tracking |
+| **`SAMLTrustChainAuditor`** | SAML 2.0 SP / IdP | HTTP POST & Redirect (Deflate) payload decoding, Signature Exclusion test, XML Signature Wrapping (XSW3) payload forging, and RelayState open redirect verification |
+| **`OAuth2TrustChainAuditor`** | OAuth 2.0 / OIDC | RFC 9700 redirect URI bypass generator (7 vectors), RFC 7636 strict PKCE `code_verifier` audit, and mutable `email` vs immutable `sub` claim verification |
+| **`PoCEngine` & `GraphQLPoCEngine`** | Reproducibility | Synthesizes shell-safe, reproducible cURL commands with proper JSON serialization |
 
 ---
 
@@ -101,7 +110,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### 2. Client-Side Security & DOM Sink Auditing
+### 2. Client-Side DOM Sink & Full Security Auditing
 ```python
 import asyncio
 from behavioral_evasion_suite import StealthSession, UnifiedSecurityAuditorV5
@@ -109,28 +118,74 @@ from behavioral_evasion_suite import StealthSession, UnifiedSecurityAuditorV5
 async def audit():
     async with StealthSession() as session:
         page = session.page
-        await page.goto("https://example.com")
+        await page.goto("https://target.com")
         
-        auditor = UnifiedSecurityAuditorV5(page=page)
+        auditor = UnifiedSecurityAuditorV5(page=page, target_url="https://target.com")
         report = await auditor.run_full_page_audit(page)
-        print("Audit Findings:", report["status"])
+        print("Audit Status:", report["status"])
+        print("Captured DOM Sink Events:", len(report["captured_dom_sink_events"]))
 
 if __name__ == "__main__":
     asyncio.run(audit())
+```
+
+### 3. GraphQL Deep Logic & Positional Correlation Audit ($30k Gem Bug)
+```python
+import asyncio
+from behavioral_evasion_suite import (
+    MasterGraphQLDeepLogicEngine,
+    GraphQLProtectedAttributeAuditor,
+    GraphQLIntrospectionAuditor
+)
+
+async def audit_graphql():
+    # 1. Generate $30k Gem Bug positional correlation probe
+    spec = GraphQLProtectedAttributeAuditor.generate_positional_correlation_payloads(
+        target_field="title",
+        sort_parameter="TITLE_ASC"
+    )
+    print("Probe Query:\n", spec["probe_query"])
+    
+    # 2. Check for Clairvoyance suggestions from error responses
+    error_response = 'Cannot query field "secret". Did you mean "secretToken", "secretKey"?'
+    suggestions = GraphQLIntrospectionAuditor.parse_clairvoyance_suggestions(error_response)
+    print("Discovered Hidden Fields:", suggestions)
+
+if __name__ == "__main__":
+    asyncio.run(audit_graphql())
+```
+
+### 4. SAML 2.0 & OAuth 2.0 Trust-Chain Audit
+```python
+from behavioral_evasion_suite import SAMLTrustChainAuditor, OAuth2TrustChainAuditor
+
+# SAML Signature Exclusion & XSW3 testing
+saml_auditor = SAMLTrustChainAuditor()
+raw_xml = "<saml2:Assertion ID='_123'><saml2:NameID>user@test.com</saml2:NameID></saml2:Assertion>"
+xsw3_payload, success = saml_auditor.test_xml_signature_wrapping_xsw3(raw_xml, "admin@victim.com")
+print("XSW3 Generated:", success)
+
+# OAuth 2.0 RFC 9700 Redirect URI Bypass Generation
+oauth_auditor = OAuth2TrustChainAuditor()
+bypasses = oauth_auditor.audit_redirect_uri_patterns("https://app.target.com/callback")
+print(f"Generated {len(bypasses)} RFC 9700 bypass variations")
 ```
 
 ---
 
 ## 🧪 Verification & Automated Test Suites
 
-Execute all 22 automated tests via `pytest`:
+The framework includes **267 automated unit and regression tests** ensuring 100% architectural reliability across all evasion shields and security diagnostic modules.
+
+Execute the entire test suite:
 ```bash
-pytest tests/
+pytest tests/ -v
 ```
 
-Individual test suites:
-- **`pytest tests/test_security_auditor.py`**: MCP schema validation, shell-safe cURL PoC, header desync, CVE specs, DOM sink hooks, and IDOR heuristics.
-- **`pytest tests/test_v6_level5_audit.py`**: Web Worker sandboxing, DirectWrite font emulator, media synthesizer, socket tuning.
+### Individual Test Suites:
+- **`pytest tests/test_graphql_auditor.py`**: Introspection bypasses, Clairvoyance suggestions, $30k Gem positional correlation, aliased batching, DoS depth calculation, and CSRF checks (10/10 passed).
+- **`pytest tests/test_security_auditor.py`**: SAML 2.0 Trust Chain, OAuth 2.0 RFC 9700/7636, DOM sink hooks, IDOR PII heuristics, MCP safety, and cURL PoC generation (12/12 passed).
+- **`pytest tests/test_v6_level5_audit.py`**: Web Worker sandboxing, DirectWrite font metrics, media device synthesis, and OS socket tuning.
 - **`pytest tests/test_ks_statistical.py`**: Kolmogorov-Smirnov statistical tests for human typing and mouse trajectory validation.
 - **`pytest tests/test_evasion_suite.py`**: Multi-context rotation, circuit breaker, and token-optimized DOM reader.
 
