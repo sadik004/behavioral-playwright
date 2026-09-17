@@ -421,6 +421,16 @@ class MasterGraphQLDeepLogicEngine:
         self.findings: List[Dict[str, Any]] = []
         self._finding_hashes = set()
 
+    @property
+    def auditor_name(self) -> str:
+        return "MasterGraphQLDeepLogicEngine"
+
+    async def run_audit(self, target: Any = None, **kwargs: Any) -> Dict[str, Any]:
+        """Executes full audit conforming to SecurityAuditorProtocol."""
+        if isinstance(target, str) and (target.startswith("http://") or target.startswith("https://")):
+            self.target_url = target
+        return await self.run_full_graphql_audit()
+
     def _record_finding(self, finding: Dict[str, Any]):
         """Deduplicates and records audit findings."""
         finding_repr = json.dumps(finding, sort_keys=True)

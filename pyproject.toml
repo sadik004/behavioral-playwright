@@ -39,8 +39,12 @@ dev = [
     "twine>=5.0.0"
 ]
 
+[tool.setuptools]
+package-dir = {"" = "src", "behavioral_evasion_suite" = "behavioral_evasion_suite"}
+
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["behavioral_playwright*", "behavioral_evasion_suite*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

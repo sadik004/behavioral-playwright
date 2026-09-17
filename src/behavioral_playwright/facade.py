@@ -818,6 +818,32 @@ class PowerPlayNamespace:
                         await raw_page.keyboard.up(event["key"])
         return sequence
 
+
+class SecurityNamespace:
+    """Security auditing namespace exposing GraphQL, DOM sinks, and trust chain engines."""
+    def __init__(self, facade: "BP"):
+        self._facade = facade
+
+    def graphql_auditor(self, target_url: str = "https://target.com/graphql") -> Any:
+        try:
+            from behavioral_evasion_suite.graphql_security_auditor import MasterGraphQLDeepLogicEngine
+            return MasterGraphQLDeepLogicEngine(target_url=target_url)
+        except ImportError:
+            return None
+
+    def unified_auditor(self, target_url: str = "") -> Any:
+        try:
+            from behavioral_evasion_suite.unified_security_auditor_v5 import UnifiedSecurityAuditorV5
+            return UnifiedSecurityAuditorV5(target_url=target_url)
+        except ImportError:
+            return None
+
+    async def audit_graphql(self, target_url: str) -> Dict[str, Any]:
+        auditor = self.graphql_auditor(target_url=target_url)
+        if not auditor:
+            return {"error": "behavioral_evasion_suite.graphql_security_auditor not available"}
+        return await auditor.run_audit(target_url)
+
 class BP:
     """
     Unified high-level facade orchestrating the Behavioral Playwright framework.
@@ -856,6 +882,7 @@ class BP:
         self.powerplay = PowerPlayNamespace(bp=self)
         self.ai = AINamespace(bp=self)
         self.intelligence = IntelligenceNamespace(bp=self)
+        self.security = SecurityNamespace(self)
 
     async def boot(self) -> "BP":
         """Starts the browser session and initializes the first page."""

@@ -143,7 +143,18 @@ AVAILABLE_TOOLS: List[Dict[str, Any]] = [
             "properties": {}
         }
     },
-    {
+        {
+        "name": "run_graphql_security_audit",
+        "description": "Executes a deep logic security audit on a GraphQL endpoint, testing for Introspection bypasses, field-level access control / positional correlation leakage ($30k gem), aliased batching rate limit bypass, DoS query depth, and CSRF content-type acceptance.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target_url": {"type": "string", "description": "Target GraphQL endpoint URL (e.g. https://api.target.com/graphql)."}
+            },
+            "required": ["target_url"]
+        }
+    },
+{
         "name": "run_security_audit_on_page",
         "description": "Executes an in-depth security audit on an active or target page (DOM sinks, IDOR candidate capture, MCP schema check, DOM state diff, and header desync assessment) using UnifiedSecurityAuditorV5.",
         "inputSchema": {
@@ -317,6 +328,19 @@ async def handle_tool_call(tool_name: str, args: Dict[str, Any]) -> Dict[str, An
                 "total_integrated_modules": 31,
                 "all_modules_intact": True,
                 "status": "HEALTHY"
+            }
+
+        elif tool_name == "run_graphql_security_audit":
+            from behavioral_evasion_suite.graphql_security_auditor import MasterGraphQLDeepLogicEngine
+            target_url = args.get("target_url")
+            if not target_url:
+                return {"error": "Parameter 'target_url' is required for GraphQL security audit."}
+            auditor = MasterGraphQLDeepLogicEngine(target_url=target_url)
+            audit_result = await auditor.run_full_graphql_audit()
+            return {
+                "status": "SUCCESS",
+                "graphql_url": target_url,
+                "audit_report": audit_result
             }
 
         elif tool_name == "run_security_audit_on_page":

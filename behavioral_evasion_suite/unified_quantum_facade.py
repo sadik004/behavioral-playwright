@@ -105,11 +105,35 @@ from .persistence_pipeline import BasePersistencePipeline
 from .backpressure_queue import BackpressureQueue
 
 class SecurityDataDomain:
-    """Domain aggregator for honeypot traps, Pydantic validation, and persistence."""
+    """Domain aggregator for honeypot traps, security auditing, validation, and persistence."""
     def __init__(self):
         self.honeypot = HoneypotIsolationShield()
         self.quality = QualitySentinel()
         self.queue = BackpressureQueue()
+        self._auditor = None
+        self._graphql_engine = None
+
+    @property
+    def auditor(self) -> Any:
+        if self._auditor is None:
+            from .unified_security_auditor_v5 import UnifiedSecurityAuditorV5
+            self._auditor = UnifiedSecurityAuditorV5()
+        return self._auditor
+
+    @property
+    def graphql(self) -> Any:
+        if self._graphql_engine is None:
+            from .graphql_security_auditor import MasterGraphQLDeepLogicEngine
+            self._graphql_engine = MasterGraphQLDeepLogicEngine()
+        return self._graphql_engine
+
+    def create_graphql_auditor(self, target_url: str = "https://target.com/graphql") -> Any:
+        from .graphql_security_auditor import MasterGraphQLDeepLogicEngine
+        return MasterGraphQLDeepLogicEngine(target_url=target_url)
+
+    async def audit_graphql_endpoint(self, target_url: str) -> Dict[str, Any]:
+        auditor = self.create_graphql_auditor(target_url)
+        return await auditor.run_audit(target_url)
 
 
 # -----------------------------------------------------------------------------
@@ -333,6 +357,14 @@ class UnifiedQuantumFacade:
         self.security = SecurityDataDomain()
         self.orchestration = OrchestrationDomain()
         self.session_manager = PersistentSessionManager()
+
+    @property
+    def security_auditor(self) -> Any:
+        return self.security.auditor
+
+    @property
+    def graphql_auditor(self) -> Any:
+        return self.security.graphql
 
     def get_master_injection_script(self) -> str:
         """Bundles all JS scripts from all operational domains into one payload."""

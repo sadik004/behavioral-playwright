@@ -662,6 +662,15 @@ class UnifiedSecurityAuditorV5:
 
         self.audit_findings: List[Dict[str, Any]] = []
 
+    @property
+    def auditor_name(self) -> str:
+        return "UnifiedSecurityAuditorV5"
+
+    async def run_audit(self, target: Any = None, **kwargs: Any) -> Dict[str, Any]:
+        """Executes full page audit conforming to SecurityAuditorProtocol."""
+        active_page = target if (target and hasattr(target, "evaluate")) else self.page
+        return await self.run_full_page_audit(page=active_page)
+
     async def attach_to_behavioral_playwright(self, bp_session=None, page=None) -> bool:
         active_page = page or getattr(bp_session, "page", None) or (bp_session if hasattr(bp_session, "route") else None) or self.page
         if not active_page:

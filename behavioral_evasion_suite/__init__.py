@@ -120,7 +120,26 @@ except ImportError:
 
 __version__ = "6.0.0"
 
+
+# Clean Architecture Protocol & DTO Integration
+try:
+    from .security_protocol import (
+        SecurityAuditorProtocol,
+        BaseSecurityAuditor,
+        SecurityFinding,
+        AuditResultDTO
+    )
+except ImportError:
+    SecurityAuditorProtocol = None
+    BaseSecurityAuditor = None
+    SecurityFinding = None
+    AuditResultDTO = None
+
 __all__ = [
+    "SecurityAuditorProtocol",
+    "BaseSecurityAuditor",
+    "SecurityFinding",
+    "AuditResultDTO",
     "__version__",
     "NATIVE_SPOOF_JS",
     "SanitizedLogFormatter",
