@@ -118,6 +118,27 @@ except ImportError:
     GraphQLPoCEngine = None
     MasterGraphQLDeepLogicEngine = None
 
+
+# Server-Side Prototype Pollution (SSPP) Security Auditor Integration
+try:
+    from .sspp_security_auditor import (
+        SSPPPayloadGenerator,
+        SSPPResponseAnalyzer,
+        SSPPBlackBoxAuditor,
+        MasterSSPPDeepLogicEngine,
+        SSPPFinding,
+        SSPPScanResult,
+        CapturedAPIRequest
+    )
+except ImportError:
+    SSPPPayloadGenerator = None
+    SSPPResponseAnalyzer = None
+    SSPPBlackBoxAuditor = None
+    MasterSSPPDeepLogicEngine = None
+    SSPPFinding = None
+    SSPPScanResult = None
+    CapturedAPIRequest = None
+
 __version__ = "6.0.0"
 
 
@@ -247,4 +268,12 @@ __all__ = [
     "GraphQLCSRFAuditor",
     "GraphQLPoCEngine",
     "MasterGraphQLDeepLogicEngine",
+    "SSPPPayloadGenerator",
+    "SSPPResponseAnalyzer",
+    "SSPPBlackBoxAuditor",
+    "MasterSSPPDeepLogicEngine",
+    "SSPPFinding",
+    "SSPPScanResult",
+    "CapturedAPIRequest",
+
 ]
