@@ -142,30 +142,6 @@ AVAILABLE_TOOLS: List[Dict[str, Any]] = [
             "type": "object",
             "properties": {}
         }
-    },
-        {
-        "name": "run_graphql_security_audit",
-        "description": "Executes a deep logic security audit on a GraphQL endpoint, testing for Introspection bypasses, field-level access control / positional correlation leakage ($30k gem), aliased batching rate limit bypass, DoS query depth, and CSRF content-type acceptance.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "target_url": {"type": "string", "description": "Target GraphQL endpoint URL (e.g. https://api.target.com/graphql)."}
-            },
-            "required": ["target_url"]
-        }
-    },
-{
-        "name": "run_security_audit_on_page",
-        "description": "Executes an in-depth security audit on an active or target page (DOM sinks, IDOR candidate capture, MCP schema check, DOM state diff, and header desync assessment) using UnifiedSecurityAuditorV5.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "session_id": {"type": "string", "description": "Optional active session_id. If omitted, target_url must be provided."},
-                "target_url": {"type": "string", "description": "Target URL to open and audit if session_id is not provided."},
-                "audit_dom_sinks": {"type": "boolean", "default": True, "description": "Attach DOM sink auditor to detect eval/innerHTML sink flows."},
-                "audit_context_overflow": {"type": "boolean", "default": True, "description": "Audit page text against agent context window overflow limits."}
-            }
-        }
     }
 ]
 
@@ -328,46 +304,6 @@ async def handle_tool_call(tool_name: str, args: Dict[str, Any]) -> Dict[str, An
                 "total_integrated_modules": 31,
                 "all_modules_intact": True,
                 "status": "HEALTHY"
-            }
-
-        elif tool_name == "run_graphql_security_audit":
-            from behavioral_evasion_suite.graphql_security_auditor import MasterGraphQLDeepLogicEngine
-            target_url = args.get("target_url")
-            if not target_url:
-                return {"error": "Parameter 'target_url' is required for GraphQL security audit."}
-            auditor = MasterGraphQLDeepLogicEngine(target_url=target_url)
-            audit_result = await auditor.run_full_graphql_audit()
-            return {
-                "status": "SUCCESS",
-                "graphql_url": target_url,
-                "audit_report": audit_result
-            }
-
-        elif tool_name == "run_security_audit_on_page":
-            from behavioral_evasion_suite.unified_security_auditor_v5 import UnifiedSecurityAuditorV5
-            session_id = args.get("session_id")
-            target_url = args.get("target_url")
-
-            created_temp = False
-            if not session_id and target_url:
-                open_res = await facade.open_stealth_page(target_url)
-                session_id = open_res.get("session_id")
-                created_temp = True
-
-            session = session_manager.get_session(session_id) if session_id else None
-            if not session or not session.page:
-                return {"error": f"Valid active session or target_url required. Received session_id='{session_id}'"}
-
-            auditor = UnifiedSecurityAuditorV5(page=session.page)
-            audit_result = await auditor.run_full_page_audit(session.page)
-
-            if created_temp and session_id:
-                await session_manager.close_session(session_id)
-
-            return {
-                "status": "success",
-                "session_id": session_id,
-                "audit_report": audit_result
             }
 
         return {"error": f"Tool '{tool_name}' not implemented."}
