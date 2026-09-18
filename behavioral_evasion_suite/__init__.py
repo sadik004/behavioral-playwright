@@ -139,6 +139,39 @@ except ImportError:
     SSPPScanResult = None
     CapturedAPIRequest = None
 
+
+# Clinical Bug Hunter Diagnostic Engine (DNA Extractor & Gemini Doctor)
+try:
+    from .dna_extractor import (
+        WebsiteDNAExtractor,
+        WebsiteDNAReport,
+        EndpointDNA,
+        LibraryDNA,
+        DOMSinkDNA
+    )
+    from .doctor_bridge import (
+        GeminiDoctorBridge,
+        ClinicalRuleSurgeon,
+        DoctorPrescription,
+        SurgicalProbeSpec
+    )
+    from .clinical_orchestrator import (
+        ClinicalBugHunterOrchestrator,
+        HackerOneSubmissionReport
+    )
+except ImportError:
+    WebsiteDNAExtractor = None
+    WebsiteDNAReport = None
+    EndpointDNA = None
+    LibraryDNA = None
+    DOMSinkDNA = None
+    GeminiDoctorBridge = None
+    ClinicalRuleSurgeon = None
+    DoctorPrescription = None
+    SurgicalProbeSpec = None
+    ClinicalBugHunterOrchestrator = None
+    HackerOneSubmissionReport = None
+
 __version__ = "6.0.0"
 
 
@@ -275,5 +308,17 @@ __all__ = [
     "SSPPFinding",
     "SSPPScanResult",
     "CapturedAPIRequest",
+    "WebsiteDNAExtractor",
+    "WebsiteDNAReport",
+    "EndpointDNA",
+    "LibraryDNA",
+    "DOMSinkDNA",
+    "GeminiDoctorBridge",
+    "ClinicalRuleSurgeon",
+    "DoctorPrescription",
+    "SurgicalProbeSpec",
+    "ClinicalBugHunterOrchestrator",
+    "HackerOneSubmissionReport",
+
 
 ]
