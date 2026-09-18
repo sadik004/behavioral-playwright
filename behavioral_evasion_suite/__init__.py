@@ -98,80 +98,6 @@ except ImportError:
     CVEReproducer = None
 
 
-# GraphQL Deep Logic & Protected Attribute Security Engine Integration
-try:
-    from .graphql_security_auditor import (
-        GraphQLIntrospectionAuditor,
-        GraphQLProtectedAttributeAuditor,
-        GraphQLAliasedBatchingAuditor,
-        GraphQLQueryComplexityAuditor,
-        GraphQLCSRFAuditor,
-        GraphQLPoCEngine,
-        MasterGraphQLDeepLogicEngine,
-    )
-except ImportError:
-    GraphQLIntrospectionAuditor = None
-    GraphQLProtectedAttributeAuditor = None
-    GraphQLAliasedBatchingAuditor = None
-    GraphQLQueryComplexityAuditor = None
-    GraphQLCSRFAuditor = None
-    GraphQLPoCEngine = None
-    MasterGraphQLDeepLogicEngine = None
-
-
-# Server-Side Prototype Pollution (SSPP) Security Auditor Integration
-try:
-    from .sspp_security_auditor import (
-        SSPPPayloadGenerator,
-        SSPPResponseAnalyzer,
-        SSPPBlackBoxAuditor,
-        MasterSSPPDeepLogicEngine,
-        SSPPFinding,
-        SSPPScanResult,
-        CapturedAPIRequest
-    )
-except ImportError:
-    SSPPPayloadGenerator = None
-    SSPPResponseAnalyzer = None
-    SSPPBlackBoxAuditor = None
-    MasterSSPPDeepLogicEngine = None
-    SSPPFinding = None
-    SSPPScanResult = None
-    CapturedAPIRequest = None
-
-
-# Clinical Bug Hunter Diagnostic Engine (DNA Extractor & Gemini Doctor)
-try:
-    from .dna_extractor import (
-        WebsiteDNAExtractor,
-        WebsiteDNAReport,
-        EndpointDNA,
-        LibraryDNA,
-        DOMSinkDNA
-    )
-    from .doctor_bridge import (
-        GeminiDoctorBridge,
-        ClinicalRuleSurgeon,
-        DoctorPrescription,
-        SurgicalProbeSpec
-    )
-    from .clinical_orchestrator import (
-        ClinicalBugHunterOrchestrator,
-        HackerOneSubmissionReport
-    )
-except ImportError:
-    WebsiteDNAExtractor = None
-    WebsiteDNAReport = None
-    EndpointDNA = None
-    LibraryDNA = None
-    DOMSinkDNA = None
-    GeminiDoctorBridge = None
-    ClinicalRuleSurgeon = None
-    DoctorPrescription = None
-    SurgicalProbeSpec = None
-    ClinicalBugHunterOrchestrator = None
-    HackerOneSubmissionReport = None
-
 __version__ = "6.0.0"
 
 
@@ -294,31 +220,6 @@ __all__ = [
     "ClosedLoopFuzzer",
     "DesyncEngine",
     "CVEReproducer"
-    "GraphQLIntrospectionAuditor",
-    "GraphQLProtectedAttributeAuditor",
-    "GraphQLAliasedBatchingAuditor",
-    "GraphQLQueryComplexityAuditor",
-    "GraphQLCSRFAuditor",
-    "GraphQLPoCEngine",
-    "MasterGraphQLDeepLogicEngine",
-    "SSPPPayloadGenerator",
-    "SSPPResponseAnalyzer",
-    "SSPPBlackBoxAuditor",
-    "MasterSSPPDeepLogicEngine",
-    "SSPPFinding",
-    "SSPPScanResult",
-    "CapturedAPIRequest",
-    "WebsiteDNAExtractor",
-    "WebsiteDNAReport",
-    "EndpointDNA",
-    "LibraryDNA",
-    "DOMSinkDNA",
-    "GeminiDoctorBridge",
-    "ClinicalRuleSurgeon",
-    "DoctorPrescription",
-    "SurgicalProbeSpec",
-    "ClinicalBugHunterOrchestrator",
-    "HackerOneSubmissionReport",
 
 
 ]
