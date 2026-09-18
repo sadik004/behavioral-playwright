@@ -89,3 +89,11 @@ def test_04_hackerone_report_rendering():
     assert "# Server-Side Prototype Pollution" in md
     assert "CWE-1321" in md
     assert "curl -i -X POST" in md
+
+def test_05_notebooklm_library_auto_discovery():
+    from behavioral_evasion_suite.doctor_bridge import NotebookLMBridge, GeminiDoctorBridge
+    url = NotebookLMBridge.get_active_or_first_notebook_url()
+    assert url is not None
+    assert "f1eac2a4-57d0-427e-a90e-b55fab14b8f4" in url
+    doc = GeminiDoctorBridge()
+    assert doc.notebook_url == url
