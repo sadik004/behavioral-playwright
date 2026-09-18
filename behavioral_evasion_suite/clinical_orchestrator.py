@@ -20,12 +20,21 @@ from pydantic import BaseModel, Field
 
 try:
     from .dna_extractor import WebsiteDNAExtractor, WebsiteDNAReport, EndpointDNA
-    from .doctor_bridge import GeminiDoctorBridge, DoctorPrescription, SurgicalProbeSpec
-    from .sspp_security_auditor import SSPPBlackBoxAuditor, SSPPFinding, SSPPScanResult
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     from dna_extractor import WebsiteDNAExtractor, WebsiteDNAReport, EndpointDNA
+
+try:
+    from .doctor_bridge import GeminiDoctorBridge, DoctorPrescription, SurgicalProbeSpec
+except (ImportError, ModuleNotFoundError):
     from doctor_bridge import GeminiDoctorBridge, DoctorPrescription, SurgicalProbeSpec
+
+try:
     from .sspp_security_auditor import SSPPBlackBoxAuditor, SSPPFinding, SSPPScanResult
+except (ImportError, ModuleNotFoundError):
+    try:
+        from .sspp_blackbox_engine_v4 import SSPPBlackBoxAuditor, SSPPFinding, SSPPScanResult
+    except (ImportError, ModuleNotFoundError):
+        from sspp_blackbox_engine_v4 import SSPPBlackBoxAuditor, SSPPFinding, SSPPScanResult
 
 
 # =====================================================================
@@ -113,13 +122,14 @@ class ClinicalBugHunterOrchestrator:
         reports: List[HackerOneSubmissionReport] = []
 
         for probe in prescription.surgical_probes:
+            # 1. SSPP Surgical Probes
             if "prototype pollution" in probe.technique.lower() or "json spaces" in probe.technique.lower():
                 scan_res = await self.sspp_auditor.audit_endpoint(
                     request_context, probe.target_endpoint, method=probe.method
                 )
                 audit_results.append(scan_res)
 
-                # Step 4: If surgery verifies vulnerability, issue HackerOne Report
+                # If surgery verifies vulnerability, issue HackerOne Report
                 if scan_res.is_vulnerable and scan_res.findings:
                     for finding in scan_res.findings:
                         h1_report = HackerOneSubmissionReport(
@@ -151,6 +161,14 @@ class ClinicalBugHunterOrchestrator:
                         )
                         reports.append(h1_report)
 
+            # 2. GraphQL Introspection & Schema Probes
+            elif "graphql" in probe.technique.lower() or "introspection" in probe.technique.lower():
+                gql_report = await self._audit_graphql_probe(
+                    request_context, probe, prescription.estimated_severity
+                )
+                if gql_report:
+                    reports.append(gql_report)
+
         return {
             "status": "CLINICAL_AUDIT_COMPLETED",
             "dna_report": dna_report.model_dump(),
@@ -160,6 +178,65 @@ class ClinicalBugHunterOrchestrator:
             "hackerone_reports": [r.model_dump() for r in reports],
             "raw_audit_results": [res.model_dump() for res in audit_results]
         }
+
+    async def _audit_graphql_probe(
+        self,
+        request_context,
+        probe: SurgicalProbeSpec,
+        severity: str
+    ) -> Optional[HackerOneSubmissionReport]:
+        """Performs non-destructive GraphQL introspection audit."""
+        if not request_context:
+            return None
+
+        try:
+            headers = {"Content-Type": "application/json"}
+            payload = probe.recommended_payload
+            if isinstance(payload, str):
+                payload = {"query": payload}
+
+            resp = await request_context.post(
+                probe.target_endpoint,
+                data=json.dumps(payload),
+                headers=headers,
+                timeout=10000
+            )
+            if resp.status == 200:
+                body = await resp.json()
+                data = body.get("data", {})
+                if data and ("__schema" in data or "__typename" in data):
+                    curl_poc = (
+                        f"curl -i -X POST {probe.target_endpoint} \\\n"
+                        f"  -H 'Content-Type: application/json' \\\n"
+                        f"  -d '{json.dumps(payload)}'"
+                    )
+                    return HackerOneSubmissionReport(
+                        title=f"GraphQL Introspection Exposure on {probe.target_endpoint}",
+                        target_url=probe.target_endpoint,
+                        cwe_id="CWE-200: Exposure of Sensitive Information to an Unauthorized Actor",
+                        severity=severity,
+                        vulnerability_summary=(
+                            f"GraphQL introspection is fully enabled on {probe.target_endpoint}, "
+                            f"exposing internal schema definitions, protected types, queries, and mutations."
+                        ),
+                        steps_to_reproduce=(
+                            f"1. Send a POST request to {probe.target_endpoint} containing an introspection query.\n"
+                            f"2. Observe complete internal GraphQL schema returned in response body."
+                        ),
+                        curl_proof_of_concept=curl_poc,
+                        business_impact=(
+                            "Schema introspection enables adversaries to map 100% of backend API attack surface, "
+                            "discovering hidden mutations, administrative queries, and undocumented fields."
+                        ),
+                        remediation_guidance=(
+                            "Disable GraphQL introspection in production environments. "
+                            "For Apollo Server, configure: introspection: false."
+                        ),
+                        verified_non_destructive=True
+                    )
+        except Exception:
+            pass
+        return None
 
 
 # =====================================================================
