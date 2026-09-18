@@ -434,7 +434,7 @@ class NotebookLMBridge:
                     capture_output=True,
                     encoding="utf-8",
                     errors="replace",
-                    timeout=45,
+                    timeout=15,
                     env=env
                 )
                 return proc.stdout
