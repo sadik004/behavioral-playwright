@@ -6,6 +6,11 @@ from behavioral_playwright.models.results import (
     ResolutionResult,
     ResolutionStrategy,
 )
+from behavioral_playwright.models.seo_dtos import (
+    AIOAuditResult,
+    CannibalizationReport,
+    PAANode,
+)
 
 __all__ = [
     "BoundingBox",
@@ -13,4 +18,7 @@ __all__ = [
     "ExtractionRecord",
     "ResolutionResult",
     "ResolutionStrategy",
+    "PAANode",
+    "AIOAuditResult",
+    "CannibalizationReport",
 ]

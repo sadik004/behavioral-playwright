@@ -15,6 +15,7 @@ class BrowserConfig:
     timeout_ms: int = 30000
     slow_mo: float = 0.0
     args: List[str] = field(default_factory=list)
+    allow_media: bool = False
 
 
 @dataclass

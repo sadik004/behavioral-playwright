@@ -14,6 +14,18 @@ from behavioral_playwright.automation.scroll import ScrollController
 from behavioral_playwright.browser.base import BrowserProvider
 from behavioral_playwright.browser.mock_provider import MockBrowserProvider
 from behavioral_playwright.browser.playwright_provider import PlaywrightProvider
+from behavioral_playwright.browser.pool import BrowserPoolManager
+from behavioral_playwright.models.seo_dtos import (
+    AIOAuditResult,
+    CannibalizationReport,
+    PAANode,
+)
+from behavioral_playwright.mining import (
+    AIOAuditor,
+    PAAMiner,
+    SEOMiningEngine,
+    SERPCannibalizationEngine,
+)
 from behavioral_playwright.config.settings import (
     AutomationConfig,
     BrowserConfig,
@@ -78,6 +90,8 @@ from behavioral_playwright.providers import (
 
 __all__ = [
     "__version__",
+    "AIOAuditResult",
+    "AIOAuditor",
     "AutomationConfig",
     "BaseBrowserProvider",
     "BehavioralPlaywrightError",
@@ -87,10 +101,12 @@ __all__ = [
     "BP",
     "Bpp",
     "BrowserConfig",
+    "BrowserPoolManager",
     "BrowserProvider",
     "BrowserProviderError",
     "BrowserSession",
     "BrowserUseProvider",
+    "CannibalizationReport",
     "CircuitBreaker",
     "CircuitBreakerConfig",
     "CircuitBreakerError",
@@ -113,6 +129,8 @@ __all__ = [
     "MockBrowserProvider",
     "MouseController",
     "NavigationError",
+    "PAAMiner",
+    "PAANode",
     "PageSession",
     "PageStateEntry",
     "PatchrightProvider",
@@ -131,6 +149,8 @@ __all__ = [
     "ScrollController",
     "SelfHealingResolver",
     "SemanticResolverStrategy",
+    "SEOMiningEngine",
+    "SERPCannibalizationEngine",
     "StagehandProvider",
     "StateTracker",
     "TimeoutError",

@@ -9,10 +9,15 @@ persistence. Page fetching is delegated to a caller-provided async
 from __future__ import annotations
 
 import asyncio
+import random
 import re
 import sqlite3
 from typing import Any, Callable, Coroutine, Dict, List, Optional
 from urllib.parse import urljoin, urlparse, urldefrag
+
+from behavioral_playwright.logging import get_logger
+
+logger = get_logger("crawling.service")
 
 try:  # BeautifulSoup is optional; regex fallback keeps extraction working.
     from bs4 import BeautifulSoup  # type: ignore
@@ -242,8 +247,14 @@ class CrawlingService:
                             " WHERE url=?", (curr_url,))
                         conn.commit()
                         visited.append(curr_url)
-                        await asyncio.sleep(60.0 / self.rate_limit_rpm)
-                    except Exception:  # resilience: skip failed pages
+                        base_delay = 60.0 / self.rate_limit_rpm
+                        if base_delay > 0:
+                            jittered_delay = base_delay * random.uniform(0.85, 1.15)
+                            await asyncio.sleep(jittered_delay)
+                    except Exception as exc:
+                        logger.warning(
+                            f"[Crawler] Error scraping '{curr_url}': {exc}. Marking status='failed'."
+                        )
                         conn.execute(
                             "UPDATE crawl_urls SET status='failed'"
                             " WHERE url=?", (curr_url,))

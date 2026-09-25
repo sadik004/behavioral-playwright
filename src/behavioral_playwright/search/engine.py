@@ -24,14 +24,21 @@ class SearchEngine:
             # Self-healing click to submit
             try:
                 await self.page.click_healed(submit_selector)
-            except Exception:
+            except Exception as click_err:
                 # Fallback to Enter key if submit button fails
-                logger.info("Submit button click failed, falling back to Enter key")
-                await self.page.raw_page.keyboard.press("Enter")
-                
+                logger.warning(f"Submit button click failed ({click_err}), falling back to Enter key")
+                try:
+                    await self.page.raw_page.keyboard.press("Enter")
+                except Exception as key_err:
+                    logger.error(f"Keyboard Enter fallback failed: {key_err}")
+                    raise
+
             # Wait for navigation/results
-            await self.page.raw_page.wait_for_load_state("networkidle")
-            
+            try:
+                await self.page.raw_page.wait_for_load_state("domcontentloaded")
+            except Exception as load_err:
+                logger.debug(f"Search navigation wait warning: {load_err}")
+
             # Extract links as results
             return await self.page.extract_links()
 

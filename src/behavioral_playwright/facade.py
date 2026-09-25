@@ -945,6 +945,67 @@ class SecurityNamespace:
             return {"error": "behavioral_evasion_suite.graphql_security_auditor not available"}
         return await auditor.run_audit(target_url)
 
+
+class MiningNamespace:
+    """SEO, AEO, and GEO search intelligence mining namespace."""
+
+    def __init__(self, facade: "BP") -> None:
+        self._facade = facade
+        self._engine: Optional[Any] = None
+
+    @property
+    def engine(self) -> Any:
+        if self._engine is None:
+            from behavioral_playwright.mining import SEOMiningEngine
+            self._engine = SEOMiningEngine()
+        return self._engine
+
+    async def mine_paa(self, page_or_html: Any = None, query: Optional[str] = None, max_depth: int = 3) -> Any:
+        """Mines People Also Ask question hierarchies."""
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None:
+            await self._facade.boot()
+            target = self._facade.page
+        from behavioral_playwright.mining import PAAMiner
+        miner = PAAMiner(max_depth=max_depth)
+        if isinstance(target, str):
+            return miner.parse_from_html(target)
+        raw_p = getattr(target, "raw_page", None) or target
+        return await miner.extract_from_page(raw_p, target_query=query)
+
+    async def audit_aio(
+        self,
+        query: str,
+        page_or_html: Any = None,
+        brand: Optional[str] = None,
+        competitors: Optional[List[str]] = None,
+    ) -> Any:
+        """Audits AI Overview card presence, citations, brand rank, and competitor mentions."""
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None and not isinstance(page_or_html, str):
+            await self._facade.boot()
+            target = self._facade.page
+        from behavioral_playwright.mining import AIOAuditor
+        auditor = AIOAuditor(brand_domain_or_name=brand, competitor_domains=competitors)
+        if isinstance(target, str):
+            return auditor.audit_html(target, query=query, brand=brand, competitors=competitors)
+        raw_p = getattr(target, "raw_page", None) or target
+        return await auditor.audit_page(raw_p, query=query, brand=brand, competitors=competitors)
+
+    def audit_cannibalization(
+        self,
+        query_a: str,
+        query_b: str,
+        urls_a: List[str],
+        urls_b: List[str],
+        threshold: float = 0.40,
+    ) -> Any:
+        """Computes Jaccard similarity and returns CANONICAL MERGE/SPLIT recommendations."""
+        from behavioral_playwright.mining import SERPCannibalizationEngine
+        engine = SERPCannibalizationEngine(merge_threshold=threshold)
+        return engine.evaluate_cannibalization(query_a, query_b, urls_a, urls_b)
+
+
 class BP:
     """
     Unified high-level facade orchestrating the Behavioral Playwright framework.
@@ -984,6 +1045,8 @@ class BP:
         self.ai = AINamespace(bp=self)
         self.intelligence = IntelligenceNamespace(bp=self)
         self.security = SecurityNamespace(self)
+        self.mining = MiningNamespace(self)
+        self.seo = self.mining
 
     @property
     def biomechanics(self) -> Any:
@@ -1054,26 +1117,22 @@ class BP:
     async def click(self, selector_or_x: Any, y: Optional[float] = None, humanize: bool = True) -> Any:
         """Performs an undetectable, humanized or self-healing click on a selector or coordinates."""
         if not self.page:
-            await self.boot()
-        if self.page:
-            if y is not None or not isinstance(selector_or_x, str):
-                return await self.page.mouse.click(selector_or_x, y=y, humanize=humanize)
-            if hasattr(self.page, "click_healed"):
-                return await self.page.click_healed(selector_or_x)
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        if y is not None or not isinstance(selector_or_x, str):
             return await self.page.mouse.click(selector_or_x, y=y, humanize=humanize)
-        raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        if hasattr(self.page, "click_healed"):
+            return await self.page.click_healed(selector_or_x)
+        return await self.page.mouse.click(selector_or_x, y=y, humanize=humanize)
 
     async def type(self, selector_or_text: str, text: Optional[str] = None, delay_ms: float = 0.0, humanize: bool = True) -> Any:
         """Performs authentic human typing or self-healing typing into a selector."""
         if not self.page:
-            await self.boot()
-        if self.page:
-            if text is not None:
-                if hasattr(self.page, "type_healed"):
-                    return await self.page.type_healed(selector_or_text, text)
-                return await self.page.keyboard.type(text, delay_ms=delay_ms, humanize=humanize)
-            return await self.page.keyboard.type(selector_or_text, delay_ms=delay_ms, humanize=humanize)
-        raise RuntimeError("BP is not booted. Call bp.boot() first.")
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        if text is not None:
+            if hasattr(self.page, "type_healed"):
+                return await self.page.type_healed(selector_or_text, text)
+            return await self.page.keyboard.type(text, delay_ms=delay_ms, humanize=humanize)
+        return await self.page.keyboard.type(selector_or_text, delay_ms=delay_ms, humanize=humanize)
 
     async def open(self, url: str) -> None:
         """Navigates to the specified URL."""
