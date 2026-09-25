@@ -4,7 +4,7 @@
 [![Tests](https://img.shields.io/badge/Tests-267%2F267%20Passed%20(100%25)-success?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![CreepJS Audit](https://img.shields.io/badge/CreepJS%20Audit-100%25%20Clean-success?style=for-the-badge)](https://creepjs.com)
 [![KS-Test](https://img.shields.io/badge/KS--Test-p%3D0.5285%20(Human)-brightgreen?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
-[![MCP Server](https://img.shields.io/badge/MCP%20Server-9%20Tools%20Active-purple?style=for-the-badge)](https://modelcontextprotocol.io)
+[![MCP Server](https://img.shields.io/badge/MCP%20Server-16%20Tools%20Active-purple?style=for-the-badge)](https://modelcontextprotocol.io)
 [![Security Engine](https://img.shields.io/badge/Security-SAML%20%7C%20OAuth%20%7C%20GraphQL%20%7C%20IDOR-red?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -31,6 +31,7 @@ A production-grade, enterprise behavioral evasion, stealth automation, and deep 
   - [13. Level-4 Hardened Behavioral Evasion Framework (`behavioral_evasion_suite`)](#13-level-4-hardened-behavioral-evasion-framework-behavioral_evasion_suite)
   - [14. Level-5 Quantum Edition Evasion Shields (`behavioral_evasion_suite`)](#14-level-5-quantum-edition-evasion-shields-behavioral_evasion_suite)
   - [15. Deep Logic & Protected Attribute Security Auditing Suite (`behavioral_evasion_suite`)](#15-deep-logic--protected-attribute-security-auditing-suite-behavioral_evasion_suite)
+  - [16. SEO, AEO & GEO Data Mining & Verification Engine (`bp.mining`)](#16-seo-aeo--geo-data-mining--verification-engine-bpmining)
 - [🧩 Unified Facade (`BP`) API Reference](#-unified-facade-bp-api-reference)
 - [? PowerPlay Integration Subsystem (`bp.powerplay` / `Bpp`)](#-powerplay-integration-subsystem-bppowerplay--bpp)
 - [🔐 Shared Authentication Architecture](#-shared-authentication-architecture)
@@ -255,12 +256,23 @@ async with BP() as bp:
 
 ### 5. Model Context Protocol (MCP) Stdio Server (`bp.mcp`)
 - **JSON-RPC 2.0 Compliance**: Operates over Stdio conforming to MCP Specification `2024-11-05`.
-- **5 Registered AI Tools**:
+- **16 Production AI Tools**:
   1. `scrape_page`: Self-healing DOM extraction and markdown generator.
   2. `crawl_domain`: Multi-page recursive crawler.
   3. `take_screenshot`: Base64 PNG viewport capture for multimodal vision LLMs.
   4. `quant_pit_align`: SEC EDGAR Point-in-Time metadata validator.
   5. `get_provider_matrix`: Live host engine and network driver status inspector.
+  6. `stealth_click`: Undetectable humanized coordinate or selector click with Costello saccades.
+  7. `stealth_type`: Humanized typing using physical QWERTY distance latencies.
+  8. `stealth_navigate`: Multi-state CAPTCHA loop protection and content entropy audit.
+  9. `audit_biometrics`: Two-sample KS-test and Wasserstein distance biometric validator.
+  10. `memory_pid_health`: Closed-loop Chromium memory PID controller status.
+  11. `extract_metadata`: Next.js `__NEXT_DATA__`, Nuxt state, JSON-LD schemas, and OpenGraph tags.
+  12. `sniff_api_responses`: Intercepts background XHR/Fetch JSON responses matching URL patterns.
+  13. `mine_google_suggest`: Google autocomplete and recursive A-Z alphabet drilldown.
+  14. `audit_csr_drift`: CSR vs SSR rendering drift auditor and SEO indexation risk evaluator.
+  15. `mine_paa`: People Also Ask question tree miner.
+  16. `check_cannibalization`: Jaccard SERP overlap keyword cannibalization checker.
 
 ---
 
@@ -403,6 +415,23 @@ Client-side and protocol-level diagnostic auditing engine for modern APIs, Singl
 | **`OAuth2TrustChainAuditor`** | OAuth 2.0 / OIDC | RFC 9700 redirect URI bypass generator (7 vectors), RFC 7636 strict PKCE `code_verifier` audit, and mutable `email` vs immutable `sub` claim verification |
 | **`DualContextAuditor`** | IDOR / BOLA Replay | Memory-safe bounded `deque(maxlen=500)` request interceptor with semantic PII leakage heuristics (`id`, `uuid`, `email`, `token`) and empty/error body rejection |
 | **`PoCEngine` & `GraphQLPoCEngine`** | Reproducibility | Shell-safe cURL command synthesis with valid JSON serialization for rapid bug bounty validation |
+
+---
+
+### 16. SEO, AEO & GEO Data Mining & Verification Engine (`bp.mining`)
+A production-grade search intelligence, autocomplete prediction, hydration extraction, and rendering drift auditing subsystem:
+
+| Module / Component | Namespace / Class | Capabilities & Architectural Functions |
+| :--- | :--- | :--- |
+| **`suggest_miner.py`** | `bp.mining.suggest` / `GoogleSuggestMiner` | High-throughput Google Suggest autocomplete extraction with wildcard (`*`, `_`) replacement and concurrent A-Z alphabet drilldown (`alphabet_tree`). |
+| **`rendering_auditor.py`** | `bp.verification.drift` / `CSRRenderingDriftAuditor` | Evaluates token-level Jaccard rendering divergence between initial static SSR/HTML and hydrated CSR DOM; detects missing H1 headings, page titles, client-injected links, and JSON-LD schemas. |
+| **`paa_miner.py`** | `bp.mining.paa` / `PAAMiner` | Recursive People Also Ask accordion crawler with dynamic mutation observation, snippet capture, and source citation extraction. |
+| **`cannibalization.py`** | `bp.mining.cannibalization` / `SERPCannibalizationEngine` | Jaccard overlap similarity coefficient ($J = |A \cap B| / |A \cup B|$) on SERP URLs, outputting canonical `MERGE` vs `SPLIT` directives. |
+| **`aio_auditor.py`** | `bp.mining.aio` / `AIOAuditor` | Audits Google AI Overview (SGE) card presence, citations, brand rank, and competitor share of voice. |
+| **`dom.py`** | `bp.mining.extract_*` | Zero-latency Next.js `__NEXT_DATA__`, Nuxt state `__NUXT__`, JSON-LD schemas (`@graph` unpacked), and OpenGraph metadata extractor. |
+| **`sniffer.py`** | `bp.network.create_sniffer` / `JSONResponseSniffer` | Background XHR/Fetch API payload interceptor and async sniffer. |
+
+---
 
 ## 🧩 Unified Facade (`BP`) API Reference
 
@@ -662,6 +691,21 @@ bp mcp-server
 
 # Print Claude Desktop configuration entry
 bp mcp-config --python-path python
+
+# 1. Zero-latency Next.js / Nuxt hydration & JSON-LD metadata extraction
+bp extract-meta "https://example.com" -o meta.json
+
+# 2. Recursively mine Google People Also Ask tree
+bp mine-paa "best mechanical keyboard for coding" --depth 2 -o paa.json
+
+# 3. Check search intent cannibalization (Jaccard Overlap)
+bp check-overlap "python web scraping" "python web automation" --threshold 0.40
+
+# 4. Run Google wildcard & alphabet suggest drilldown
+bp mine-suggest "fastapi vs" --alphabet -o suggestions.json
+
+# 5. Audit CSR vs SSR rendering drift & SEO indexation risk
+bp audit-drift "https://example.com" -o drift.json
 ```
 
 ---
