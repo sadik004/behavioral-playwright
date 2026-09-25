@@ -6,7 +6,7 @@ and all core configuration/session classes for clean global imports:
     from behavioral_playwright import BP, AutomationConfig
 """
 
-__version__ = "10.0.0"
+__version__ = "6.0.0"
 
 from behavioral_playwright.automation.keyboard import KeyboardController
 from behavioral_playwright.automation.mouse import MouseController
@@ -52,7 +52,16 @@ from behavioral_playwright.proxy.pool import ProxyPool
 from behavioral_playwright.fingerprint.generator import FingerprintGenerator
 from behavioral_playwright.storage.exporters import DataStorageManager
 from behavioral_playwright.facade import BP
-from behavioral_playwright.powerplay import Bpp
+from behavioral_playwright.powerplay import (
+    Bpp,
+    BiomechanicalTremorEngine,
+    BiometricDistributionValidator,
+    LinguisticKeystrokeDynamicsEngine,
+    ResolvedCAPTCHAInfiniteLoopDetector,
+    ResolvedChromiumMemoryPIDController,
+    ResolvedSchemaIntegrityGuard,
+    UltimateVisionLanguageActionGuard,
+)
 import behavioral_playwright.powerplay as powerplay
 from behavioral_playwright.providers import (
     BaseBrowserProvider,
@@ -72,6 +81,8 @@ __all__ = [
     "AutomationConfig",
     "BaseBrowserProvider",
     "BehavioralPlaywrightError",
+    "BiomechanicalTremorEngine",
+    "BiometricDistributionValidator",
     "BoundingBox",
     "BP",
     "Bpp",
@@ -98,6 +109,7 @@ __all__ = [
     "FingerprintGenerator",
     "FuzzyResolverStrategy",
     "KeyboardController",
+    "LinguisticKeystrokeDynamicsEngine",
     "MockBrowserProvider",
     "MouseController",
     "NavigationError",
@@ -111,6 +123,9 @@ __all__ = [
     "ResolutionResult",
     "ResolutionStrategy",
     "ResolverConfig",
+    "ResolvedCAPTCHAInfiniteLoopDetector",
+    "ResolvedChromiumMemoryPIDController",
+    "ResolvedSchemaIntegrityGuard",
     "RetryConfig",
     "RetryPolicy",
     "ScrollController",
@@ -119,6 +134,7 @@ __all__ = [
     "StagehandProvider",
     "StateTracker",
     "TimeoutError",
+    "UltimateVisionLanguageActionGuard",
     "UndetectedChromedriverProvider",
 ]
 

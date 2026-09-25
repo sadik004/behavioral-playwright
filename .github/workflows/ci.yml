@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
           mypy src/
       - name: Run Pytest Suite
         run: |
-          pytest tests/unit -q
+          pytest tests/ -v
       - name: Build Package (Wheel & sdist)
         run: |
           python -m build

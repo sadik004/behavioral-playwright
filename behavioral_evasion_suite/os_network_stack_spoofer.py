@@ -1,4 +1,4 @@
-﻿"""
+"""
 OS Network Stack Spoofer - Level 5 Quantum Edition
 Passive OS TCP/IP Socket TTL & Network Stack Fingerprint Spoofer.
 Counters Akamai and p0f passive SYN packet TTL inspection (Windows TTL = 128 vs Linux TTL = 64).
@@ -30,18 +30,30 @@ class OSNetworkStackSpoofer:
     def __init__(self, config: Optional[NetworkStackConfig] = None):
         self.config = config or NetworkStackConfig()
 
+    def tune_socket_to_windows(self, sock: socket.socket) -> bool:
+        """
+        Defensively applies Windows-like TCP/IP socket parameters (IP_TTL = 128, SO_RCVBUF).
+        Handles platform-specific differences (Linux vs macOS vs Windows) gracefully.
+        """
+        try:
+            if hasattr(socket, "IPPROTO_IP") and hasattr(socket, "IP_TTL"):
+                sock.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, self.config.ip_ttl)
+            if hasattr(socket, "SOL_SOCKET") and hasattr(socket, "SO_RCVBUF"):
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.config.tcp_window_size)
+            logger.debug(f"Tuned socket to Windows signature (TTL={self.config.ip_ttl})")
+            return True
+        except OSError as e:
+            logger.debug(f"Unable to tune socket options on {sys.platform} ({e}), fallback gracefully.")
+            return False
+        except Exception as e:
+            logger.debug(f"Unexpected socket configuration error ({e}), fallback gracefully.")
+            return False
+
     def configure_socket_ttl(self, sock: socket.socket) -> bool:
         """
         Defensively applies IP_TTL = 128 socket option to an existing TCP socket.
         """
-        try:
-            # IPPROTO_IP, IP_TTL socket level option
-            sock.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, self.config.ip_ttl)
-            logger.debug(f"Applied socket IP_TTL = {self.config.ip_ttl}")
-            return True
-        except Exception as e:
-            logger.debug(f"Unable to set IP_TTL on socket ({e}), continuing gracefully.")
-            return False
+        return self.tune_socket_to_windows(sock)
 
     def get_browser_network_launch_args(self) -> List[str]:
         """

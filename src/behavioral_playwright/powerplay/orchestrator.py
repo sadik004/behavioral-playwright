@@ -14,11 +14,12 @@ from behavioral_playwright.powerplay.captcha import ResolvedCAPTCHAInfiniteLoopD
 from behavioral_playwright.powerplay.schema_guard import ResolvedSchemaIntegrityGuard
 from behavioral_playwright.powerplay.vision_guard import UltimateVisionLanguageActionGuard
 from behavioral_playwright.powerplay.memory_pid import ResolvedChromiumMemoryPIDController
+from behavioral_playwright.powerplay.validator import BiometricDistributionValidator
 
 
 class Bpp:
     """
-    Master Orchestrator alias exposing all 10 mathematical and OS-level shields.
+    Master Orchestrator alias exposing all mathematical and OS-level shields.
     Usage:
         from behavioral_playwright.powerplay import Bpp
         bot = Bpp()
@@ -33,3 +34,4 @@ class Bpp:
         self.loop_detector = ResolvedCAPTCHAInfiniteLoopDetector()
         self.schema_guard = ResolvedSchemaIntegrityGuard()
         self.memory_pid = ResolvedChromiumMemoryPIDController()
+        self.validator = BiometricDistributionValidator()

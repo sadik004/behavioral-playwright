@@ -1,11 +1,10 @@
-﻿"""
+"""
 Level 5 Quantum Edition (v6.0.0) Automated Audit & Regression Test Suite
 Validates imports, circular dependencies, Level 5 shield wiring, and Level 4 legacy resilience.
 """
 
 import sys
 import os
-import asyncio
 import socket
 import pytest
 
@@ -127,11 +126,29 @@ def test_07_os_network_stack_spoofer():
     # Test defensive socket setsockopt
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        res = spoofer.configure_socket_ttl(sock)
-        # Sockets on Windows/Linux will accept IP_TTL
-        assert res in (True, False)
+        res = spoofer.tune_socket_to_windows(sock)
+        if sys.platform.startswith("linux"):
+            # Strict Linux IP_TTL check
+            try:
+                ttl = sock.getsockopt(socket.IPPROTO_IP, socket.IP_TTL)
+                assert ttl == 128
+            except OSError:
+                # Constrained container / CI runner environment fallback
+                assert res in (True, False)
+        else:
+            # On Windows (win32) and macOS (darwin), handle socket options gracefully
+            assert res in (True, False)
+            try:
+                ttl = sock.getsockopt(socket.IPPROTO_IP, socket.IP_TTL)
+                assert ttl in (128, 64, 255)
+            except OSError:
+                # Expected when unprivileged on certain runner OS kernels
+                pass
     finally:
         sock.close()
+
+
+test_os_network_stack_spoofer = test_07_os_network_stack_spoofer
 
 
 @pytest.mark.asyncio
@@ -165,9 +182,7 @@ def test_09_level4_legacy_regression():
         CanvasWebGLShaderSpoofer,
         PowerHandMaster,
         HoneypotIsolationShield,
-        V8BytecodeShield,
-        CDPEvasionShield,
-        HardwareOSSpoofer
+        V8BytecodeShield
     )
 
     # Mouse Physics
@@ -200,7 +215,6 @@ def test_09_level4_legacy_regression():
 
 
 if __name__ == "__main__":
-    import unittest
     # Allow running directly via python
     pytest.main(["-v", __file__])
 

@@ -15,9 +15,7 @@ for p in [ROOT_DIR, SRC_DIR]:
     if p not in sys.path:
         sys.path.insert(0, p)
 
-import behavioral_evasion_suite as bes
 from behavioral_evasion_suite.oob_listener import (
-    OOBInteractionDTO,
     OOBProviderProtocol,
     MockOOBProvider,
     InteractshOOBProvider,

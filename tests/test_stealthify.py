@@ -2,8 +2,7 @@
 Unit and Integration Tests for Universal Stealthify & Autonomous Challenge Solver
 """
 import pytest
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from behavioral_evasion_suite import (
     stealthify,

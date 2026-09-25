@@ -36,9 +36,22 @@ class PageSession:
         self.provider = provider
         self.config = config
 
-        # Automation Controllers
-        self.mouse = MouseController(raw_page)
-        self.keyboard = KeyboardController(raw_page)
+        # PowerPlay Mathematical & Biometric Engines
+        from behavioral_playwright.powerplay.biomechanics import BiomechanicalTremorEngine
+        from behavioral_playwright.powerplay.keystrokes import LinguisticKeystrokeDynamicsEngine
+        from behavioral_playwright.powerplay.captcha import ResolvedCAPTCHAInfiniteLoopDetector
+        from behavioral_playwright.powerplay.schema_guard import ResolvedSchemaIntegrityGuard
+        from behavioral_playwright.powerplay.vision_guard import UltimateVisionLanguageActionGuard
+
+        self.biomechanics = BiomechanicalTremorEngine()
+        self.keystrokes = LinguisticKeystrokeDynamicsEngine()
+        self.loop_detector = ResolvedCAPTCHAInfiniteLoopDetector()
+        self.schema_guard = ResolvedSchemaIntegrityGuard()
+        self.vision_guard = UltimateVisionLanguageActionGuard()
+
+        # Automation Controllers with Biomechanical Wiring
+        self.mouse = MouseController(raw_page, biomechanics=self.biomechanics, vision_guard=self.vision_guard)
+        self.keyboard = KeyboardController(raw_page, keystrokes=self.keystrokes)
         self.scroll = ScrollController(raw_page)
 
         # Extraction & Resolution
@@ -50,11 +63,28 @@ class PageSession:
         self.retry_policy = RetryPolicy(config.retry)
         self.circuit_breaker = CircuitBreaker(config.circuit_breaker)
 
-    async def goto(self, url: str, wait_until: str = "domcontentloaded") -> None:
-        """Navigates to URL and records the page state in StateTracker."""
+    async def goto(self, url: str, wait_until: str = "domcontentloaded", audit_page: bool = True) -> None:
+        """Navigates to URL and records the page state in StateTracker, LoopDetector, and SchemaGuard."""
+        # 1. Evaluate Markov navigation cycle and 3-state circuit breaker
+        nav_eval = self.loop_detector.record_navigation(url)
+        if nav_eval.get("circuit_state") == self.loop_detector.STATE_OPEN:
+            logger.warning(f"[Security] CAPTCHA loop or challenge storm detected at {url}. Action: ROTATE_PROXY")
+
+        # 2. Execute underlying navigation
         await self.provider.goto(url, wait_until=wait_until)
         title = await self.provider.get_title()
         self.state_tracker.record_state(url=url, title=title)
+
+        # 3. Dynamic DOM audit for Honeypots and Blank/Challenge Pages
+        if audit_page:
+            try:
+                content = await self.provider.evaluate("() => document.documentElement ? document.documentElement.outerHTML : ''")
+                if content and isinstance(content, str):
+                    audit_res = self.schema_guard.audit_content_entropy(content)
+                    if audit_res.get("decision") == "CAPTCHA_WALL":
+                        self.loop_detector.record_navigation(url, is_challenge=True)
+            except Exception:
+                pass
 
     async def get_title(self) -> str:
         """Returns active page title."""

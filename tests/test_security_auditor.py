@@ -2,7 +2,9 @@
 Automated Test Suite for Unified Security Auditor v5 (Enterprise Edition)
 Testing all 11 Defensive & Auditing Modules including SAML 2.0 & OAuth 2.0/OIDC.
 """
-import os, sys, base64
+import os
+import sys
+import base64
 base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if base_dir not in sys.path:
     sys.path.insert(0, base_dir)

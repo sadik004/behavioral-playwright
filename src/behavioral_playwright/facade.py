@@ -701,6 +701,7 @@ class PowerPlayNamespace:
         self._loop_detector: Optional[Any] = None
         self._tcp_tuner: Optional[Any] = None
         self._os_bridge: Optional[Any] = None
+        self._validator: Optional[Any] = None
 
     @property
     def tracker(self) -> Any:
@@ -765,6 +766,49 @@ class PowerPlayNamespace:
             self._os_bridge = OSLevelDisplayInputBridge()
         return self._os_bridge
 
+    @property
+    def validator(self) -> Any:
+        if self._validator is None:
+            from behavioral_playwright.powerplay.validator import BiometricDistributionValidator
+            self._validator = BiometricDistributionValidator()
+        return self._validator
+
+    # Class references for direct engine instantiation
+    @property
+    def BiomechanicalTremorEngine(self) -> Any:
+        from behavioral_playwright.powerplay.biomechanics import BiomechanicalTremorEngine
+        return BiomechanicalTremorEngine
+
+    @property
+    def LinguisticKeystrokeDynamicsEngine(self) -> Any:
+        from behavioral_playwright.powerplay.keystrokes import LinguisticKeystrokeDynamicsEngine
+        return LinguisticKeystrokeDynamicsEngine
+
+    @property
+    def ResolvedChromiumMemoryPIDController(self) -> Any:
+        from behavioral_playwright.powerplay.memory_pid import ResolvedChromiumMemoryPIDController
+        return ResolvedChromiumMemoryPIDController
+
+    @property
+    def ResolvedSchemaIntegrityGuard(self) -> Any:
+        from behavioral_playwright.powerplay.schema_guard import ResolvedSchemaIntegrityGuard
+        return ResolvedSchemaIntegrityGuard
+
+    @property
+    def UltimateVisionLanguageActionGuard(self) -> Any:
+        from behavioral_playwright.powerplay.vision_guard import UltimateVisionLanguageActionGuard
+        return UltimateVisionLanguageActionGuard
+
+    @property
+    def BiometricDistributionValidator(self) -> Any:
+        from behavioral_playwright.powerplay.validator import BiometricDistributionValidator
+        return BiometricDistributionValidator
+
+    @property
+    def ResolvedCAPTCHAInfiniteLoopDetector(self) -> Any:
+        from behavioral_playwright.powerplay.captcha import ResolvedCAPTCHAInfiniteLoopDetector
+        return ResolvedCAPTCHAInfiniteLoopDetector
+
     def create_orchestrator(self) -> Any:
         """Instantiates an isolated Bpp orchestrator instance."""
         from behavioral_playwright.powerplay.orchestrator import Bpp
@@ -778,9 +822,57 @@ class PowerPlayNamespace:
         """Generates chronological keydown/keyup events modulated by physical QWERTY distance."""
         return self.keystrokes.generate_typing_sequence(text)
 
-    def audit_content_entropy(self, text: str) -> dict:
-        """Audits content information density using O(N) Shannon entropy."""
-        return self.schema_guard.audit_page_text(text)
+    def compute_memory_adjustment(self, current_rss_mb: float, target_rss_mb: Optional[float] = None, dt: float = 1.0) -> dict:
+        """Computes closed-loop PID memory throttle and GC recommendations."""
+        if target_rss_mb is not None:
+            self.memory_pid.target_mb = target_rss_mb
+        return self.memory_pid.compute_correction(current_rss_mb, dt=dt)
+
+    def audit_content_entropy(self, text_or_html: str, profile_name: str = "default") -> dict:
+        """Audits content information density using O(N) Shannon entropy & structural DOM heuristics."""
+        if "<" in text_or_html and ">" in text_or_html:
+            return self.schema_guard.audit_content_entropy(text_or_html, profile_name=profile_name)
+        return self.schema_guard.audit_page_text(text_or_html)
+
+    def evaluate_visual_action(
+        self,
+        intended_box: tuple,
+        scanned_box: tuple,
+        vec_intended: Optional[list] = None,
+        vec_scanned: Optional[list] = None,
+    ) -> dict:
+        """Evaluates spatial GIoU and multi-modal semantic action intent."""
+        if vec_intended is None:
+            vec_intended = [1.0, 0.0]
+        if vec_scanned is None:
+            vec_scanned = [1.0, 0.0]
+        return self.vision_guard.evaluate_and_heal_click(
+            vec_intended=vec_intended,
+            vec_scanned=vec_scanned,
+            box_intended=intended_box,
+            box_scanned=scanned_box,
+        )
+
+    def validate_biometric_distribution(
+        self,
+        synthetic_samples: list,
+        human_baseline: Optional[list] = None,
+        alpha: Optional[float] = None,
+    ) -> dict:
+        """Validates synthetic biometric distribution against human baseline via Two-Sample KS-Test."""
+        return self.validator.evaluate_distribution_alignment(
+            synthetic_samples=synthetic_samples,
+            human_baseline=human_baseline,
+            alpha=alpha,
+        )
+
+    def validate_trajectory_kinematics(self, trajectory: list, dt: float = 0.016) -> dict:
+        """Validates synthetic mouse trajectory velocity profile against human baseline."""
+        return self.validator.validate_trajectory_kinematics(trajectory, dt=dt)
+
+    def validate_keystroke_cadence(self, events: list) -> dict:
+        """Validates synthetic typing dwell & flight times against human baseline."""
+        return self.validator.validate_keystroke_cadence(events)
 
     async def move_mouse_humanized(self, start_pos: tuple, target_pos: tuple, steps: int = 20, step_delay: float = 0.005) -> list:
         """
@@ -893,6 +985,41 @@ class BP:
         self.intelligence = IntelligenceNamespace(bp=self)
         self.security = SecurityNamespace(self)
 
+    @property
+    def biomechanics(self) -> Any:
+        """Biomechanical mouse trajectory & tremor engine."""
+        return self.powerplay.biomechanics
+
+    @property
+    def keystrokes(self) -> Any:
+        """Linguistic keystroke dynamics and Weibull timing engine."""
+        return self.powerplay.keystrokes
+
+    @property
+    def memory_pid(self) -> Any:
+        """Resolved Chromium closed-loop PID memory management controller."""
+        return self.powerplay.memory_pid
+
+    @property
+    def schema_guard(self) -> Any:
+        """Resolved information entropy & DOM anomaly integrity guard."""
+        return self.powerplay.schema_guard
+
+    @property
+    def vision_guard(self) -> Any:
+        """Ultimate Vision-Language-Action & GIoU click-healing guard."""
+        return self.powerplay.vision_guard
+
+    @property
+    def validator(self) -> Any:
+        """Biometric distribution hypothesis testing & KS-test validator."""
+        return self.powerplay.validator
+
+    @property
+    def loop_detector(self) -> Any:
+        """Resolved CAPTCHA infinite loop & 3-state circuit breaker detector."""
+        return self.powerplay.loop_detector
+
     async def boot(self) -> "BP":
         """Starts the browser session and initializes the first page."""
         if not self.session:
@@ -910,6 +1037,44 @@ class BP:
         self._humanizer = object()  # truthy sentinel; methods looked up dynamically
         return self
 
+    @property
+    def mouse(self) -> Any:
+        """Active page MouseController with biomechanical spline automation."""
+        if self.page:
+            return self.page.mouse
+        return None
+
+    @property
+    def keyboard(self) -> Any:
+        """Active page KeyboardController with QWERTY and Weibull typing automation."""
+        if self.page:
+            return self.page.keyboard
+        return None
+
+    async def click(self, selector_or_x: Any, y: Optional[float] = None, humanize: bool = True) -> Any:
+        """Performs an undetectable, humanized or self-healing click on a selector or coordinates."""
+        if not self.page:
+            await self.boot()
+        if self.page:
+            if y is not None or not isinstance(selector_or_x, str):
+                return await self.page.mouse.click(selector_or_x, y=y, humanize=humanize)
+            if hasattr(self.page, "click_healed"):
+                return await self.page.click_healed(selector_or_x)
+            return await self.page.mouse.click(selector_or_x, y=y, humanize=humanize)
+        raise RuntimeError("BP is not booted. Call bp.boot() first.")
+
+    async def type(self, selector_or_text: str, text: Optional[str] = None, delay_ms: float = 0.0, humanize: bool = True) -> Any:
+        """Performs authentic human typing or self-healing typing into a selector."""
+        if not self.page:
+            await self.boot()
+        if self.page:
+            if text is not None:
+                if hasattr(self.page, "type_healed"):
+                    return await self.page.type_healed(selector_or_text, text)
+                return await self.page.keyboard.type(text, delay_ms=delay_ms, humanize=humanize)
+            return await self.page.keyboard.type(selector_or_text, delay_ms=delay_ms, humanize=humanize)
+        raise RuntimeError("BP is not booted. Call bp.boot() first.")
+
     async def open(self, url: str) -> None:
         """Navigates to the specified URL."""
         if not self.page:
@@ -925,18 +1090,6 @@ class BP:
                      options: Optional[Dict[str, Any]] = None) -> Any:
         """Top-level convenience forwarder for bp.web.scrape()."""
         return await self.web.scrape(url_or_html, schema=schema, options=options)
-
-    async def click(self, selector: str) -> Any:
-        """Executes a self-healing click on the target selector."""
-        if not self.page:
-            raise RuntimeError("BP is not booted. Call bp.boot() first.")
-        return await self.page.click_healed(selector)
-
-    async def type(self, selector: str, text: str) -> Any:
-        """Executes a self-healing type into the target selector."""
-        if not self.page:
-            raise RuntimeError("BP is not booted. Call bp.boot() first.")
-        return await self.page.type_healed(selector, text)
 
     async def fill(self, selector: str, text: str) -> Any:
         """Alias for type()."""

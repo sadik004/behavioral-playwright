@@ -5,7 +5,6 @@ Unified Quantum Facade domain integration, and MCP server tooling.
 """
 
 import pytest
-import asyncio
 import sys
 import os
 
@@ -18,7 +17,6 @@ for p in [ROOT_DIR, SRC_DIR]:
 import behavioral_evasion_suite as bes
 from behavioral_evasion_suite.security_protocol import (
     SecurityAuditorProtocol,
-    BaseSecurityAuditor,
     SecurityFinding,
     AuditResultDTO
 )

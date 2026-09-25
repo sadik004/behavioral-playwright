@@ -16,9 +16,7 @@ from behavioral_evasion_suite import (
     StatusGranularCircuitBreaker,
     QualitySentinel,
     BasePersistencePipeline,
-    PowerHandMaster,
-    PowerHandPlaywrightRunner,
-    IdentityAnchor
+    PowerHandPlaywrightRunner
 )
 
 
@@ -57,13 +55,15 @@ def test_quality_sentinel():
 
 
 def test_persistence_pipeline():
+    import tempfile
+    test_path = os.path.join(tempfile.gettempdir(), "test_pipe.ndjson")
     async def run():
-        pipe = BasePersistencePipeline(output_path="/tmp/test_pipe.ndjson")
+        pipe = BasePersistencePipeline(output_path=test_path)
         pipe.open()
         await pipe.append_record({"test": "data", "val": 42})
         await pipe.close()
-        if os.path.exists("/tmp/test_pipe.ndjson"):
-            os.remove("/tmp/test_pipe.ndjson")
+        if os.path.exists(test_path):
+            os.remove(test_path)
 
     asyncio.run(run())
     print("  [✓] Persistence Pipeline verified")

@@ -31,6 +31,7 @@ from behavioral_playwright.powerplay.captcha import ResolvedCAPTCHAInfiniteLoopD
 from behavioral_playwright.powerplay.schema_guard import ResolvedSchemaIntegrityGuard
 from behavioral_playwright.powerplay.vision_guard import UltimateVisionLanguageActionGuard
 from behavioral_playwright.powerplay.memory_pid import ResolvedChromiumMemoryPIDController
+from behavioral_playwright.powerplay.validator import BiometricDistributionValidator
 from behavioral_playwright.powerplay.orchestrator import Bpp
 
 __all__ = [
@@ -46,4 +47,5 @@ __all__ = [
     "ResolvedSchemaIntegrityGuard",
     "UltimateVisionLanguageActionGuard",
     "ResolvedChromiumMemoryPIDController",
+    "BiometricDistributionValidator",
 ]
