@@ -32,3 +32,4 @@ storage_state.json
 test_pipeline_output.ndjson
 *.log
 .DS_Store
+pseo-growth-engine/

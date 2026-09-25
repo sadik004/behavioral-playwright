@@ -11,11 +11,18 @@ from behavioral_playwright.logging import get_logger
 from behavioral_playwright.models.seo_dtos import (
     AIOAuditResult,
     CannibalizationReport,
+    CSRDriftReport,
     PAANode,
+    SuggestResult,
 )
 from behavioral_playwright.mining.aio_auditor import AIOAuditor
 from behavioral_playwright.mining.cannibalization import SERPCannibalizationEngine
 from behavioral_playwright.mining.paa_miner import PAAMiner
+from behavioral_playwright.mining.suggest_miner import GoogleSuggestMiner, SuggestMiner
+from behavioral_playwright.verification.rendering_auditor import (
+    CSRRenderingDriftAuditor,
+    RenderingDriftAuditor,
+)
 
 logger = get_logger("mining.engine")
 
@@ -23,7 +30,8 @@ logger = get_logger("mining.engine")
 class SEOMiningEngine:
     """
     Unified search intelligence and Generative Engine Optimization (GEO) mining facade.
-    Provides automated audit tools for modern SERPs, AI Overviews, and keyword cannibalization.
+    Provides automated audit tools for modern SERPs, AI Overviews, keyword cannibalization,
+    Google autocomplete suggestions, and CSR rendering drift analysis.
     """
 
     def __init__(
@@ -35,6 +43,8 @@ class SEOMiningEngine:
         self.paa = PAAMiner()
         self.aio = AIOAuditor(brand_domain_or_name=brand, competitor_domains=competitors)
         self.cannibalization = SERPCannibalizationEngine(merge_threshold=cannibalization_threshold)
+        self.suggest = GoogleSuggestMiner()
+        self.drift_auditor = CSRRenderingDriftAuditor()
 
     async def mine_paa(
         self,
@@ -85,5 +95,37 @@ class SEOMiningEngine:
             threshold=threshold,
         )
 
+    async def mine_suggest(
+        self,
+        query: str,
+        alphabet: bool = False,
+        lang: str = "en",
+        country: str = "us",
+    ) -> SuggestResult:
+        """Mines Google autocomplete suggestions with optional A-Z alphabet soup drilldown."""
+        return await self.suggest.mine(
+            query=query, alphabet=alphabet, lang=lang, country=country
+        )
 
-__all__ = ["SEOMiningEngine", "PAAMiner", "AIOAuditor", "SERPCannibalizationEngine"]
+    def audit_drift(
+        self,
+        raw_html: str,
+        rendered_html: str,
+        url: Optional[str] = None,
+    ) -> CSRDriftReport:
+        """Audits rendering drift between server-delivered static HTML and hydrated client DOM."""
+        return self.drift_auditor.audit_html_drift(
+            raw_html=raw_html, rendered_html=rendered_html, url=url
+        )
+
+
+__all__ = [
+    "SEOMiningEngine",
+    "PAAMiner",
+    "AIOAuditor",
+    "SERPCannibalizationEngine",
+    "GoogleSuggestMiner",
+    "SuggestMiner",
+    "CSRRenderingDriftAuditor",
+    "RenderingDriftAuditor",
+]

@@ -122,6 +122,82 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "name": "extract_metadata",
+        "description": "Extracts Next.js __NEXT_DATA__, Nuxt state, JSON-LD schemas (@graph unpacked), and OpenGraph tags from a URL or current page.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Target webpage URL to inspect (optional)"},
+            },
+        },
+    },
+    {
+        "name": "sniff_api_responses",
+        "description": "Intercepts and extracts raw JSON payloads from background XHR/Fetch API requests matching URL patterns.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Optional URL to navigate to"},
+                "url_patterns": {"type": "array", "items": {"type": "string"}, "description": "URL substrings/globs to match"},
+                "timeout": {"type": "number", "default": 10.0, "description": "Wait timeout in seconds"},
+            },
+            "required": ["url_patterns"],
+        },
+    },
+    {
+        "name": "mine_google_suggest",
+        "description": "Runs Google autocomplete suggestion mining and recursive A-Z alphabet drilldown.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search keyword or query template (e.g. 'fastapi vs')"},
+                "alphabet": {"type": "boolean", "default": False, "description": "Whether to run A-Z alphabet drilldown expansion"},
+                "lang": {"type": "string", "default": "en", "description": "Language code (default 'en')"},
+                "country": {"type": "string", "default": "us", "description": "Country code (default 'us')"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "audit_csr_drift",
+        "description": "Audits Client-Side Rendering (CSR) vs Static HTML rendering drift, detecting hydration mismatches and missing SEO elements.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Target webpage URL to audit live (optional)"},
+                "raw_html": {"type": "string", "description": "Static/SSR HTML content string (optional)"},
+                "rendered_html": {"type": "string", "description": "Hydrated/rendered DOM HTML content string (optional)"},
+            },
+        },
+    },
+    {
+        "name": "mine_paa",
+        "description": "Recursively mines People Also Ask (PAA) question tree from Google search SERP or provided HTML.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Seed search query to mine PAA for"},
+                "depth": {"type": "integer", "default": 2, "description": "Recursion depth (1 to 5)"},
+                "html": {"type": "string", "description": "Optional static SERP HTML to parse directly"},
+            },
+        },
+    },
+    {
+        "name": "check_cannibalization",
+        "description": "Calculates Jaccard overlap similarity between two search queries to detect keyword cannibalization and advise MERGE vs SPLIT.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query_a": {"type": "string", "description": "First comparison search query"},
+                "query_b": {"type": "string", "description": "Second comparison search query"},
+                "urls_a": {"type": "array", "items": {"type": "string"}, "description": "Optional explicit URLs for query A"},
+                "urls_b": {"type": "array", "items": {"type": "string"}, "description": "Optional explicit URLs for query B"},
+                "threshold": {"type": "number", "default": 0.40, "description": "Jaccard merge threshold (default 0.40)"},
+            },
+            "required": ["query_a", "query_b"],
+        },
+    },
 ]
 
 
@@ -274,6 +350,105 @@ class McpToolDispatcher:
                     "current_rss_mb": round(current_mb, 2),
                     "target_rss_mb": round(target_mb, 2),
                     "regulation": correction,
+                }
+
+            elif tool_name == "extract_metadata":
+                url = arguments.get("url")
+                async with bp:
+                    if url:
+                        await bp.goto(url)
+                    elif not bp.page:
+                        await bp.boot()
+                    next_data = await bp.mining.extract_next_data()
+                    nuxt_data = await bp.mining.extract_nuxt_data()
+                    json_ld = await bp.mining.extract_json_ld()
+                    open_graph = await bp.mining.extract_open_graph()
+                    return {
+                        "status": "success",
+                        "url": url or getattr(bp.page, "url", ""),
+                        "next_data": next_data,
+                        "nuxt_data": nuxt_data,
+                        "json_ld": json_ld,
+                        "open_graph": open_graph,
+                    }
+
+            elif tool_name == "sniff_api_responses":
+                url = arguments.get("url")
+                patterns = arguments.get("url_patterns", [])
+                timeout = float(arguments.get("timeout", 10.0))
+                if not patterns:
+                    return {"error": "Missing required argument 'url_patterns'"}
+
+                async with bp:
+                    if not bp.page:
+                        await bp.boot()
+                    sniffer = bp.network.create_sniffer(bp.page)
+                    if url:
+                        await bp.goto(url)
+                    payloads = await sniffer.intercept_json(patterns, timeout=timeout)
+                    sniffer.detach()
+                    return {
+                        "status": "success",
+                        "url_patterns": patterns,
+                        "matched_payloads_count": len(payloads),
+                        "payloads": payloads,
+                    }
+
+            elif tool_name == "mine_google_suggest":
+                query = arguments.get("query")
+                if not query:
+                    return {"error": "Missing required argument 'query'"}
+                alphabet = bool(arguments.get("alphabet", False))
+                lang = arguments.get("lang", "en")
+                country = arguments.get("country", "us")
+                res = await bp.mining.mine_suggest(query=query, alphabet=alphabet, lang=lang, country=country)
+                return {
+                    "status": "success",
+                    "result": res.model_dump() if hasattr(res, "model_dump") else res,
+                }
+
+            elif tool_name == "audit_csr_drift":
+                url = arguments.get("url")
+                raw_html = arguments.get("raw_html")
+                rendered_html = arguments.get("rendered_html")
+                if not url and (raw_html is None or rendered_html is None):
+                    return {"error": "Must provide either 'url' or both 'raw_html' and 'rendered_html'"}
+                report = await bp.mining.audit_csr_drift(url=url, raw_html=raw_html, rendered_html=rendered_html)
+                return {
+                    "status": "success",
+                    "result": report.model_dump() if hasattr(report, "model_dump") else report,
+                }
+
+            elif tool_name == "mine_paa":
+                query = arguments.get("query")
+                html_body = arguments.get("html")
+                depth = int(arguments.get("depth", 2))
+                if not query and not html_body:
+                    return {"error": "Must provide either 'query' or 'html'"}
+                async with bp:
+                    nodes = await bp.mining.mine_paa(page_or_html=html_body, query=query, max_depth=depth)
+                    raw_nodes = [n.model_dump() if hasattr(n, "model_dump") else n for n in nodes]
+                    return {
+                        "status": "success",
+                        "query": query,
+                        "count": len(raw_nodes),
+                        "nodes": raw_nodes,
+                    }
+
+            elif tool_name == "check_cannibalization":
+                query_a = arguments.get("query_a")
+                query_b = arguments.get("query_b")
+                if not query_a or not query_b:
+                    return {"error": "Missing required arguments 'query_a' and 'query_b'"}
+                urls_a = arguments.get("urls_a")
+                urls_b = arguments.get("urls_b")
+                threshold = float(arguments.get("threshold", 0.40))
+                report = await bp.mining.check_overlap(
+                    query_a=query_a, query_b=query_b, urls_a=urls_a, urls_b=urls_b, threshold=threshold
+                )
+                return {
+                    "status": "success",
+                    "result": report.model_dump() if hasattr(report, "model_dump") else report,
                 }
 
             return {"error": f"Unknown tool: {tool_name}"}

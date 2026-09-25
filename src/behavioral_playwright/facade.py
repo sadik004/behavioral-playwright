@@ -405,6 +405,11 @@ class NetworkNamespace:
         return await loop.run_in_executor(
             None, lambda: self.measure_response_time(url, timeout))
 
+    def create_sniffer(self, page: Any) -> Any:
+        """Instantiates a JSONResponseSniffer on the provided Playwright page."""
+        from behavioral_playwright.network.sniffer import JSONResponseSniffer
+        return JSONResponseSniffer(page)
+
 
 class IntegrationsNamespace:
     """JSON webhook notifications (Slack/Discord/n8n compatible)."""
@@ -1004,6 +1009,117 @@ class MiningNamespace:
         from behavioral_playwright.mining import SERPCannibalizationEngine
         engine = SERPCannibalizationEngine(merge_threshold=threshold)
         return engine.evaluate_cannibalization(query_a, query_b, urls_a, urls_b)
+
+    async def extract_next_data(self, page_or_html: Any = None) -> Optional[Dict[str, Any]]:
+        """Extracts Next.js __NEXT_DATA__ state payload without traversing DOM."""
+        from behavioral_playwright.extraction.dom import extract_next_data
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None and not isinstance(page_or_html, str):
+            await self._facade.boot()
+            target = self._facade.page
+        return await extract_next_data(target)
+
+    async def extract_nuxt_data(self, page_or_html: Any = None) -> Optional[Dict[str, Any]]:
+        """Extracts Nuxt.js __NUXT__ or __NUXT_DATA__ state payload."""
+        from behavioral_playwright.extraction.dom import extract_nuxt_data
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None and not isinstance(page_or_html, str):
+            await self._facade.boot()
+            target = self._facade.page
+        return await extract_nuxt_data(target)
+
+    async def extract_json_ld(self, page_or_html: Any = None) -> List[Dict[str, Any]]:
+        """Extracts and flattens all JSON-LD structured schemas (@graph unpacked)."""
+        from behavioral_playwright.extraction.dom import extract_json_ld
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None and not isinstance(page_or_html, str):
+            await self._facade.boot()
+            target = self._facade.page
+        return await extract_json_ld(target)
+
+    async def extract_open_graph(self, page_or_html: Any = None) -> Dict[str, str]:
+        """Extracts all OpenGraph and Twitter card metadata."""
+        from behavioral_playwright.extraction.dom import extract_open_graph
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None and not isinstance(page_or_html, str):
+            await self._facade.boot()
+            target = self._facade.page
+        return await extract_open_graph(target)
+
+    def create_sniffer(self, page: Any = None) -> Any:
+        """Instantiates a JSONResponseSniffer on the given page or active facade page."""
+        from behavioral_playwright.network.sniffer import JSONResponseSniffer
+        target = page or getattr(self._facade, "page", None)
+        if target is None:
+            raise RuntimeError("Cannot instantiate sniffer: active page is None. Call bp.boot() first.")
+        return JSONResponseSniffer(target)
+
+    async def mine_suggest(
+        self,
+        query: str,
+        alphabet: bool = False,
+        lang: str = "en",
+        country: str = "us",
+    ) -> Any:
+        """Mines Google autocomplete suggestions with optional A-Z alphabet drilldown."""
+        from behavioral_playwright.mining.suggest_miner import GoogleSuggestMiner
+        miner = GoogleSuggestMiner(default_lang=lang, default_country=country)
+        return await miner.mine(query=query, alphabet=alphabet, lang=lang, country=country)
+
+    async def audit_csr_drift(
+        self,
+        url: Optional[str] = None,
+        raw_html: Optional[str] = None,
+        rendered_html: Optional[str] = None,
+    ) -> Any:
+        """Audits CSR vs static HTML rendering drift and SEO indexation risk."""
+        from behavioral_playwright.verification.rendering_auditor import CSRRenderingDriftAuditor
+        auditor = CSRRenderingDriftAuditor()
+        if raw_html is not None and rendered_html is not None:
+            return auditor.audit_html_drift(raw_html=raw_html, rendered_html=rendered_html, url=url)
+        if url:
+            target = getattr(self._facade, "page", None)
+            return await auditor.audit_url_drift(url=url, page=target)
+        raise ValueError("Must provide either url or both (raw_html, rendered_html)")
+
+    async def check_overlap(
+        self,
+        query_a: str,
+        query_b: str,
+        urls_a: Optional[List[str]] = None,
+        urls_b: Optional[List[str]] = None,
+        threshold: float = 0.40,
+    ) -> Any:
+        """Computes Jaccard similarity between two search queries to detect cannibalization."""
+        from behavioral_playwright.mining.cannibalization import SERPCannibalizationEngine
+        engine = SERPCannibalizationEngine(merge_threshold=threshold)
+
+        if urls_a is None or urls_b is None:
+            # Zero-latency SERP resolution via DuckDuckGo HTML / curl_cffi
+            async def _resolve_urls(q: str) -> List[str]:
+                try:
+                    from curl_cffi.requests import AsyncSession
+                    from bs4 import BeautifulSoup
+                    async with AsyncSession(impersonate="chrome120") as s:
+                        r = await s.post("https://html.duckduckgo.com/html/", data={"q": q}, timeout=6.0)
+                        soup = BeautifulSoup(r.text, "html.parser")
+                        found = []
+                        for a in soup.select("a.result__url"):
+                            href = a.get("href", "").strip()
+                            if href:
+                                found.append("https://" + href if not href.startswith("http") else href)
+                        return found
+                except Exception:
+                    return []
+
+            if urls_a is None:
+                urls_a = await _resolve_urls(query_a)
+            if urls_b is None:
+                urls_b = await _resolve_urls(query_b)
+
+        return engine.evaluate_cannibalization(
+            query_a=query_a, query_b=query_b, urls_a=urls_a, urls_b=urls_b, threshold=threshold
+        )
 
 
 class BP:

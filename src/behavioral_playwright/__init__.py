@@ -18,13 +18,19 @@ from behavioral_playwright.browser.pool import BrowserPoolManager
 from behavioral_playwright.models.seo_dtos import (
     AIOAuditResult,
     CannibalizationReport,
+    CSRDriftReport,
     PAANode,
+    SuggestResult,
 )
 from behavioral_playwright.mining import (
     AIOAuditor,
+    CSRRenderingDriftAuditor,
+    GoogleSuggestMiner,
     PAAMiner,
+    RenderingDriftAuditor,
     SEOMiningEngine,
     SERPCannibalizationEngine,
+    SuggestMiner,
 )
 from behavioral_playwright.config.settings import (
     AutomationConfig,
@@ -43,7 +49,14 @@ from behavioral_playwright.exceptions import (
     NavigationError,
     TimeoutError,
 )
-from behavioral_playwright.extraction.dom import DOMExtractor
+from behavioral_playwright.extraction.dom import (
+    DOMExtractor,
+    extract_json_ld,
+    extract_next_data,
+    extract_nuxt_data,
+    extract_open_graph,
+)
+from behavioral_playwright.network.sniffer import JSONResponseSniffer
 from behavioral_playwright.models.elements import BoundingBox, DOMElement
 from behavioral_playwright.models.results import (
     ExtractionRecord,
@@ -115,15 +128,23 @@ __all__ = [
     "create_agent_provider",
     "create_browser_provider",
     "create_network_provider",
+    "CSRDriftReport",
+    "CSRRenderingDriftAuditor",
     "CurlCffiProvider",
     "DataStorageManager",
     "DOMElement",
     "DOMExtractor",
     "ElementResolutionError",
+    "extract_json_ld",
+    "extract_next_data",
+    "extract_nuxt_data",
+    "extract_open_graph",
     "ExtractionError",
     "ExtractionRecord",
     "FingerprintGenerator",
     "FuzzyResolverStrategy",
+    "GoogleSuggestMiner",
+    "JSONResponseSniffer",
     "KeyboardController",
     "LinguisticKeystrokeDynamicsEngine",
     "MockBrowserProvider",
@@ -138,6 +159,7 @@ __all__ = [
     "powerplay",
     "provider_matrix",
     "ProxyPool",
+    "RenderingDriftAuditor",
     "ResolutionResult",
     "ResolutionStrategy",
     "ResolverConfig",
@@ -153,6 +175,8 @@ __all__ = [
     "SERPCannibalizationEngine",
     "StagehandProvider",
     "StateTracker",
+    "SuggestMiner",
+    "SuggestResult",
     "TimeoutError",
     "UltimateVisionLanguageActionGuard",
     "UndetectedChromedriverProvider",

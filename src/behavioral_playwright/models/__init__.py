@@ -9,7 +9,9 @@ from behavioral_playwright.models.results import (
 from behavioral_playwright.models.seo_dtos import (
     AIOAuditResult,
     CannibalizationReport,
+    CSRDriftReport,
     PAANode,
+    SuggestResult,
 )
 
 __all__ = [
@@ -21,4 +23,6 @@ __all__ = [
     "PAANode",
     "AIOAuditResult",
     "CannibalizationReport",
+    "SuggestResult",
+    "CSRDriftReport",
 ]

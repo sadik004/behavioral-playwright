@@ -60,6 +60,39 @@ def build_parser() -> argparse.ArgumentParser:
     cfg_p = subparsers.add_parser("mcp-config", help="Generate Claude Desktop JSON configuration")
     cfg_p.add_argument("--python-path", default="python", help="Python binary path to use in config")
 
+    # 7. Extract-meta command (Zero-latency Next.js / Nuxt hydration & JSON-LD metadata extractor)
+    meta_p = subparsers.add_parser("extract-meta", help="Extract Next.js / Nuxt hydration & JSON-LD metadata zero-latency")
+    meta_p.add_argument("url", help="Target URL to inspect")
+    meta_p.add_argument("--output", "-o", help="Output file path (e.g. meta.json)")
+
+    # 8. Mine-paa command (Recursively mine Google People Also Ask tree)
+    paa_p = subparsers.add_parser("mine-paa", help="Recursively mine Google People Also Ask tree")
+    paa_p.add_argument("query", help="Seed search query")
+    paa_p.add_argument("--depth", "-d", type=int, default=2, help="PAA expansion depth (1 to 5)")
+    paa_p.add_argument("--output", "-o", help="Output file path (e.g. paa.json)")
+
+    # 9. Check-overlap command (Check search intent cannibalization Jaccard Overlap)
+    overlap_p = subparsers.add_parser("check-overlap", help="Check search intent cannibalization (Jaccard Overlap)")
+    overlap_p.add_argument("query_a", help="First query")
+    overlap_p.add_argument("query_b", help="Second query")
+    overlap_p.add_argument("--threshold", "-t", type=float, default=0.40, help="Jaccard merge threshold (default 0.40)")
+    overlap_p.add_argument("--urls-a", nargs="*", default=None, help="Explicit URLs for query A")
+    overlap_p.add_argument("--urls-b", nargs="*", default=None, help="Explicit URLs for query B")
+    overlap_p.add_argument("--output", "-o", help="Output file path")
+
+    # 10. Mine-suggest command (Google wildcard & alphabet suggest drilldown)
+    suggest_p = subparsers.add_parser("mine-suggest", help="Run Google wildcard & alphabet suggest drilldown")
+    suggest_p.add_argument("query", help="Root search query (e.g. 'fastapi vs')")
+    suggest_p.add_argument("--alphabet", "-a", action="store_true", help="Perform A-Z alphabet drilldown expansion")
+    suggest_p.add_argument("--lang", default="en", help="Language code (default: en)")
+    suggest_p.add_argument("--country", default="us", help="Country code (default: us)")
+    suggest_p.add_argument("--output", "-o", help="Output file path")
+
+    # 11. Audit-drift command (CSR Rendering Drift Auditor)
+    drift_p = subparsers.add_parser("audit-drift", help="Audit CSR vs SSR rendering drift")
+    drift_p.add_argument("url", help="Target URL to audit")
+    drift_p.add_argument("--output", "-o", help="Output file path")
+
     return parser
 
 
@@ -132,6 +165,187 @@ def run_mcp_config(python_path: str = "python") -> int:
     return 0
 
 
+async def run_extract_meta(url: str, output: Optional[str] = None, config: Optional[Any] = None) -> int:
+    from behavioral_playwright.extraction.dom import (
+        extract_next_data,
+        extract_nuxt_data,
+        extract_json_ld,
+        extract_open_graph,
+    )
+    html = ""
+    try:
+        from curl_cffi.requests import AsyncSession
+        async with AsyncSession(impersonate="chrome120") as s:
+            resp = await s.get(url, timeout=8.0)
+            if resp.status_code == 200:
+                html = resp.text
+    except Exception:
+        pass
+
+    if not html:
+        try:
+            import urllib.request
+            def _fetch():
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                with urllib.request.urlopen(req, timeout=8.0) as r:
+                    return r.read().decode("utf-8", errors="ignore")
+            html = await asyncio.to_thread(_fetch)
+        except Exception:
+            pass
+
+    next_data = await extract_next_data(html) if html else None
+    nuxt_data = await extract_nuxt_data(html) if html else None
+    json_ld = await extract_json_ld(html) if html else []
+    open_graph = await extract_open_graph(html) if html else {}
+
+    # If no metadata extracted from static HTML and browser is available, fallback to live evaluation
+    if not next_data and not nuxt_data and not json_ld and not open_graph:
+        try:
+            async with BP(config=config) as bp:
+                await bp.goto(url)
+                next_data = await bp.mining.extract_next_data()
+                nuxt_data = await bp.mining.extract_nuxt_data()
+                json_ld = await bp.mining.extract_json_ld()
+                open_graph = await bp.mining.extract_open_graph()
+        except Exception:
+            pass
+
+    result = {
+        "url": url,
+        "next_data": next_data,
+        "nuxt_data": nuxt_data,
+        "json_ld": json_ld,
+        "open_graph": open_graph,
+    }
+
+    if output:
+        DataStorageManager().export([result], output)
+        print(f"[+] Saved metadata to {output}")
+    else:
+        print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
+async def run_mine_paa(query: str, depth: int = 2, output: Optional[str] = None, config: Optional[Any] = None) -> int:
+    from behavioral_playwright.mining.paa_miner import PAAMiner
+    from urllib.parse import quote_plus
+
+    miner = PAAMiner(max_depth=depth)
+    nodes = []
+
+    # 1. Attempt zero-latency static SERP extraction via curl_cffi
+    try:
+        from curl_cffi.requests import AsyncSession
+        async with AsyncSession(impersonate="chrome120") as s:
+            resp = await s.get(f"https://www.google.com/search?q={quote_plus(query)}&hl=en", timeout=8.0)
+            if resp.status_code == 200:
+                nodes = miner.parse_from_html(resp.text, depth=1)
+    except Exception:
+        pass
+
+    # 2. Browser-driven interactive expansion fallback
+    if not nodes:
+        try:
+            async with BP(config=config) as bp:
+                nodes = await bp.mining.mine_paa(query=query, max_depth=depth)
+        except Exception:
+            pass
+
+    # 3. Resilient question discovery fallback via Suggest API if SERP CAPTCHA triggered
+    if not nodes:
+        try:
+            from behavioral_playwright.mining.suggest_miner import GoogleSuggestMiner
+            from behavioral_playwright.models.seo_dtos import PAANode
+            sug_miner = GoogleSuggestMiner()
+            prefixes = ["is", "which", "what", "how", "why"]
+            for pfx in prefixes:
+                sugs = await sug_miner.fetch_suggestions(f"{pfx} {query}")
+                for s in sugs[:depth]:
+                    q_text = s if s.endswith("?") else f"{s}?"
+                    nodes.append(PAANode(
+                        question=q_text[0].upper() + q_text[1:],
+                        snippet_text="",
+                        source_title="",
+                        source_url="",
+                        depth=1,
+                    ))
+                if len(nodes) >= depth * 2:
+                    break
+        except Exception:
+            pass
+
+    raw = [n.model_dump() if hasattr(n, "model_dump") else vars(n) for n in nodes]
+    if output:
+        DataStorageManager().export(raw, output)
+        print(f"[+] Saved {len(raw)} PAA questions to {output}")
+    else:
+        print(json.dumps(raw, indent=2, default=str))
+    return 0
+
+
+async def run_check_overlap(
+    query_a: str,
+    query_b: str,
+    threshold: float = 0.40,
+    urls_a: Optional[List[str]] = None,
+    urls_b: Optional[List[str]] = None,
+    output: Optional[str] = None,
+    config: Optional[Any] = None,
+) -> int:
+    bp = BP(config=config)
+    report = await bp.mining.check_overlap(
+        query_a=query_a,
+        query_b=query_b,
+        urls_a=urls_a,
+        urls_b=urls_b,
+        threshold=threshold,
+    )
+    raw = report.model_dump() if hasattr(report, "model_dump") else vars(report)
+    if output:
+        DataStorageManager().export([raw], output)
+        print(f"[+] Saved cannibalization report to {output}")
+    else:
+        print(json.dumps(raw, indent=2, default=str))
+    return 0
+
+
+async def run_mine_suggest(
+    query: str,
+    alphabet: bool = False,
+    lang: str = "en",
+    country: str = "us",
+    output: Optional[str] = None,
+    config: Optional[Any] = None,
+) -> int:
+    from behavioral_playwright.mining.suggest_miner import GoogleSuggestMiner
+
+    miner = GoogleSuggestMiner(default_lang=lang, default_country=country)
+    result = await miner.mine(query=query, alphabet=alphabet, lang=lang, country=country)
+    raw = result.model_dump() if hasattr(result, "model_dump") else vars(result)
+
+    if output:
+        DataStorageManager().export([raw], output)
+        print(f"[+] Saved {raw.get('total_unique', 0)} suggestions to {output}")
+    else:
+        print(json.dumps(raw, indent=2, default=str))
+    return 0
+
+
+async def run_audit_drift(url: str, output: Optional[str] = None, config: Optional[Any] = None) -> int:
+    from behavioral_playwright.verification.rendering_auditor import CSRRenderingDriftAuditor
+
+    auditor = CSRRenderingDriftAuditor()
+    report = await auditor.audit_url_drift(url=url)
+    raw = report.model_dump() if hasattr(report, "model_dump") else vars(report)
+
+    if output:
+        DataStorageManager().export([raw], output)
+        print(f"[+] Saved CSR drift report to {output}")
+    else:
+        print(json.dumps(raw, indent=2, default=str))
+    return 0
+
+
 def main(args: Optional[List[str]] = None) -> int:
     parser = build_parser()
     parsed = parser.parse_args(args)
@@ -157,10 +371,37 @@ def main(args: Optional[List[str]] = None) -> int:
         return asyncio.run(run_scrape(parsed.url, parsed.output, parsed.target, config=config))
     elif parsed.command == "crawl":
         return asyncio.run(run_crawl(parsed.url, parsed.max_pages, parsed.depth, parsed.output, config=config))
-    
+    elif parsed.command == "extract-meta":
+        return asyncio.run(run_extract_meta(parsed.url, parsed.output, config=config))
+    elif parsed.command == "mine-paa":
+        return asyncio.run(run_mine_paa(parsed.query, parsed.depth, parsed.output, config=config))
+    elif parsed.command == "check-overlap":
+        return asyncio.run(
+            run_check_overlap(
+                parsed.query_a,
+                parsed.query_b,
+                threshold=parsed.threshold,
+                urls_a=parsed.urls_a,
+                urls_b=parsed.urls_b,
+                output=parsed.output,
+                config=config,
+            )
+        )
+    elif parsed.command == "mine-suggest":
+        return asyncio.run(
+            run_mine_suggest(
+                parsed.query,
+                alphabet=parsed.alphabet,
+                lang=parsed.lang,
+                country=parsed.country,
+                output=parsed.output,
+                config=config,
+            )
+        )
+    elif parsed.command == "audit-drift":
+        return asyncio.run(run_audit_drift(parsed.url, parsed.output, config=config))
+
     return 0
-
-
 
 
 if __name__ == "__main__":

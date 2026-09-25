@@ -96,4 +96,45 @@
 | **Memory PID Unit Suite** | [`tests/unit/test_memory_pid_controller_v2.py`](file:///E:/Bug/tests/unit/test_memory_pid_controller_v2.py) | 7 passed in 0.43s |
 | **Full Regression Suite** | `tests/unit/` | **114 passed in 17.58s (Exit Code: 0)** |
 
+---
+
+## Project 14: Real-World Live Mining Verification Suite & CLI Production Interface (v6.0.0)
+
+- **Status:** COMPLETED & VERIFIED
+- **Date:** 2026-09-25
+- **Core Domain:** Search Intelligence, Suggest Mining, CSR Drift Verification, CLI & MCP Architecture
+
+### 1. Scope & Architectural Achievements
+1. **Google Suggest Wildcard & Alphabet Miner (`src/behavioral_playwright/mining/suggest_miner.py`):**
+   - High-throughput autocomplete predictions with `curl_cffi` Chrome 120 stealth impersonation and `urllib` fallback.
+   - Wildcard expansion (`*` and `_`) and concurrent A-Z alphabet soup drilldown (`alphabet_tree`).
+   - Strict Pydantic v2 `SuggestResult` DTO with automatic unique deduplication.
+2. **CSR Rendering Drift Auditor (`src/behavioral_playwright/verification/rendering_auditor.py`):**
+   - Quantified token-level Jaccard divergence between initial static SSR/HTML and hydrated client DOM.
+   - Algorithmic detection of missing SEO signals (H1 headings, page titles, client-injected links, JSON-LD schemas, empty SPA containers).
+   - Categorized risk engine (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) with typed `CSRDriftReport` DTO.
+3. **High-Performance CLI Production Interface (`src/behavioral_playwright/cli/main.py`):**
+   - Added `extract-meta`: Zero-latency Next.js / Nuxt hydration & JSON-LD metadata extraction.
+   - Added `mine-paa`: Recursive Google People Also Ask tree extraction with resilient Suggest fallback.
+   - Added `check-overlap`: Search intent cannibalization Jaccard overlap check and canonical merge/split advice.
+   - Added `mine-suggest`: Google wildcard & alphabet suggest drilldown (`--alphabet`).
+   - Added `audit-drift`: Live CSR rendering drift verification against live URLs.
+   - Module entrypoint: `src/behavioral_playwright/__main__.py` enabling `python -m behavioral_playwright <cmd>`.
+4. **MCP Tool Integration (`src/behavioral_playwright/mcp/tools.py`):**
+   - Registered `mine_google_suggest`, `audit_csr_drift`, `mine_paa`, and `check_cannibalization` in `MCP_TOOL_DEFINITIONS` and `McpToolDispatcher`.
+
+### 2. Verified Deliverables & Test Coverage
+| Deliverable | Location | Description |
+| :--- | :--- | :--- |
+| **Suggest Miner** | [`src/behavioral_playwright/mining/suggest_miner.py`](file:///E:/Bug/src/behavioral_playwright/mining/suggest_miner.py) | Google autocomplete & A-Z alphabet soup engine |
+| **Rendering Drift Auditor** | [`src/behavioral_playwright/verification/rendering_auditor.py`](file:///E:/Bug/src/behavioral_playwright/verification/rendering_auditor.py) | CSR vs SSR rendering drift auditor |
+| **CLI Entrypoint** | [`src/behavioral_playwright/cli/main.py`](file:///E:/Bug/src/behavioral_playwright/cli/main.py) | Unified command-line interface |
+| **Module Runner** | [`src/behavioral_playwright/__main__.py`](file:///E:/Bug/src/behavioral_playwright/__main__.py) | `python -m behavioral_playwright` entry point |
+| **MCP Tools** | [`src/behavioral_playwright/mcp/tools.py`](file:///E:/Bug/src/behavioral_playwright/mcp/tools.py) | MCP tool definitions & execution dispatcher |
+| **Suggest Unit Suite** | [`tests/unit/test_suggest_miner.py`](file:///E:/Bug/tests/unit/test_suggest_miner.py) | 7 passed in 0.45s |
+| **Drift Auditor Unit Suite** | [`tests/unit/test_rendering_auditor.py`](file:///E:/Bug/tests/unit/test_rendering_auditor.py) | 7 passed in 0.44s |
+| **CLI Mining Suite** | [`tests/unit/test_cli_mining.py`](file:///E:/Bug/tests/unit/test_cli_mining.py) | 5 passed in 0.44s |
+| **Verification Suite** | [`tests/integration/test_mining_verification_suite.py`](file:///E:/Bug/tests/integration/test_mining_verification_suite.py) | 8 passed in 1.27s |
+| **Full Unit Regression Gate** | `tests/unit/` | **181 passed in 18.13s (Exit Code: 0)** |
+
 
