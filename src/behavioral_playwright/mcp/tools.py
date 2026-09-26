@@ -198,6 +198,89 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
             "required": ["query_a", "query_b"],
         },
     },
+    {
+        "name": "linkedin_check_auth",
+        "description": "Verifies whether a persistent LinkedIn storage state is authenticated and active without triggering bot detection.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "storage_state": {"type": "string", "default": "linkedin_state.json", "description": "Path to exported Playwright storage state JSON"},
+            },
+        },
+    },
+    {
+        "name": "linkedin_get_profile",
+        "description": "Extracts current LinkedIn profile overview including name, headline, about section, and location using stealth context.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "storage_state": {"type": "string", "default": "linkedin_state.json", "description": "Path to storage state JSON"},
+                "profile_url": {"type": "string", "default": "https://www.linkedin.com/in/me/", "description": "LinkedIn profile URL to inspect"},
+            },
+        },
+    },
+    {
+        "name": "linkedin_update_headline",
+        "description": "Updates the LinkedIn user's headline using human-mimetic mouse trajectories and Weibull typing latencies.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "new_headline": {"type": "string", "description": "New professional headline text to set"},
+                "storage_state": {"type": "string", "default": "linkedin_state.json", "description": "Path to storage state JSON"},
+            },
+            "required": ["new_headline"],
+        },
+    },
+    {
+        "name": "linkedin_update_about",
+        "description": "Updates the LinkedIn user's About/Summary section with humanized interaction cadences.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "new_about": {"type": "string", "description": "New summary/about text to set"},
+                "storage_state": {"type": "string", "default": "linkedin_state.json", "description": "Path to storage state JSON"},
+            },
+            "required": ["new_about"],
+        },
+    },
+    {
+        "name": "reddit_mine_jobs",
+        "description": "Mines active high-paying Python, web scraping, and automation client hiring leads across target subreddits.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "subreddits": {"type": "array", "items": {"type": "string"}, "description": "Subreddits to scan (default: forhire, webscraping, freelance_forhire)"},
+                "keywords": {"type": "array", "items": {"type": "string"}, "description": "Custom intent keywords"},
+                "limit_per_sub": {"type": "integer", "default": 25, "description": "Number of recent posts per subreddit to inspect"},
+            },
+        },
+    },
+    {
+        "name": "reddit_analyze_lead",
+        "description": "Analyzes a client lead post, diagnoses root-cause technical challenges, and drafts a high-converting technical proposal with GitHub proof.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Client job post title"},
+                "selftext": {"type": "string", "default": "", "description": "Client job description text"},
+                "author": {"type": "string", "default": "", "description": "Reddit author username"},
+                "subreddit": {"type": "string", "default": "forhire", "description": "Source subreddit"},
+                "url": {"type": "string", "default": "", "description": "URL to the post"},
+                "budget_hint": {"type": "string", "description": "Extracted or provided budget hint"},
+            },
+            "required": ["title"],
+        },
+    },
+    {
+        "name": "reddit_check_auth",
+        "description": "Verifies whether a saved Reddit session state provides an active authenticated session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "storage_state": {"type": "string", "default": "reddit_state.json", "description": "Path to storage state JSON"},
+            },
+        },
+    },
 ]
 
 
@@ -208,15 +291,39 @@ class McpToolDispatcher:
         self,
         bp: Optional[Any] = None,
         config: Optional[AutomationConfig] = None,
+        linkedin_client: Optional[Any] = None,
+        reddit_client: Optional[Any] = None,
     ) -> None:
         self._bp = bp
         self._config = config
+        self._linkedin_client = linkedin_client
+        self._reddit_client = reddit_client
 
     def _get_bp(self) -> Any:
         if self._bp is not None:
             return self._bp
         from behavioral_playwright import BP
         return BP(config=self._config)
+
+    def _get_linkedin_client(self) -> Any:
+        if self._linkedin_client is not None:
+            return self._linkedin_client
+        from behavioral_playwright.integrations.linkedin import LinkedInAutomationClient
+        bp = self._get_bp()
+        pool = getattr(bp, "pool", None) or getattr(bp, "_pool", None)
+        self._linkedin_client = LinkedInAutomationClient(pool=pool)
+        return self._linkedin_client
+
+    def _get_reddit_client(self) -> Any:
+        if self._reddit_client is not None:
+            return self._reddit_client
+        from behavioral_playwright.integrations.reddit import RedditAutomationClient
+        bp = self._get_bp()
+        pool = getattr(bp, "pool", None) or getattr(bp, "_pool", None)
+        self._reddit_client = RedditAutomationClient(pool=pool)
+        return self._reddit_client
+
+
 
     async def execute_tool(self, tool_name: str, arguments: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         if not isinstance(arguments, dict):
@@ -451,6 +558,96 @@ class McpToolDispatcher:
                     "result": report.model_dump() if hasattr(report, "model_dump") else report,
                 }
 
+            elif tool_name == "linkedin_check_auth":
+                storage_state = arguments.get("storage_state", "linkedin_state.json")
+                client = self._get_linkedin_client()
+                auth_res = await client.check_auth_status(storage_state_path=storage_state)
+                return {
+                    "status": "success",
+                    "result": auth_res.model_dump(),
+                }
+
+            elif tool_name == "linkedin_get_profile":
+                storage_state = arguments.get("storage_state", "linkedin_state.json")
+                profile_url = arguments.get("profile_url", "https://www.linkedin.com/in/me/")
+                client = self._get_linkedin_client()
+                profile = await client.get_profile_overview(storage_state_path=storage_state, profile_url=profile_url)
+                return {
+                    "status": "success",
+                    "result": profile.model_dump(),
+                }
+
+            elif tool_name == "linkedin_update_headline":
+                new_headline = arguments.get("new_headline")
+                if not new_headline:
+                    return {"error": "Missing required argument 'new_headline'"}
+                storage_state = arguments.get("storage_state", "linkedin_state.json")
+                client = self._get_linkedin_client()
+                update_res = await client.update_headline(new_headline=new_headline, storage_state_path=storage_state)
+                return {
+                    "status": "success" if update_res.success else "failed",
+                    "result": update_res.model_dump(),
+                }
+
+            elif tool_name == "linkedin_update_about":
+                new_about = arguments.get("new_about")
+                if not new_about:
+                    return {"error": "Missing required argument 'new_about'"}
+                storage_state = arguments.get("storage_state", "linkedin_state.json")
+                client = self._get_linkedin_client()
+                update_res = await client.update_about(new_about=new_about, storage_state_path=storage_state)
+                return {
+                    "status": "success" if update_res.success else "failed",
+                    "result": update_res.model_dump(),
+                }
+
+            elif tool_name == "reddit_mine_jobs":
+                subreddits = arguments.get("subreddits")
+                keywords = arguments.get("keywords")
+                limit_per_sub = int(arguments.get("limit_per_sub", 25))
+                client = self._get_reddit_client()
+                leads = await client.mine_hiring_leads(
+                    subreddits=subreddits,
+                    keywords=keywords,
+                    limit_per_sub=limit_per_sub,
+                )
+                return {
+                    "status": "success",
+                    "count": len(leads),
+                    "leads": [lead.model_dump() for lead in leads],
+                }
+
+            elif tool_name == "reddit_analyze_lead":
+                title = arguments.get("title")
+                if not title:
+                    return {"error": "Missing required argument 'title'"}
+                from behavioral_playwright.models.reddit_dtos import RedditLeadDTO
+                lead = RedditLeadDTO(
+                    title=title,
+                    selftext_snippet=arguments.get("selftext", ""),
+                    author=arguments.get("author", ""),
+                    subreddit=arguments.get("subreddit", "forhire"),
+                    url=arguments.get("url", ""),
+                    budget_hint=arguments.get("budget_hint"),
+                )
+                client = self._get_reddit_client()
+                audit = client.analyze_lead_and_generate_pitch(lead)
+                return {
+                    "status": "success",
+                    "analysis": audit.model_dump(),
+                }
+
+            elif tool_name == "reddit_check_auth":
+                storage_state = arguments.get("storage_state", "reddit_state.json")
+                client = self._get_reddit_client()
+                auth_res = await client.check_auth_status(storage_state_path=storage_state)
+                return {
+                    "status": "success",
+                    "result": auth_res.model_dump(),
+                }
+
             return {"error": f"Unknown tool: {tool_name}"}
+
         except Exception as exc:
             return {"error": str(exc), "status": "failed"}
+

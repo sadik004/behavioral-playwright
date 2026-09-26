@@ -33,3 +33,4 @@ test_pipeline_output.ndjson
 *.log
 .DS_Store
 pseo-growth-engine/
+Reddit.mcp/

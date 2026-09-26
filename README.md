@@ -4,7 +4,7 @@
 [![Tests](https://img.shields.io/badge/Tests-267%2F267%20Passed%20(100%25)-success?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![CreepJS Audit](https://img.shields.io/badge/CreepJS%20Audit-100%25%20Clean-success?style=for-the-badge)](https://creepjs.com)
 [![KS-Test](https://img.shields.io/badge/KS--Test-p%3D0.5285%20(Human)-brightgreen?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
-[![MCP Server](https://img.shields.io/badge/MCP%20Server-16%20Tools%20Active-purple?style=for-the-badge)](https://modelcontextprotocol.io)
+[![MCP Server](https://img.shields.io/badge/MCP%20Server-20%20Tools%20Active-purple?style=for-the-badge)](https://modelcontextprotocol.io)
 [![Security Engine](https://img.shields.io/badge/Security-SAML%20%7C%20OAuth%20%7C%20GraphQL%20%7C%20IDOR-red?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -663,8 +663,12 @@ Now you can ask Claude:
 - *"Scrape the top stories from Hacker News using the scrape_page tool."*
 - *"Take a screenshot of github.com and analyze its layout."*
 - *"Crawl example.com up to 5 pages and extract all links."*
+- *"Check if my LinkedIn session is active with linkedin_check_auth."*
+- *"Update my LinkedIn headline to 'Senior Backend & Automation Engineer' with linkedin_update_headline."*
+- *"Update my LinkedIn about section using humanized typing cadences."*
 
 ---
+
 
 ## 💻 Complete CLI Command Reference
 

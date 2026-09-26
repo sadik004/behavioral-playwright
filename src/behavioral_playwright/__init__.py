@@ -22,6 +22,18 @@ from behavioral_playwright.models.seo_dtos import (
     PAANode,
     SuggestResult,
 )
+from behavioral_playwright.models.linkedin_dtos import (
+    LinkedInAuthStatusDTO,
+    LinkedInProfileDTO,
+    LinkedInUpdateResultDTO,
+)
+from behavioral_playwright.models.reddit_dtos import (
+    RedditAuthStatusDTO,
+    RedditLeadAuditDTO,
+    RedditLeadDTO,
+)
+from behavioral_playwright.integrations.linkedin import LinkedInAutomationClient
+from behavioral_playwright.integrations.reddit import RedditAutomationClient
 from behavioral_playwright.mining import (
     AIOAuditor,
     CSRRenderingDriftAuditor,
@@ -147,8 +159,13 @@ __all__ = [
     "JSONResponseSniffer",
     "KeyboardController",
     "LinguisticKeystrokeDynamicsEngine",
+    "LinkedInAuthStatusDTO",
+    "LinkedInAutomationClient",
+    "LinkedInProfileDTO",
+    "LinkedInUpdateResultDTO",
     "MockBrowserProvider",
     "MouseController",
+
     "NavigationError",
     "PAAMiner",
     "PAANode",
@@ -159,7 +176,12 @@ __all__ = [
     "powerplay",
     "provider_matrix",
     "ProxyPool",
+    "RedditAuthStatusDTO",
+    "RedditAutomationClient",
+    "RedditLeadAuditDTO",
+    "RedditLeadDTO",
     "RenderingDriftAuditor",
+
     "ResolutionResult",
     "ResolutionStrategy",
     "ResolverConfig",

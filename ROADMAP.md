@@ -134,7 +134,38 @@
 | **Suggest Unit Suite** | [`tests/unit/test_suggest_miner.py`](file:///E:/Bug/tests/unit/test_suggest_miner.py) | 7 passed in 0.45s |
 | **Drift Auditor Unit Suite** | [`tests/unit/test_rendering_auditor.py`](file:///E:/Bug/tests/unit/test_rendering_auditor.py) | 7 passed in 0.44s |
 | **CLI Mining Suite** | [`tests/unit/test_cli_mining.py`](file:///E:/Bug/tests/unit/test_cli_mining.py) | 5 passed in 0.44s |
-| **Verification Suite** | [`tests/integration/test_mining_verification_suite.py`](file:///E:/Bug/tests/integration/test_mining_verification_suite.py) | 8 passed in 1.27s |
 | **Full Unit Regression Gate** | `tests/unit/` | **181 passed in 18.13s (Exit Code: 0)** |
+
+---
+
+## Project 13: LinkedIn MCP Behavioral Automation & Session Manager
+
+- **Status:** COMPLETED & VERIFIED
+- **Date:** 2026-09-26
+- **Core Domain:** LinkedIn Automation, MCP JSON-RPC 2.0 Integration, Persistent Auth State & Biometric Inputs
+
+### 1. Architectural Scope & Implementation
+1. **Pydantic DTOs ([`src/behavioral_playwright/models/linkedin_dtos.py`](file:///E:/Bug/src/behavioral_playwright/models/linkedin_dtos.py)):**
+   - Strictly typed schemas: `LinkedInProfileDTO`, `LinkedInAuthStatusDTO`, `LinkedInUpdateResultDTO`.
+2. **Behavioral LinkedIn Automation Client ([`src/behavioral_playwright/integrations/linkedin.py`](file:///E:/Bug/src/behavioral_playwright/integrations/linkedin.py)):**
+   - Integrates with single-browser multi-context `BrowserPoolManager` and `storage_state.json`.
+   - Utilizes `MouseController` and `KeyboardController` for human-mimetic Bézier curves and Weibull flight times.
+   - Zero arbitrary sleeps; enforces dynamic Playwright state assertions (`visible`, `hidden`, `attached`).
+   - Interactive session capture utility: `export_session_interactive()`.
+3. **MCP Tool Suite ([`src/behavioral_playwright/mcp/tools.py`](file:///E:/Bug/src/behavioral_playwright/mcp/tools.py)):**
+   - Exposes `linkedin_check_auth`, `linkedin_get_profile`, `linkedin_update_headline`, and `linkedin_update_about` via JSON-RPC 2.0.
+4. **Interactive Helper Script ([`scripts/export_linkedin_session.py`](file:///E:/Bug/scripts/export_linkedin_session.py)):**
+   - CLI utility for one-time interactive headful login and cookie persistence.
+
+### 2. Verified Deliverables & Test Quality Gate
+| Deliverable | Location | Description |
+| :--- | :--- | :--- |
+| **DTO Models** | [`src/behavioral_playwright/models/linkedin_dtos.py`](file:///E:/Bug/src/behavioral_playwright/models/linkedin_dtos.py) | Pydantic v2 LinkedIn DTOs |
+| **Client Module** | [`src/behavioral_playwright/integrations/linkedin.py`](file:///E:/Bug/src/behavioral_playwright/integrations/linkedin.py) | Behavioral LinkedIn automation client |
+| **Exporter Script** | [`scripts/export_linkedin_session.py`](file:///E:/Bug/scripts/export_linkedin_session.py) | One-time interactive session capturer |
+| **MCP Integration** | [`src/behavioral_playwright/mcp/tools.py`](file:///E:/Bug/src/behavioral_playwright/mcp/tools.py) | 4 registered LinkedIn MCP tools & dispatcher |
+| **Unit Test Suite** | [`tests/unit/test_linkedin_mcp.py`](file:///E:/Bug/tests/unit/test_linkedin_mcp.py) | 6 passed in 0.44s |
+| **Full Regression Suite** | `tests/unit/` | **187 passed in 20.09s (Exit Code: 0)** |
+
 
 

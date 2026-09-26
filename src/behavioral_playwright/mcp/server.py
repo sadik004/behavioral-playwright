@@ -76,17 +76,15 @@ class McpServer:
     async def run_stdio(self) -> None:
         """Reads JSON-RPC lines from stdin and writes responses to stdout."""
         loop = asyncio.get_running_loop()
-        reader = asyncio.StreamReader()
-        protocol = asyncio.StreamReaderProtocol(reader)
-        await loop.connect_read_pipe(lambda: protocol, sys.stdin)
 
         while True:
-            line = await reader.readline()
-            if not line:
+            line_str = await loop.run_in_executor(None, sys.stdin.readline)
+            if not line_str:
                 break
-            line_str = line.decode("utf-8").strip()
+            line_str = line_str.strip()
             if not line_str:
                 continue
+
 
             try:
                 req = json.loads(line_str)

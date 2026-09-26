@@ -434,10 +434,26 @@ class IntegrationsNamespace:
         except urllib.error.HTTPError as exc:
             raise RuntimeError(f"Webhook rejected ({exc.code})") from exc
 
+    @property
+    def linkedin(self) -> Any:
+        """Returns the LinkedInAutomationClient bound to this BP session/pool."""
+        from behavioral_playwright.integrations.linkedin import LinkedInAutomationClient
+        pool = getattr(self._bp, "_pool", None) or getattr(self._bp, "pool", None)
+        return LinkedInAutomationClient(pool=pool)
+
+    @property
+    def reddit(self) -> Any:
+        """Returns the RedditAutomationClient bound to this BP session/pool."""
+        from behavioral_playwright.integrations.reddit import RedditAutomationClient
+        pool = getattr(self._bp, "_pool", None) or getattr(self._bp, "pool", None)
+        return RedditAutomationClient(pool=pool)
+
+
     def __getattr__(self, name: str) -> Any:
         # Delegate legacy APIs: n8n_webhook_trigger(_async), mcp_call_tool_async,
         # generate_mcp_manifest, integrations_health_check...
         return getattr(self._ext, name)
+
 
 
 
@@ -1198,6 +1214,18 @@ class BP:
     def loop_detector(self) -> Any:
         """Resolved CAPTCHA infinite loop & 3-state circuit breaker detector."""
         return self.powerplay.loop_detector
+
+    @property
+    def linkedin(self) -> Any:
+        """LinkedIn behavioral automation client and session manager."""
+        return self.integrations.linkedin
+
+    @property
+    def reddit(self) -> Any:
+        """Reddit lead discovery, post intelligence, and automation client."""
+        return self.integrations.reddit
+
+
 
     async def boot(self) -> "BP":
         """Starts the browser session and initializes the first page."""

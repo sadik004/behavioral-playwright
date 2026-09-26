@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "behavioral-playwright": {
+      "command": "python",
+      "args": [
+        "-m",
+        "behavioral_playwright.mcp.server"
+      ],
+      "cwd": "E:/Bug",
+      "env": {
+        "PYTHONPATH": "E:/Bug/src"
+      }
+    },
+    "reddit-mcp": {
+      "command": "python",
+      "args": [
+        "-m",
+        "reddit_mcp"
+      ],
+      "cwd": "E:/Bug/Reddit.mcp/src",
+      "env": {
+        "PYTHONPATH": "E:/Bug/Reddit.mcp/src"
+      }
+    }
+  }
+}
