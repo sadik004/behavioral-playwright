@@ -28,7 +28,8 @@ wheels/
 htmlcov/
 forensics/
 *.db
-storage_state.json
+*storage_state.json
+scratch/
 test_pipeline_output.ndjson
 *.log
 .DS_Store
