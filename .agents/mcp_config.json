@@ -21,6 +21,21 @@
       "env": {
         "PYTHONPATH": "E:/Bug/Reddit.mcp/src"
       }
+    },
+    "n8n-mcp": {
+      "command": "python",
+      "args": [
+        "-m",
+        "n8n_mcp",
+        "--transport",
+        "native-stdio"
+      ],
+      "cwd": "E:/Bug/n8n.mcp/src",
+      "env": {
+        "PYTHONPATH": "E:/Bug/n8n.mcp/src",
+        "N8N_HOST": "http://localhost:5678",
+        "N8N_API_KEY": ""
+      }
     }
   }
 }
