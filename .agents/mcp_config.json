@@ -33,8 +33,15 @@
       "cwd": "E:/Bug/n8n.mcp/src",
       "env": {
         "PYTHONPATH": "E:/Bug/n8n.mcp/src",
-        "N8N_HOST": "http://localhost:5678",
+        "N8N_HOST": "https://arnan.app.n8n.cloud",
         "N8N_API_KEY": ""
+      }
+    },
+    "n8n-cloud": {
+      "type": "http",
+      "url": "https://arnan.app.n8n.cloud/mcp-server/http",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4YjJmOWZmMS05OWE1LTQyYzUtOWFhYy1hNDI2Njg1YWExNDUiLCJpc3MiOiJuOG4iLCJhdWQiOiJtY3Atc2VydmVyLWFwaSIsImp0aSI6IjJlZmMyYjlmLTVkYWUtNDQ0NC05ZmQwLTE0YTFhZTkzNjNjMiIsImlhdCI6MTc5MDU3NTI3OH0.oZKLIWd3AOCQP2VVXRyvMt8LlbqbbOz2HTmBOcYHGDM"
       }
     }
   }
