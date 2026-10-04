@@ -18,29 +18,110 @@ DOM_SNAPSHOT_SCRIPT = """
 () => {
     const query = 'button, input, a, select, textarea, [role="button"], [role="link"], [role="textbox"], [role="checkbox"], [role="menuitem"], [role="tab"], [role="search"], [onclick], [tabindex], h1, h2, h3, h4, span.title, p.title';
     const elements = Array.from(document.querySelectorAll(query));
+
+    const escapeCss = (val) => {
+        if (!val) return '';
+        if (window.CSS && typeof window.CSS.escape === 'function') {
+            return window.CSS.escape(val);
+        }
+        return String(val).replace(/["\\\\]/g, '\\\\$&');
+    };
+
     return elements.map(el => {
         const rect = el.getBoundingClientRect();
-        const id = el.id ? '#' + el.id : '';
         let className = '';
         if (el.className && typeof el.className === 'string') {
             const classes = el.className.trim().split(/\\s+/).filter(c => c.length > 0);
-            if (classes.length > 0) className = '.' + classes.join('.');
+            if (classes.length > 0) className = '.' + classes.map(escapeCss).join('.');
         }
         const tag = el.tagName.toLowerCase();
         
-        // Construct standard deterministic selector
+        // Construct deterministic selector with progressive disambiguation
         let sel = '';
         if (el.id) {
-            sel = '#' + el.id;
-        } else if (el.name) {
-            sel = tag + '[name="' + el.name + '"]';
+            sel = '#' + escapeCss(el.id);
         } else if (el.getAttribute('data-testid')) {
-            sel = tag + '[data-testid="' + el.getAttribute('data-testid') + '"]';
+            sel = tag + '[data-testid="' + escapeCss(el.getAttribute('data-testid')) + '"]';
+        } else if (el.name) {
+            sel = tag + '[name="' + escapeCss(el.name) + '"]';
+        } else if (el.getAttribute('placeholder')) {
+            sel = tag + '[placeholder="' + escapeCss(el.getAttribute('placeholder')) + '"]';
+        } else if (el.getAttribute('aria-label')) {
+            sel = tag + '[aria-label="' + escapeCss(el.getAttribute('aria-label')) + '"]';
+        } else if (el.getAttribute('title')) {
+            sel = tag + '[title="' + escapeCss(el.getAttribute('title')) + '"]';
+        } else if (el.getAttribute('type') && el.getAttribute('type') !== 'text') {
+            sel = tag + '[type="' + escapeCss(el.getAttribute('type')) + '"]';
         } else if (className) {
             sel = tag + className;
         } else {
             sel = tag;
         }
+
+        // If selector is ambiguous (matches multiple elements), attempt attribute & structural disambiguation
+        try {
+            if (sel && document.querySelectorAll(sel).length > 1) {
+                const attrs = ['placeholder', 'aria-label', 'name', 'type', 'title', 'role'];
+                let disambiguated = false;
+                for (const attr of attrs) {
+                    const val = el.getAttribute(attr);
+                    if (val) {
+                        const candidate = tag + '[' + attr + '="' + escapeCss(val) + '"]';
+                        if (document.querySelectorAll(candidate).length === 1) {
+                            sel = candidate;
+                            disambiguated = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!disambiguated && el.parentElement) {
+                    const siblings = Array.from(el.parentElement.children).filter(c => c.tagName.toLowerCase() === tag);
+                    if (siblings.length > 1) {
+                        const idx = siblings.indexOf(el) + 1;
+                        const nthCandidate = tag + ':nth-of-type(' + idx + ')';
+                        if (document.querySelectorAll(nthCandidate).length === 1) {
+                            sel = nthCandidate;
+                            disambiguated = true;
+                        } else if (el.parentElement.id) {
+                            const pCandidate = '#' + escapeCss(el.parentElement.id) + ' > ' + nthCandidate;
+                            if (document.querySelectorAll(pCandidate).length === 1) {
+                                sel = pCandidate;
+                                disambiguated = true;
+                            }
+                        }
+                    }
+                    if (!disambiguated) {
+                        let curr = el;
+                        const parts = [];
+                        while (curr && curr.nodeType === 1 && curr.tagName.toLowerCase() !== 'html') {
+                            const cTag = curr.tagName.toLowerCase();
+                            if (curr.id) {
+                                parts.unshift('#' + escapeCss(curr.id));
+                                break;
+                            }
+                            const p = curr.parentElement;
+                            if (p) {
+                                const s = Array.from(p.children).filter(c => c.tagName.toLowerCase() === cTag);
+                                if (s.length > 1) {
+                                    const sIdx = s.indexOf(curr) + 1;
+                                    parts.unshift(cTag + ':nth-of-type(' + sIdx + ')');
+                                } else {
+                                    parts.unshift(cTag);
+                                }
+                            } else {
+                                parts.unshift(cTag);
+                            }
+                            curr = p;
+                        }
+                        const fullPath = parts.join(' > ');
+                        if (document.querySelectorAll(fullPath).length === 1) {
+                            sel = fullPath;
+                        }
+                    }
+                }
+            }
+        } catch (e) {}
 
         const isVisible = rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
 
@@ -68,6 +149,13 @@ DOM_SNAPSHOT_SCRIPT = """
     }).filter(e => e.is_visible);
 }
 """
+
+
+GENERIC_TAGS = frozenset({
+    "button", "input", "a", "select", "textarea", "p", "span", "div",
+    "h1", "h2", "h3", "h4", "h5", "h6", "li", "ul", "ol", "form",
+    "table", "tr", "td", "th", "section", "article", "header", "footer", "nav", "main"
+})
 
 
 class SelfHealingResolver:
@@ -137,6 +225,8 @@ class SelfHealingResolver:
         using cascading L1 -> L2 -> L3 strategies.
         """
         start_time = time.time()
+        target_stripped = target.strip()
+        is_generic = target_stripped.lower() in GENERIC_TAGS
 
         # -------------------------------------------------------------
         # Level 1: Exact CSS / DOM Selector Match
@@ -146,22 +236,50 @@ class SelfHealingResolver:
                 # Check if target is a valid CSS selector and exists on page
                 exact_matches = await page.query_selector_all(target)
                 if exact_matches and len(exact_matches) > 0:
-                    elapsed_ms = (time.time() - start_time) * 1000.0
-                    res = ResolutionResult(
-                        success=True,
-                        strategy=ResolutionStrategy.L1_EXACT,
-                        confidence=1.0,
-                        selector=target,
-                        element_count=len(exact_matches),
-                        reason=f"L1 Exact selector matched {len(exact_matches)} element(s)",
-                        target=target,
-                        elapsed_ms=elapsed_ms
-                    )
-                    log_resolution(
-                        logger, target=target, strategy="L1_EXACT", candidates=len(exact_matches),
-                        confidence=1.0, success=True, elapsed_ms=elapsed_ms, selector=target
-                    )
-                    return res
+                    count = len(exact_matches)
+                    if count == 1:
+                        # Exactly one element matches; unambiguous resolution
+                        elapsed_ms = (time.time() - start_time) * 1000.0
+                        res = ResolutionResult(
+                            success=True,
+                            strategy=ResolutionStrategy.L1_EXACT,
+                            confidence=1.0,
+                            selector=target,
+                            element_count=1,
+                            reason="L1 Exact selector matched 1 element",
+                            target=target,
+                            elapsed_ms=elapsed_ms
+                        )
+                        log_resolution(
+                            logger, target=target, strategy="L1_EXACT", candidates=1,
+                            confidence=1.0, success=True, elapsed_ms=elapsed_ms, selector=target
+                        )
+                        return res
+                    elif not is_generic:
+                        # Specific selector (e.g. #id, specific class or attribute) with matches
+                        elapsed_ms = (time.time() - start_time) * 1000.0
+                        res = ResolutionResult(
+                            success=True,
+                            strategy=ResolutionStrategy.L1_EXACT,
+                            confidence=1.0,
+                            selector=target,
+                            element_count=count,
+                            reason=f"L1 Exact selector matched {count} element(s)",
+                            target=target,
+                            elapsed_ms=elapsed_ms
+                        )
+                        log_resolution(
+                            logger, target=target, strategy="L1_EXACT", candidates=count,
+                            confidence=1.0, success=True, elapsed_ms=elapsed_ms, selector=target
+                        )
+                        return res
+                    else:
+                        # Generic tag matched multiple elements (e.g. 'button', 'input')
+                        # Do NOT arbitrarily pick the first element; cascade to ranking/disambiguation
+                        logger.info(
+                            f"[Resolver] L1 generic tag '{target}' matched {count} elements (ambiguous). "
+                            "Cascading to ranking/disambiguation strategies..."
+                        )
             except Exception as exc:
                 # Target was not a valid CSS selector or query failed; cascade to self-healing
                 logger.debug(f"[Resolver] L1 exact query for '{target}' raised exception ({exc}); cascading to self-healing")
@@ -213,15 +331,20 @@ class SelfHealingResolver:
                 )
                 return custom_res
 
-        # Resolution Exhaustion
+        # Resolution Exhaustion / Ambiguity
         elapsed_ms = (time.time() - start_time) * 1000.0
+        reason_msg = (
+            f"Ambiguous generic tag '{target}': multiple matching elements exist with no safe distinction."
+            if is_generic
+            else f"Element '{target}' could not be resolved by any active strategy tier."
+        )
         failed_res = ResolutionResult(
             success=False,
             strategy=ResolutionStrategy.L3_FUZZY,
             confidence=0.0,
             selector=None,
             element_count=0,
-            reason=f"Element '{target}' could not be resolved by any active strategy tier.",
+            reason=reason_msg,
             target=target,
             candidates=candidates,
             elapsed_ms=elapsed_ms

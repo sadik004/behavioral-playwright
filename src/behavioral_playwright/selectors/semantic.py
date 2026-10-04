@@ -108,6 +108,19 @@ class SemanticResolverStrategy(ResolverStrategy):
         scored_candidates.sort(key=lambda x: x[0], reverse=True)
         top_score, top_element = scored_candidates[0]
 
+        tied_candidates = [el for s, el in scored_candidates if s == top_score]
+        if len(tied_candidates) > 1:
+            return ResolutionResult(
+                success=False,
+                strategy=self.strategy_name,
+                confidence=top_score,
+                selector=None,
+                element_count=len(tied_candidates),
+                reason=f"Ambiguous semantic matches: {len(tied_candidates)} elements match '{target}' with identical score ({top_score:.2f}) and no safe distinction.",
+                target=target,
+                candidates=tied_candidates,
+            )
+
         return ResolutionResult(
             success=True,
             strategy=self.strategy_name,

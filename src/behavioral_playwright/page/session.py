@@ -9,6 +9,7 @@ from behavioral_playwright.automation.scroll import ScrollController
 from behavioral_playwright.browser.base import BrowserProvider
 from behavioral_playwright.browser.playwright_provider import PlaywrightProvider
 from behavioral_playwright.config.settings import AutomationConfig
+from behavioral_playwright.exceptions import NavigationError
 from behavioral_playwright.extraction.dom import DOMExtractor
 from behavioral_playwright.logging import get_logger
 from behavioral_playwright.models.results import ExtractionRecord, ResolutionResult
@@ -63,22 +64,32 @@ class PageSession:
         self.retry_policy = RetryPolicy(config.retry)
         self.circuit_breaker = CircuitBreaker(config.circuit_breaker)
 
-    async def goto(self, url: str, wait_until: str = "domcontentloaded", audit_page: bool = True) -> None:
+    async def goto(self, url: str, wait_until: str = "domcontentloaded", timeout_ms: Optional[int] = None, audit_page: bool = True) -> None:
         """Navigates to URL and records the page state in StateTracker, LoopDetector, and SchemaGuard."""
         # 1. Evaluate Markov navigation cycle and 3-state circuit breaker
         nav_eval = self.loop_detector.record_navigation(url)
         if nav_eval.get("circuit_state") == self.loop_detector.STATE_OPEN:
             logger.warning(f"[Security] CAPTCHA loop or challenge storm detected at {url}. Action: ROTATE_PROXY")
 
-        # 2. Execute underlying navigation
-        await self.provider.goto(url, wait_until=wait_until)
-        title = await self.provider.get_title()
+        # 2. Execute underlying navigation directly on this page instance
+        to = timeout_ms if timeout_ms is not None else self.config.browser.timeout_ms
+        try:
+            if hasattr(self.raw_page, "goto") and callable(self.raw_page.goto):
+                await self.raw_page.goto(url, wait_until=wait_until, timeout=to)
+            else:
+                await self.provider.goto(url, wait_until=wait_until, timeout_ms=to)
+        except Exception as e:
+            if isinstance(e, NavigationError):
+                raise
+            raise NavigationError(f"Failed to navigate to '{url}': {e}") from e
+
+        title = await self.get_title()
         self.state_tracker.record_state(url=url, title=title)
 
         # 3. Dynamic DOM audit for Honeypots and Blank/Challenge Pages
         if audit_page:
             try:
-                content = await self.provider.evaluate("() => document.documentElement ? document.documentElement.outerHTML : ''")
+                content = await self.evaluate("() => document.documentElement ? document.documentElement.outerHTML : ''")
                 if content and isinstance(content, str):
                     audit_res = self.schema_guard.audit_content_entropy(content)
                     if audit_res.get("decision") == "CAPTCHA_WALL":
@@ -88,18 +99,27 @@ class PageSession:
 
     async def get_title(self) -> str:
         """Returns active page title."""
+        if hasattr(self.raw_page, "title") and callable(self.raw_page.title):
+            return await self.raw_page.title()
         return await self.provider.get_title()
 
     async def get_url(self) -> str:
         """Returns active page URL."""
+        if hasattr(self.raw_page, "url"):
+            url_val = self.raw_page.url
+            return url_val() if callable(url_val) else url_val
         return await self.provider.get_url()
 
     async def evaluate(self, script: str, arg: Any = None) -> Any:
         """Evaluates JavaScript expression."""
+        if hasattr(self.raw_page, "evaluate") and callable(self.raw_page.evaluate):
+            return await self.raw_page.evaluate(script, arg)
         return await self.provider.evaluate(script, arg)
 
     async def screenshot(self, path: Optional[str] = None) -> bytes:
         """Captures page screenshot."""
+        if hasattr(self.raw_page, "screenshot") and callable(self.raw_page.screenshot):
+            return await self.raw_page.screenshot(path=path)
         return await self.provider.screenshot(path=path)
 
     async def resolve(self, target: str) -> ResolutionResult:

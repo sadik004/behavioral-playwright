@@ -108,6 +108,19 @@ class FuzzyResolverStrategy(ResolverStrategy):
         ranked_matches.sort(key=lambda x: x[0], reverse=True)
         top_score, top_element = ranked_matches[0]
 
+        tied_matches = [el for s, el in ranked_matches if s == top_score]
+        if len(tied_matches) > 1:
+            return ResolutionResult(
+                success=False,
+                strategy=self.strategy_name,
+                confidence=top_score,
+                selector=None,
+                element_count=len(tied_matches),
+                reason=f"Ambiguous fuzzy matches: {len(tied_matches)} elements match '{target}' with identical similarity ({top_score:.2f}) and no safe distinction.",
+                target=target,
+                candidates=tied_matches,
+            )
+
         return ResolutionResult(
             success=True,
             strategy=self.strategy_name,
