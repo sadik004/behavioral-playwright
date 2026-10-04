@@ -260,8 +260,8 @@ class WebNamespace:
                                         "INSERT OR IGNORE INTO crawl_urls (url, depth, status) VALUES (?, ?, 'pending')",
                                         (link, depth + 1)
                                     )
-                                except sqlite3.Error:
-                                    pass
+                                except sqlite3.Error as exc:
+                                    logger.debug(f"Crawl URL insert skipped: {exc}")
 
                         cursor.execute("UPDATE crawl_urls SET status = 'completed' WHERE url = ?", (curr_url,))
                         visited.append(curr_url)
@@ -355,7 +355,7 @@ class WebNamespace:
                 try:
                     rules["crawl_delay"] = int(line.split(":")[1].strip())
                 except ValueError:
-                    pass
+                    logger.debug(f"Non-integer crawl-delay in robots.txt: {line}")
         return rules
 
     def detect_infinite_loops(self, history: List[str]) -> bool:
@@ -1097,8 +1097,8 @@ class AINamespace:
                         coerced[key] = int(float(current_val))
                     elif "float" in target_type_str and not isinstance(current_val, float):
                         coerced[key] = float(current_val)
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as exc:
+                    logger.debug(f"Schema type coercion failed for key '{key}': {exc}")
         return coerced
 
     def validate_schema(self, data: Dict[str, Any], schema: Dict[str, Any]) -> bool:
@@ -1232,9 +1232,9 @@ class NetworkNamespace:
             try:
                 with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
                     pass
-            except urllib.error.HTTPError:
+            except urllib.error.HTTPError as exc:
                 # HTTP status codes (2xx, 3xx, 4xx, 5xx) completed a valid network round-trip
-                pass
+                logger.debug(f"measure_response_time: HTTP status {exc.code} received (valid network roundtrip)")
             except urllib.error.URLError as e:
                 # If HEAD is rejected by server with 405 Method Not Allowed, fallback to GET
                 if "405" in str(e):

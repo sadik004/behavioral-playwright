@@ -1,0 +1,120 @@
+{
+  "version": "1.0.0",
+  "validation_pass": "Finding Validation Pass (Pre-Lock)",
+  "priority_targets": {
+    "FRAUD-001": {
+      "finding_id": "FRAUD-001",
+      "severity": "P0",
+      "confirmed": true,
+      "evidence": {
+        "injected_failure": "RuntimeError('Chromium killed by SIGKILL')",
+        "actual_status_returned": "dry_run_success",
+        "existing_test_assertion": "assert 'success' in res['status']",
+        "existing_assertion_result": true,
+        "verdict": "CONFIRMED: Live execution failure was masked as dry_run_success and passed existing test."
+      }
+    },
+    "RANDOM-001": {
+      "finding_id": "RANDOM-001",
+      "severity": "P1",
+      "confirmed": true,
+      "evidence": {
+        "seed": 999,
+        "total_points": 25,
+        "points_differing": 25,
+        "sample_p1": {
+          "x": 12.748988618106198,
+          "y": 11.27198965789773,
+          "timestamp_ms": 14.58
+        },
+        "sample_p2": {
+          "x": 12.880543035093886,
+          "y": 11.289053427267215,
+          "timestamp_ms": 14.58
+        },
+        "cause": "powerhand_master.py lines 70-71 calls unseeded random.uniform(-0.8, 0.8)",
+        "verdict": "CONFIRMED: 25/25 trajectory points differed under identical seed=999."
+      }
+    },
+    "DUPLICATE-EXC-001": {
+      "finding_id": "DUPLICATE-EXC-001",
+      "severity": "P1",
+      "confirmed": true,
+      "evidence": {
+        "global_exception": "behavioral_playwright.exceptions.ProviderUnavailableError",
+        "provider_exception": "behavioral_playwright.providers.base.ProviderUnavailableError",
+        "is_same_class": false,
+        "issubclass_provider_global": false,
+        "issubclass_provider_bp_base": false,
+        "caught_by_global_pue": false,
+        "caught_by_behavioral_base": false,
+        "actual_raised_class": "behavioral_playwright.providers.base.ProviderUnavailableError",
+        "verdict": "CONFIRMED: Caller catching behavioral_playwright.exceptions.ProviderUnavailableError fails to catch provider error."
+      }
+    },
+    "MUT-001": {
+      "finding_id": "MUT-001",
+      "severity": "P1",
+      "harness_survived": true,
+      "existing_tests_killed": true,
+      "exit_code_test_resilience": 1,
+      "exit_code_test_auth": 1,
+      "explanation": "Harness finding confirmed: cb.execute allows execution when OPEN guard is removed. However, existing unit test `tests/unit/test_resilience.py:41` DOES test `pytest.raises(CircuitBreakerError)` and caught the mutation (exit code 1). Therefore MUT-001 surviving in the standalone runner was a harness runner false positive regarding existing unit tests, but a valid verification that runtime callers without assertions would silently execute."
+    },
+    "MUT-002": {
+      "finding_id": "MUT-002",
+      "severity": "P1",
+      "mutant_available_reported": true,
+      "exit_code_provider_matrix": 1,
+      "explanation": "When patchright is mocked/mutated to report True, tests asserting provider matrix reflect the mutated state. If the underlying library is uninstalled, attempting to launch would crash at runtime if not properly gated."
+    },
+    "MUT-004": {
+      "finding_id": "MUT-004",
+      "severity": "P1",
+      "mutant_return_value": null,
+      "cli_vulnerability": "src/behavioral_playwright/cli/main.py:115 does not check if export() raised or succeeded, logging 'Saved N records' regardless!",
+      "verdict": "CONFIRMED: Swallowing export errors leads to silent data loss with CLI callers falsely reporting successful export."
+    },
+    "RUNTIME-VS-STATIC": {
+      "finding_id": "RUNTIME-VS-STATIC",
+      "severity": "P0",
+      "static_string_checks": {
+        "has_worker_patch_code": false,
+        "has_hw_concurrency_patch_code": false,
+        "has_webdriver_patch_code": true,
+        "total_stealth_script_bytes": 21063
+      },
+      "hardware_claims": {
+        "dma_bridge_is_connected": false,
+        "packets_generated": 1,
+        "execution_mode": "SIMULATION_FALLBACK"
+      },
+      "verdict": "CONFIRMED: Existing tests in `tests/test_evasion_suite.py` only verify that `len(runner.master.get_all_stealth_scripts()) > 0`. There is NO existing test executing these scripts in a headless Chromium page to verify that CDP leaks, Worker prototypes, or WebGL vendor parameters pass actual bot detection without breaking browser functionality."
+    }
+  },
+  "static_validation_summary": {
+    "total_p0": 18,
+    "confirmed_p0": 18,
+    "unconfirmed_p0": 0,
+    "total_p1": 54,
+    "confirmed_p1": 54,
+    "unconfirmed_p1": 0
+  },
+  "harness_false_positives": [
+    {
+      "id": "HFP-001",
+      "finding": "MUT-001 reported as survived across whole suite",
+      "reality": "In the standalone mutation runner, cb.execute did not raise in the dummy caller, but tests/unit/test_resilience.py:41 actually kills this mutation when run directly under pytest.",
+      "correction": "Refined distinction between caller resilience and existing unit test coverage."
+    }
+  ],
+  "summary_counts": {
+    "p0_confirmed": 18,
+    "p0_unconfirmed": 0,
+    "p1_confirmed": 54,
+    "p1_unconfirmed": 0,
+    "mutations_independently_reproduced": 3,
+    "runtime_claims_independently_reproduced": 3,
+    "false_positives_found_in_harness": 1
+  }
+}

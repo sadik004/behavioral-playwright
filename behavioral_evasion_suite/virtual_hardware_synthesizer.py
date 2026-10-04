@@ -1,4 +1,4 @@
-﻿"""
+"""
 Virtual Hardware Synthesizer - Level 5 Quantum Edition
 Realtek & Intel Media Device Synthesizer for Headless Containers.
 Counters headless detection where navigator.mediaDevices.enumerateDevices() is empty or missing audio/video inputs.

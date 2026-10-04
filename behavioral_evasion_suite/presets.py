@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unified Preset Configuration & Profiles for Behavioral Evasion Suite (v6.0.0 Level 5 Quantum Edition)
 Provides simple, zero-friction configuration presets for modern developers and AI agents.
 """

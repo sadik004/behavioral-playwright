@@ -62,8 +62,8 @@ class SAMLTrustChainAuditor:
                 try:
                     decompressed = zlib.decompress(raw_bytes, wbits)
                     return decompressed.decode("utf-8", errors="replace")
-                except Exception:
-                    pass
+                except (zlib.error, ValueError):
+                    continue
 
             return raw_bytes.decode("utf-8", errors="replace")
         except Exception as e:
@@ -118,8 +118,8 @@ class SAMLTrustChainAuditor:
                 process_element(root)
                 modified_xml = ET.tostring(root, encoding="utf-8").decode("utf-8")
                 return self.encode_saml_payload(modified_xml), was_modified
-            except Exception:
-                pass
+            except (ET.ParseError, ValueError, KeyError) as exc:
+                logger.debug(f"XML parse error during SAML signature modification, falling back to regex: {exc}")
 
         # Fallback to regex if XML parsing fails or contains entity declarations
         xml_nosig = re.sub(r'<(?:[a-zA-Z0-9_]+:)?Signature[^>]*>.*?</(?:[a-zA-Z0-9_]+:)?Signature>', '', xml_str, flags=re.DOTALL)
@@ -309,8 +309,8 @@ async def attach_dom_sink_auditor(page):
             await page.add_init_script(DOM_SINK_HOOK_SCRIPT)
         if hasattr(page, "evaluate"):
             await page.evaluate(DOM_SINK_HOOK_SCRIPT)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug(f"Failed attaching DOM sink hook: {exc}")
 
 async def get_dom_sink_events(page) -> List[Dict[str, Any]]:
     try:
@@ -589,8 +589,8 @@ class ClosedLoopFuzzer:
                 if hasattr(self.page, "evaluate"):
                     try:
                         await self.page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug(f"Failed evaluating requestAnimationFrame: {exc}")
                 await asyncio.sleep(0)
                 has_exception = len(self.page_errors) > 0
                 results.append({
@@ -729,8 +729,8 @@ class UnifiedSecurityAuditorV5:
             finally:
                 try:
                     await route.continue_()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(f"Route continue failed in OAuth redirect auditor: {exc}")
 
         try:
             await active_page.route("**/*", handle_route)

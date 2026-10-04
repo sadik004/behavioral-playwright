@@ -110,8 +110,8 @@ class MouseController:
                         cy = box["y"] + box["height"] / 2.0
                         await self.click(cx, cy, humanize=True)
                         return
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(f"Unable to compute element bounding box for '{selector_str}', falling back to direct click: {exc}")
 
             # Fallback to direct page click
             if hasattr(self.page, "click"):

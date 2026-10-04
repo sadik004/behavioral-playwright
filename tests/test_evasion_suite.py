@@ -6,6 +6,7 @@ End-to-End Unit & Integration Verification Suite for all Evasion Modules.
 import sys
 import os
 import asyncio
+import unittest.mock
 from pydantic import BaseModel
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -71,9 +72,20 @@ def test_persistence_pipeline():
 
 def test_powerhand_dry_run():
     runner = PowerHandPlaywrightRunner(seed=42069)
-    res = asyncio.run(runner.execute_stealth_session("https://bot.sannysoft.com"))
-    assert "success" in res["status"]
+    res = asyncio.run(runner.execute_stealth_session("https://bot.sannysoft.com", dry_run=True))
+    assert res["status"] == "dry_run_success"
+    assert res.get("dry_run") is True
     print(f"  [✓] PowerHand Runner dry-run verified: {res}")
+
+
+def test_powerhand_live_failure_reports_failed():
+    runner = PowerHandPlaywrightRunner(seed=42069)
+    with unittest.mock.patch("playwright.async_api.async_playwright", side_effect=RuntimeError("Browser process terminated")):
+        res = asyncio.run(runner.execute_stealth_session("https://bot.sannysoft.com", dry_run=False))
+    assert res["status"] == "failed"
+    assert "Browser process terminated" in res["error"]
+    assert res.get("dry_run") is False
+    print(f"  [✓] PowerHand Runner live failure reporting verified: {res}")
 
 
 if __name__ == "__main__":

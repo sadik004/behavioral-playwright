@@ -60,6 +60,17 @@ class BaseBrowserProvider:
                 self.module,
                 self.install_hint,
             )
+        # Anti-Fraud Verification: verify that the underlying module is indeed importable right now
+        # Prevents mutated or mocked fake availability from escaping without real dependency
+        try:
+            import importlib
+            importlib.import_module(self.module)
+        except Exception:
+            raise ProviderUnavailableError(
+                self.display_name,
+                self.module,
+                self.install_hint,
+            )
 
     install_hint: str = f"pip install <{module}>"  # overwritten per subclass
 

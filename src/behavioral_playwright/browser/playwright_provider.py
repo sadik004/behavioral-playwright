@@ -103,8 +103,8 @@ class PlaywrightProvider(BrowserProvider):
 
             try:
                 await route.continue_()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(f"PlaywrightProvider: Route continue skipped/failed: {exc}")
 
         await context.route("**/*", _handle_route)
 
@@ -215,6 +215,6 @@ class PlaywrightProvider(BrowserProvider):
                 if not page.is_closed():
                     try:
                         await page.close()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug(f"PlaywrightProvider: Error closing page in finally block: {exc}")
 

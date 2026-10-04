@@ -171,7 +171,7 @@ class CrawlingService:
                 try:
                     crawl_delay = int(value)
                 except ValueError:
-                    pass
+                    logger.debug(f"Non-integer crawl-delay '{value}' encountered in robots.txt; using default ({crawl_delay})")
         return {"disallowed_paths": disallowed, "crawl_delay": crawl_delay}
 
     def set_rate_limit(self, rpm: int) -> None:

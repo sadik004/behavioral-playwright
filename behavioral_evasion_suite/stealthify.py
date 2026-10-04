@@ -1,4 +1,4 @@
-﻿"""
+"""
 Universal Drop-In Stealthify & Autonomous Challenge Solver Engine (v6.0.0 Level 5 Quantum Edition)
 Enables 1-line transformation of existing Playwright Page instances into hardened, autonomous stealth agents.
 """
@@ -141,8 +141,8 @@ async def stealthify(
         async def _on_dom_ready():
             try:
                 await solver.auto_resolve(page)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(f"Auto challenge resolution on DOM ready skipped/failed: {exc}")
 
         # Also provide an autonomous check method
         async def auto_navigate(url: str, **goto_kwargs):

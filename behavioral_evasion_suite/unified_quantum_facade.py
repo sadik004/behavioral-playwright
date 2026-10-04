@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unified Quantum Facade - Level 5+ Enterprise Architecture
 Aggregates and organizes all 31 sub-modules into 5 cohesive operational domains.
 Provides PersistentSessionManager for stateful MCP calls and TokenOptimizedDOMReader.
@@ -273,18 +273,18 @@ class ActiveSession:
         try:
             if self.context:
                 await self.context.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Error closing session context: {exc}")
         try:
             if self.browser:
                 await self.browser.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Error closing session browser: {exc}")
         try:
             if self.playwright:
                 await self.playwright.stop()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Error stopping session playwright: {exc}")
 
 
 class PersistentSessionManager:

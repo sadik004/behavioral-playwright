@@ -200,14 +200,14 @@ async def extract_nuxt_data(page: Any) -> Optional[Dict[str, Any]]:
             if match_script:
                 try:
                     return json.loads(match_script.group(1).strip())
-                except Exception:
-                    pass
+                except (json.JSONDecodeError, ValueError) as exc:
+                    logger.debug(f"Failed decoding __NUXT_DATA__ JSON script: {exc}")
             match_var = re.search(r'window\.__NUXT__\s*=\s*(\{.*?\});', page, re.DOTALL)
             if match_var:
                 try:
                     return json.loads(match_var.group(1).strip())
-                except Exception:
-                    pass
+                except (json.JSONDecodeError, ValueError) as exc:
+                    logger.debug(f"Failed decoding window.__NUXT__ JSON variable: {exc}")
             return None
 
         if hasattr(page, "evaluate") and callable(page.evaluate):

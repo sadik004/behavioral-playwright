@@ -133,8 +133,8 @@ class BrowserPoolManager:
 
             try:
                 await route.continue_()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(f"BrowserPool: Route continue skipped/failed: {exc}")
 
         await context.route("**/*", _handle_route)
 
@@ -200,8 +200,8 @@ class BrowserPoolManager:
                 if not page.is_closed():
                     try:
                         await page.close()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug(f"BrowserPool: Error closing page in finally block: {exc}")
 
     async def shutdown(self) -> None:
         """Gracefully terminates master browser and Playwright process."""

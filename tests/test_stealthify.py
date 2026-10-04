@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unit and Integration Tests for Universal Stealthify & Autonomous Challenge Solver
 """
 import pytest

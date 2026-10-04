@@ -1,0 +1,72 @@
+[
+  {
+    "severity": "P1",
+    "rule_id": "SWALLOW-001",
+    "category": "Silent Exception",
+    "file_path": "src/behavioral_playwright/network/sniffer.py",
+    "line_number": 162,
+    "message": "Silent exception handler (asyncio.TimeoutError: pass) hides runtime failures.",
+    "code_snippet": "except asyncio.TimeoutError:",
+    "impact": "Masks unexpected errors, prevents failure propagation, and corrupts audit trails."
+  },
+  {
+    "severity": "P1",
+    "rule_id": "SWALLOW-001",
+    "category": "Silent Exception",
+    "file_path": "behavioral_evasion_suite/mcp_server.py",
+    "line_number": 482,
+    "message": "Silent exception handler ((KeyboardInterrupt, SystemExit): pass) hides runtime failures.",
+    "code_snippet": "except (KeyboardInterrupt, SystemExit):",
+    "impact": "Masks unexpected errors, prevents failure propagation, and corrupts audit trails."
+  },
+  {
+    "severity": "P1",
+    "rule_id": "SWALLOW-001",
+    "category": "Silent Exception",
+    "file_path": "tests/test_facade_real.py",
+    "line_number": 30,
+    "message": "Silent exception handler (Exception: pass) hides runtime failures.",
+    "code_snippet": "except Exception:",
+    "impact": "Masks unexpected errors, prevents failure propagation, and corrupts audit trails."
+  },
+  {
+    "severity": "P0",
+    "rule_id": "WEAK-TEST-001",
+    "category": "Tautological Assertion",
+    "file_path": "tests/test_quantum_mcp_architecture.py",
+    "line_number": 30,
+    "message": "Tautological assert detected: assert True",
+    "code_snippet": "assert True, \"All 31 modules successfully imported without circular dependencies\"",
+    "impact": "Test can never fail regardless of implementation bugs."
+  },
+  {
+    "severity": "P1",
+    "rule_id": "SWALLOW-001",
+    "category": "Silent Exception",
+    "file_path": "tests/test_v6_level5_audit.py",
+    "line_number": 144,
+    "message": "Silent exception handler (OSError: pass) hides runtime failures.",
+    "code_snippet": "except OSError:",
+    "impact": "Masks unexpected errors, prevents failure propagation, and corrupts audit trails."
+  },
+  {
+    "severity": "P1",
+    "rule_id": "SWALLOW-001",
+    "category": "Silent Exception",
+    "file_path": "scripts/audit_architecture.py",
+    "line_number": 26,
+    "message": "Silent exception handler (Exception: pass) hides runtime failures.",
+    "code_snippet": "except Exception:  # noqa: S110",
+    "impact": "Masks unexpected errors, prevents failure propagation, and corrupts audit trails."
+  },
+  {
+    "severity": "P1",
+    "rule_id": "SWALLOW-001",
+    "category": "Silent Exception",
+    "file_path": "scripts/login_n8n.py",
+    "line_number": 104,
+    "message": "Silent exception handler (Exception: pass) hides runtime failures.",
+    "code_snippet": "except Exception:",
+    "impact": "Masks unexpected errors, prevents failure propagation, and corrupts audit trails."
+  }
+]

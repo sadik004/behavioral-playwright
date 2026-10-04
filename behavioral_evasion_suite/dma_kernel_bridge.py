@@ -1,4 +1,4 @@
-﻿"""
+"""
 SMT-Verified OS Kernel uinput, Windows Native SendInput & FPGA PCIe DMA Hardware Bridges
 Translates software mouse trajectories into raw Linux Kernel uinput packets,
 Windows User32 SendInput hardware mouse events, or direct PCIe DMA Screamer hardware HID packets.
@@ -146,6 +146,12 @@ class FPGAPCIeDMAHardwareBridge:
     Direct Memory Access (DMA) Physical Hardware Bridge for PCIe Screamer Cards.
     Translates software mouse trajectories into raw USB HID electrical signals or
     direct OS-level hardware packets on both Windows and Linux.
+
+    OPERATIONAL STATUS: HARDWARE-GATED SIMULATION FALLBACK
+    Requires physical PCIe Screamer FPGA hardware device connected at `dma_device_path`.
+    When physical hardware is absent (`self.is_connected == False`), physical DMA transfer
+    is disabled and the bridge operates in software simulation / OS-level fallback mode
+    (Windows SendInput or Linux uinput).
     """
     def __init__(self, dma_device_path: Optional[str] = None):
         if dma_device_path is None:
@@ -159,7 +165,7 @@ class FPGAPCIeDMAHardwareBridge:
 
         if not self.is_connected:
             active_fallback = "Windows SendInput Kernel Bridge" if self.windows_kernel_bridge.is_available else ("Linux uinput Bridge" if self.linux_kernel_bridge.is_available else "Software Playwright Bridge")
-            logger.info(f"FPGA PCIe DMA device '{self.dma_device_path}' not detected. Active fallback to {active_fallback}.")
+            logger.info(f"FPGA PCIe DMA device '{self.dma_device_path}' not detected. Active fallback to {active_fallback} (simulation mode).")
 
     def serialize_hid_packet(self, dx: float, dy: float, buttons: int = 0) -> bytes:
         """

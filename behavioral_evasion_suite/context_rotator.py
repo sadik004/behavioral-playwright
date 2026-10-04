@@ -31,8 +31,8 @@ class ContextRotator:
                     if pages:
                         cdp = await self.current_context.new_cdp_session(pages[0])
                         await cdp.send("Network.clearBrowserCache")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(f"ContextRotator: Clearing CDP cache skipped/failed: {exc}")
                 await self.current_context.close()
 
             # Spawn fresh context via manager or directly
@@ -46,8 +46,8 @@ class ContextRotator:
                 from .hardware_os_spoofer import HardwareOSSpoofer
                 await CDPEvasionShield.apply(self.current_context)
                 await HardwareOSSpoofer.apply(self.current_context)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(f"ContextRotator: Applying evasion shield failed: {exc}")
 
             self.request_count = 0
             logger.info("ContextRotator: Spawned a completely fresh and un-cached BrowserContext.")

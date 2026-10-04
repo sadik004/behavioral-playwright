@@ -287,10 +287,11 @@ class ResolvedSchemaIntegrityGuard:
     async def verify_page_integrity(self, page: Any, profile_name: str = "default") -> Dict[str, Any]:
         """Asynchronous helper extracting active DOM HTML from Playwright page instance."""
         raw_html = ""
-        try:
-            if hasattr(page, "content"):
-                raw_html = await page.content()
-        except Exception:
-            pass
+        if hasattr(page, "content"):
+            raw_html = await page.content()
+        elif hasattr(page, "evaluate"):
+            raw_html = await page.evaluate("() => document.documentElement ? document.documentElement.outerHTML : ''")
+        elif isinstance(page, str):
+            raw_html = page
 
         return self.audit_content_entropy(raw_html, profile_name=profile_name)

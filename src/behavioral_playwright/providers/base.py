@@ -22,17 +22,7 @@ HONESTY_NOTE = (
 )
 
 
-class ProviderUnavailableError(RuntimeError):
-    """Raised when a selected provider's backing library is not importable."""
-
-    def __init__(self, provider: str, module: str, install_hint: str) -> None:
-        super().__init__(
-            f"{provider} provider is UNAVAILABLE: module {module!r} cannot be "
-            f"imported. Optional install: {install_hint}. "
-            "No fallback or fabricated behavior is provided."
-        )
-        self.provider = provider
-        self.module = module
+from behavioral_playwright.exceptions import ProviderUnavailableError
 
 
 class UnknownProviderError(ValueError):

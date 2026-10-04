@@ -1,4 +1,4 @@
-﻿"""Backward-compatibility forwarding module for providers.base.
+"""Backward-compatibility forwarding module for providers.base.
 
 Exposes base provider classes forwarded from
 src.behavioral_playwright.providers to ensure identity consistency.

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Worker Universal Shield - Level 5 Quantum Edition
 Web Worker & SharedWorker Prototype Sandbox Shield.
 Counters DataDome and Cloudflare background Worker evasion-detection probes.

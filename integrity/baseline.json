@@ -1,0 +1,106 @@
+{
+  "version": "1.0.0",
+  "baseline_id": "BASELINE-BP-20261005-LOCKED",
+  "status": "LOCKED",
+  "generated_at": "2026-10-04T23:55:00Z",
+  "locked_at": "2026-10-05T00:02:00Z",
+  "purpose": "Locked Independent Adversarial Audit Baseline for behavioral-playwright. Serves as immutable reference for Phase 2 (FIX -> GREEN).",
+  "metrics": {
+    "existing_tests": {
+      "passed": 377,
+      "failed": 1,
+      "skipped": 2,
+      "assessment": "UNTRUSTED_EVIDENCE",
+      "known_failure": "tests/test_providers.py:72 (patchright uninstalled locally)"
+    },
+    "independent_integrity_tests": {
+      "total": 21,
+      "passed": 21,
+      "failed": 0
+    },
+    "adversarial_fault_injection": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "fake_success_detection": {
+      "total": 5,
+      "passed": 5,
+      "violations_detected": 18
+    },
+    "mutation_testing": {
+      "total_mutations": 8,
+      "killed": 6,
+      "survived": 2,
+      "mutation_score_pct": 75.0,
+      "surviving_mutations": [
+        "MUT-002: Force uninstalled provider to report available and skip gating check",
+        "MUT-004: Swallow export errors silently in DataStorageManager.export"
+      ]
+    },
+    "harness_false_positives": [
+      {
+        "id": "HFP-001",
+        "target": "MUT-001",
+        "resolution": "MUT-001 was an initial harness runner false-positive. The mutation is killed by existing tests (tests/unit/test_resilience.py:41 with exit code 1) and is NOT a surviving mutant."
+      }
+    ],
+    "determinism": {
+      "verdict": "FAIL_ON_UNSEEDED_TREMOR",
+      "test_status": "PASS_FALSIFICATION",
+      "target": "behavioral_evasion_suite.powerhand_master.PowerHandMaster.get_saccade_path",
+      "cause": "unseeded global random.uniform(-0.8, 0.8) on lines 70-71"
+    },
+    "runtime_vs_static": {
+      "verdict": "FAIL_CONFUSION_IDENTIFIED",
+      "finding": "Static JS stealth script generation counted as verified browser evasion in existing tests without runtime CDP verification"
+    },
+    "mcp_contracts": {
+      "verdict": "PASS",
+      "tools_tested": 4,
+      "schema_compliant": true
+    },
+    "provider_integrity": {
+      "verdict": "PASS_WITH_EXCEPTION_FRACTURE",
+      "gating_honest": true,
+      "defect": "Duplicate ProviderUnavailableError class across exceptions.py and providers/base.py"
+    },
+    "claims_summary": {
+      "total_claims": 28,
+      "VERIFIED": 14,
+      "PARTIALLY_VERIFIED": 8,
+      "UNVERIFIED": 0,
+      "CONTRADICTED": 3,
+      "PROVIDER_GATED": 1,
+      "SIMULATION_ONLY": 2,
+      "UNIMPLEMENTED": 0
+    },
+    "contradicted_claims": [
+      {
+        "claim_id": "EVASION-001",
+        "target": "behavioral_evasion_suite.powerhand_master.PowerHandPlaywrightRunner.execute_stealth_session",
+        "reason": "Live browser crashes caught and returned as dry_run_success"
+      },
+      {
+        "claim_id": "EVASION-002",
+        "target": "behavioral_evasion_suite.powerhand_master.PowerHandMaster.get_saccade_path",
+        "reason": "Unseeded global random.uniform() breaks seed determinism contract"
+      },
+      {
+        "claim_id": "EVASION-005",
+        "target": "behavioral_evasion_suite.dma_kernel_bridge.FPGAPCIeDMAHardwareBridge",
+        "reason": "PCIe Screamer hardware missing; runs purely as software simulation fallback"
+      }
+    ],
+    "static_findings": {
+      "total": 72,
+      "P0_critical_fraud": 18,
+      "P1_high_defect": 54,
+      "P2_medium": 0,
+      "P3_low": 0
+    }
+  },
+  "gate_verdict": "FAIL",
+  "next_gate": "FIX",
+  "sha256_hash": "c3392680758743de39fe47c17b09a5fe13e4884112bef9c1c4ed9d96d9d7f54b"
+}

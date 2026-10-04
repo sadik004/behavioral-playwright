@@ -83,8 +83,8 @@ class PageSession:
                     audit_res = self.schema_guard.audit_content_entropy(content)
                     if audit_res.get("decision") == "CAPTCHA_WALL":
                         self.loop_detector.record_navigation(url, is_challenge=True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(f"Dynamic DOM audit skipped/failed for {url}: {exc}")
 
     async def get_title(self) -> str:
         """Returns active page title."""

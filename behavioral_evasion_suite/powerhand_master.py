@@ -60,6 +60,11 @@ class PowerHandMaster:
         if steps < 2:
             steps = 2
 
+        # Deterministic isolated random generator seeded from self.seed and trajectory coordinates
+        # Strictly prevents unseeded global randomness leakage
+        traj_seed = (self.seed ^ int(start[0] * 1000 + start[1] * 100 + target[0] * 10 + target[1])) & 0xFFFFFFFF
+        rng = random.Random(traj_seed)
+
         for i in range(steps):
             t = i / (steps - 1)
             s = 3 * (t ** 2) - 2 * (t ** 3)
@@ -67,8 +72,10 @@ class PowerHandMaster:
             y = start[1] + (target[1] - start[1]) * s
 
             tremor_hz = self.persona_matrix.dna.tremor_hz
-            tremor_x = math.sin(t * math.pi * tremor_hz) * random.uniform(0.5, 1.5)
-            tremor_y = math.cos(t * math.pi * tremor_hz) * random.uniform(0.5, 1.5)
+            tremor_factor_x = rng.uniform(0.5, 1.5)
+            tremor_factor_y = rng.uniform(0.5, 1.5)
+            tremor_x = math.sin(t * math.pi * tremor_hz) * tremor_factor_x
+            tremor_y = math.cos(t * math.pi * tremor_hz) * tremor_factor_y
 
             path.append({
                 'x': x + tremor_x,
@@ -83,7 +90,21 @@ class PowerHandPlaywrightRunner:
     def __init__(self, seed: int = 42069):
         self.master = PowerHandMaster(seed=seed)
 
-    async def execute_stealth_session(self, target_url: str = "https://bot.sannysoft.com") -> Dict[str, Any]:
+    async def execute_stealth_session(self, target_url: str = "https://bot.sannysoft.com", dry_run: bool = False) -> Dict[str, Any]:
+        if dry_run:
+            logger.info(f"Executing explicitly requested PowerHand dry-run simulation for {target_url}")
+            saccade_points = self.master.get_saccade_path((10.0, 10.0), (350.0, 250.0))
+            dma_packets = self.master.dma_hardware_bridge.inject_hardware_mouse_move(saccade_points)
+            keystrokes = self.master.keystroke_engine.generate_human_keystroke_plan("PowerHand Integration Active")
+            return {
+                "status": "dry_run_success",
+                "trajectory_points": len(saccade_points),
+                "dma_packets_generated": len(dma_packets),
+                "keystroke_events": len(keystrokes),
+                "stealth_payload_bytes": len(self.master.get_all_stealth_scripts()),
+                "dry_run": True,
+            }
+
         logger.info(f"🚀 Executing PowerHand Stealth Playwright Session for URL: {target_url}")
         
         try:
@@ -115,18 +136,14 @@ class PowerHandPlaywrightRunner:
                 self.master.persona_matrix.vault.save_state(cookies, {})
 
                 await browser.close()
-                return {"status": "success", "title": title, "dma_packets_sent": len(dma_packets)}
+                return {"status": "success", "title": title, "dma_packets_sent": len(dma_packets), "dry_run": False}
 
-        except (ImportError, Exception) as exc:
-            logger.info(f"⚠️ Playwright live execution fallback ({exc}). Executing dry-run verification.")
-            saccade_points = self.master.get_saccade_path((10.0, 10.0), (350.0, 250.0))
-            dma_packets = self.master.dma_hardware_bridge.inject_hardware_mouse_move(saccade_points)
-            keystrokes = self.master.keystroke_engine.generate_human_keystroke_plan("PowerHand Integration Active")
-            
+        except Exception as exc:
+            logger.error(f"Playwright live execution failed for {target_url}: {exc}")
             return {
-                "status": "dry_run_success",
-                "trajectory_points": len(saccade_points),
-                "dma_packets_generated": len(dma_packets),
-                "keystroke_events": len(keystrokes),
-                "stealth_payload_bytes": len(self.master.get_all_stealth_scripts())
+                "status": "failed",
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+                "url": target_url,
+                "dry_run": False,
             }

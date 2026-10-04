@@ -1,4 +1,4 @@
-﻿"""
+"""
 Patch 1: CDP & Runtime.enable Evasion (WeakMap Native toString Shield)
 Prevents CDP-detection traps triggered by Runtime.enable console.log serializers.
 """

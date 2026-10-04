@@ -383,8 +383,8 @@ class ContextRotator:
                     if pages:
                         cdp = await pages[0].context.new_cdp_session(pages[0])
                         await cdp.send("Network.clearBrowserCache")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(f"ContextRotator: Clearing CDP browser cache skipped/failed: {exc}")
                 await self.current_context.close()
             
             if manager:
@@ -942,7 +942,7 @@ class OSResourceGuard:
                 resource.setrlimit(resource.RLIMIT_NOFILE, (new_soft, hard_limit))
                 soft_limit = new_soft
         except ImportError:
-            pass
+            logger.debug("OSResourceGuard: POSIX resource module not available on this platform.")
         safe_max = max(1, soft_limit // 20)
         if concurrency_estimate > safe_max:
             logger.warning(f"OSResourceGuard: Clamping concurrency from {concurrency_estimate} to {safe_max}")

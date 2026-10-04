@@ -143,8 +143,8 @@ class PAAMiner:
                     # Dynamic actionability click to expand accordion
                     try:
                         await item.click(timeout=3000)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug(f"PAAMiner: Accordion click failed or element already open for '{q_first_line}': {exc}")
 
                     # Extract details
                     content_html = await item.inner_html()

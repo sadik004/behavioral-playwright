@@ -5,12 +5,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
+import os
 import sys
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import behavioral_playwright
 from behavioral_playwright import BP
 from behavioral_playwright.storage.exporters import DataStorageManager
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -105,6 +109,24 @@ def resolve_cli_config(parsed: argparse.Namespace) -> Any:
     return AutomationConfig(auth=auth)
 
 
+def _safe_export(records: Sequence[Dict[str, Any]], output_path: str, entity_label: str = "records") -> int:
+    """Verifies that DataStorageManager export genuinely succeeds and creates the target file.
+    Returns 0 on confirmed success, 1 on export error or missing file.
+    """
+    try:
+        saved = DataStorageManager().export(records, output_path)
+        if not saved or not os.path.exists(saved):
+            logger.error(f"Failed to export {entity_label} to {output_path}: destination file was not written.")
+            print(f"[-] Export failed: destination '{output_path}' was not written.")
+            return 1
+        print(f"[+] Saved {len(records)} {entity_label} to {saved}")
+        return 0
+    except Exception as exc:
+        logger.error(f"Export error for {output_path}: {exc}")
+        print(f"[-] Export error: {exc}")
+        return 1
+
+
 async def run_scrape(url: str, output: Optional[str] = None, target: str = "links", config: Optional[Any] = None) -> int:
     async with BP(config=config) as bp:
         await bp.goto(url)
@@ -112,8 +134,9 @@ async def run_scrape(url: str, output: Optional[str] = None, target: str = "link
         raw = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
         
         if output:
-            saved = DataStorageManager().export(raw, output)
-            print(f"[+] Saved {len(raw)} records to {saved}")
+            ret = _safe_export(raw, output, entity_label="records")
+            if ret != 0:
+                return ret
         else:
             print(json.dumps(raw, indent=2, default=str))
     return 0
@@ -125,8 +148,9 @@ async def run_crawl(url: str, max_pages: int = 5, depth: int = 2, output: Option
         raw = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
         
         if output:
-            saved = DataStorageManager().export(raw, output)
-            print(f"[+] Crawled and saved {len(raw)} records to {saved}")
+            ret = _safe_export(raw, output, entity_label="crawled records")
+            if ret != 0:
+                return ret
         else:
             print(json.dumps(raw, indent=2, default=str))
     return 0
@@ -179,8 +203,8 @@ async def run_extract_meta(url: str, output: Optional[str] = None, config: Optio
             resp = await s.get(url, timeout=8.0)
             if resp.status_code == 200:
                 html = resp.text
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug(f"curl_cffi fetch fallback: {exc}")
 
     if not html:
         try:
@@ -190,8 +214,8 @@ async def run_extract_meta(url: str, output: Optional[str] = None, config: Optio
                 with urllib.request.urlopen(req, timeout=8.0) as r:
                     return r.read().decode("utf-8", errors="ignore")
             html = await asyncio.to_thread(_fetch)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"urllib fetch fallback: {exc}")
 
     next_data = await extract_next_data(html) if html else None
     nuxt_data = await extract_nuxt_data(html) if html else None
@@ -207,8 +231,8 @@ async def run_extract_meta(url: str, output: Optional[str] = None, config: Optio
                 nuxt_data = await bp.mining.extract_nuxt_data()
                 json_ld = await bp.mining.extract_json_ld()
                 open_graph = await bp.mining.extract_open_graph()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Live browser evaluation fallback: {exc}")
 
     result = {
         "url": url,
@@ -219,8 +243,9 @@ async def run_extract_meta(url: str, output: Optional[str] = None, config: Optio
     }
 
     if output:
-        DataStorageManager().export([result], output)
-        print(f"[+] Saved metadata to {output}")
+        ret = _safe_export([result], output, entity_label="metadata")
+        if ret != 0:
+            return ret
     else:
         print(json.dumps(result, indent=2, default=str))
     return 0
@@ -240,16 +265,16 @@ async def run_mine_paa(query: str, depth: int = 2, output: Optional[str] = None,
             resp = await s.get(f"https://www.google.com/search?q={quote_plus(query)}&hl=en", timeout=8.0)
             if resp.status_code == 200:
                 nodes = miner.parse_from_html(resp.text, depth=1)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug(f"curl_cffi SERP fetch fallback: {exc}")
 
     # 2. Browser-driven interactive expansion fallback
     if not nodes:
         try:
             async with BP(config=config) as bp:
                 nodes = await bp.mining.mine_paa(query=query, max_depth=depth)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Browser PAA mining fallback: {exc}")
 
     # 3. Resilient question discovery fallback via Suggest API if SERP CAPTCHA triggered
     if not nodes:
@@ -271,13 +296,14 @@ async def run_mine_paa(query: str, depth: int = 2, output: Optional[str] = None,
                     ))
                 if len(nodes) >= depth * 2:
                     break
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Suggest API fallback: {exc}")
 
     raw = [n.model_dump() if hasattr(n, "model_dump") else vars(n) for n in nodes]
     if output:
-        DataStorageManager().export(raw, output)
-        print(f"[+] Saved {len(raw)} PAA questions to {output}")
+        ret = _safe_export(raw, output, entity_label="PAA questions")
+        if ret != 0:
+            return ret
     else:
         print(json.dumps(raw, indent=2, default=str))
     return 0
@@ -302,8 +328,9 @@ async def run_check_overlap(
     )
     raw = report.model_dump() if hasattr(report, "model_dump") else vars(report)
     if output:
-        DataStorageManager().export([raw], output)
-        print(f"[+] Saved cannibalization report to {output}")
+        ret = _safe_export([raw], output, entity_label="cannibalization report")
+        if ret != 0:
+            return ret
     else:
         print(json.dumps(raw, indent=2, default=str))
     return 0
@@ -324,8 +351,9 @@ async def run_mine_suggest(
     raw = result.model_dump() if hasattr(result, "model_dump") else vars(result)
 
     if output:
-        DataStorageManager().export([raw], output)
-        print(f"[+] Saved {raw.get('total_unique', 0)} suggestions to {output}")
+        ret = _safe_export([raw], output, entity_label="suggestions")
+        if ret != 0:
+            return ret
     else:
         print(json.dumps(raw, indent=2, default=str))
     return 0
@@ -339,8 +367,9 @@ async def run_audit_drift(url: str, output: Optional[str] = None, config: Option
     raw = report.model_dump() if hasattr(report, "model_dump") else vars(report)
 
     if output:
-        DataStorageManager().export([raw], output)
-        print(f"[+] Saved CSR drift report to {output}")
+        ret = _safe_export([raw], output, entity_label="CSR drift report")
+        if ret != 0:
+            return ret
     else:
         print(json.dumps(raw, indent=2, default=str))
     return 0

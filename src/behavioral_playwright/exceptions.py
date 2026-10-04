@@ -52,9 +52,36 @@ class TimeoutError(BehavioralPlaywrightError):
     pass
 
 
-class ProviderUnavailableError(BehavioralPlaywrightError):
-    """Raised when a required provider/dependency is missing or not booted."""
-    pass
+class ProviderUnavailableError(BehavioralPlaywrightError, RuntimeError):
+    """Raised when a required provider/dependency is missing or not booted.
+
+    Canonical exception uniting top-level framework errors and provider subsystem errors.
+    Inherits from both BehavioralPlaywrightError and RuntimeError for complete backward compatibility.
+    """
+
+    def __init__(
+        self,
+        message_or_provider: str,
+        module: Optional[str] = None,
+        install_hint: Optional[str] = None,
+        details: Optional[Any] = None,
+    ) -> None:
+        if module is not None or install_hint is not None:
+            provider = message_or_provider
+            msg = (
+                f"{provider} provider is UNAVAILABLE: module {module!r} cannot be "
+                f"imported. Optional install: {install_hint}. "
+                "No fallback or fabricated behavior is provided."
+            )
+            self.provider = provider
+            self.module = module or ""
+            self.install_hint = install_hint or ""
+            super().__init__(message=msg, details=details or {"provider": provider, "module": module, "install_hint": install_hint})
+        else:
+            self.provider = ""
+            self.module = ""
+            self.install_hint = ""
+            super().__init__(message=message_or_provider, details=details)
 
 
 class ProviderError(BehavioralPlaywrightError):

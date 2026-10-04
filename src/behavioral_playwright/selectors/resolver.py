@@ -162,9 +162,9 @@ class SelfHealingResolver:
                         confidence=1.0, success=True, elapsed_ms=elapsed_ms, selector=target
                     )
                     return res
-            except Exception:
+            except Exception as exc:
                 # Target was not a valid CSS selector or query failed; cascade to self-healing
-                pass
+                logger.debug(f"[Resolver] L1 exact query for '{target}' raised exception ({exc}); cascading to self-healing")
 
         logger.info(f"[Resolver] L1 Exact match failed for '{target}'. Initiating Self-Healing cascade...")
 

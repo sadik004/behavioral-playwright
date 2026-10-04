@@ -1,4 +1,4 @@
-﻿"""
+"""
 Cognitive Gaze Physics - Level 5 Quantum Edition
 Newtonian Inertial Scroll & Cognitive Reading Pause Engine.
 Counters Behavioral AI Kinematic Analysis and Bot Saccadic Anomaly Detectors.
@@ -122,15 +122,15 @@ async def human_scroll(page, target_y: int, max_speed: float = 800.0, duration_m
                 try:
                     await page.mouse.wheel(0, step.delta_y)
                     await asyncio.sleep(step.delay_ms / 1000.0)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(f"Scroll step mouse.wheel failed: {exc}")
         elif hasattr(page, "evaluate"):
             for step in steps:
                 try:
                     await page.evaluate(f"window.scrollBy(0, {step.delta_y})")
                     await asyncio.sleep(step.delay_ms / 1000.0)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(f"Scroll step window.scrollBy failed: {exc}")
 
         # Brief cognitive reading pause after scrolling into view
         await cognitive_reading_pause(200.0, 500.0)

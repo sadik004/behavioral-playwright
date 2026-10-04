@@ -1,4 +1,4 @@
-﻿"""
+"""
 Patch 3: Biomechanical Mouse Physics with Neuromuscular Inertia Filter
 Models high-fidelity human cursor movements based on Cubic Bézier curves,
 physiological neuromuscular micro-tremors (Colored Pink Noise), and Logarithmic Deceleration.
@@ -24,16 +24,16 @@ class WindowsHighResolutionTimer:
                 self._winmm = ctypes.windll.winmm
                 self._winmm.timeBeginPeriod(1)
                 self.is_active = True
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(f"Unable to set high-precision timer via winmm: {exc}")
 
     def close(self):
         if self.is_active:
             try:
                 self._winmm.timeEndPeriod(1)
                 self.is_active = False
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(f"Unable to restore timer period via winmm: {exc}")
 
     def __enter__(self):
         return self

@@ -88,9 +88,14 @@ class DataStorageManager:
         format: Optional[str] = None,
         **kwargs: Any,
     ) -> str:
+        if not target_path or not isinstance(target_path, str):
+            raise ValueError("target_path must be a non-empty string path")
         fmt = (format or target_path.split(".")[-1]).lower()
         exporter = self._EXPORTERS.get(fmt)
         if not exporter:
             # Default to JSON
             exporter = self._EXPORTERS["json"]
-        return exporter.export(records, target_path, **kwargs)
+        out = exporter.export(records, target_path, **kwargs)
+        if not out or not isinstance(out, str):
+            raise IOError(f"Storage export failed: exporter returned invalid path '{out}'")
+        return out

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Subpixel Font Shield - Level 5 Quantum Edition
 DirectWrite ClearType Font Metric Converter.
 Counters Kasada, Cloudflare, and CreepJS subpixel font rendering and layout discrepancy heuristics.

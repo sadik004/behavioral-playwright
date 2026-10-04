@@ -125,38 +125,36 @@ class StealthSession:
         if self.context:
             try:
                 await self.context.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error closing browser context during teardown: {e}")
         if self.browser:
             try:
                 await self.browser.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error closing browser during teardown: {e}")
         if self.playwright:
             try:
                 await self.playwright.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error stopping playwright during teardown: {e}")
 
 
 async def human_click(page, selector: str, master: Optional[PowerHandMaster] = None):
     """Executes Fitts's Law saccadic trajectory mouse click with tremor noise."""
     if hasattr(page, "click"):
-        try:
-            await page.click(selector)
-        except Exception:
-            pass
-    logger.info(f"Human biometric click dispatched to selector: {selector}")
+        await page.click(selector)
+        logger.info(f"Human biometric click dispatched to selector: {selector}")
+    else:
+        logger.warning(f"Target page object lacks click() method; unable to dispatch click to {selector}")
 
 
 async def human_type(page, selector: str, text: str, master: Optional[PowerHandMaster] = None):
     """Executes cognitive keystroke typing with Weibull distributed inter-key latency."""
     if hasattr(page, "type"):
-        try:
-            await page.type(selector, text, delay=50)
-        except Exception:
-            pass
-    logger.info(f"Cognitive keystroke stream dispatched to {selector} ({len(text)} chars)")
+        await page.type(selector, text, delay=50)
+        logger.info(f"Cognitive keystroke stream dispatched to {selector} ({len(text)} chars)")
+    else:
+        logger.warning(f"Target page object lacks type() method; unable to dispatch keystrokes to {selector}")
 
 
 def stealth_async(func):

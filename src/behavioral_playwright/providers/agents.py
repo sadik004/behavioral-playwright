@@ -41,6 +41,11 @@ class BrowserUseProvider:
     def require_available(self) -> None:
         if not self.info().installed:
             raise ProviderUnavailableError(self.display_name, self.module, self.install_hint)
+        try:
+            import importlib
+            importlib.import_module(self.module)
+        except Exception:
+            raise ProviderUnavailableError(self.display_name, self.module, self.install_hint)
 
     def run_task(self, task: str, llm: Any = None, browser: Any = None,
                  **kwargs: Any) -> Any:
@@ -94,6 +99,11 @@ class StagehandProvider:
 
     def require_available(self) -> None:
         if not self.info().installed:
+            raise ProviderUnavailableError(self.display_name, self.module, self.install_hint)
+        try:
+            import importlib
+            importlib.import_module(self.module)
+        except Exception:
             raise ProviderUnavailableError(self.display_name, self.module, self.install_hint)
 
     async def start(self, browser: Any = None, model: Optional[str] = None,

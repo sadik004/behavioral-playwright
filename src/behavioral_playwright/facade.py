@@ -6,12 +6,15 @@ domain namespaces: web, infrastructure, observability, network, integrations.
 
 import asyncio
 import json
+import logging
 import sqlite3
 import time
 import urllib.error
 import urllib.request
 from typing import Any, Callable, Coroutine, Dict, List, Optional, TypeVar
 from types import SimpleNamespace
+
+logger = logging.getLogger(__name__)
 
 from behavioral_playwright.config.settings import AutomationConfig
 from behavioral_playwright.page.session import BrowserSession, PageSession
@@ -259,8 +262,8 @@ class ObservabilityNamespace:
                 (trace_id, target, time.strftime("%Y-%m-%dT%H:%M:%S")),
             )
             conn.commit()
-        except sqlite3.OperationalError:
-            pass  # traces table only exists in queue-schema DBs
+        except sqlite3.OperationalError as exc:
+            logger.debug(f"Traces table insert skipped (schema not initialized): {exc}")
         finally:
             conn.close()
 
@@ -276,8 +279,8 @@ class ObservabilityNamespace:
             conn.execute("UPDATE traces SET ended_at=?, target=? WHERE trace_id=?",
                          (time.strftime("%Y-%m-%dT%H:%M:%S"), target, trace_id))
             conn.commit()
-        except sqlite3.OperationalError:
-            pass
+        except sqlite3.OperationalError as exc:
+            logger.debug(f"Traces table update skipped: {exc}")
         finally:
             conn.close()
         return duration
@@ -310,8 +313,8 @@ class ObservabilityNamespace:
                     (trace_id, target, action, duration_ms, status_str,
                      time.strftime("%Y-%m-%dT%H:%M:%S")))
                 conn.commit()
-            except sqlite3.OperationalError:
-                pass
+            except sqlite3.OperationalError as exc:
+                logger.debug(f"Executions table insert skipped: {exc}")
             finally:
                 conn.close()
             return None
@@ -336,8 +339,8 @@ class ObservabilityNamespace:
                 " status TEXT NOT NULL, logged_at TEXT NOT NULL)")
             conn.commit()
             conn.close()
-        except sqlite3.OperationalError:
-            pass
+        except sqlite3.OperationalError as exc:
+            logger.debug(f"Legacy DB table creation skipped/failed: {exc}")
 
     def generate_qa_report(self, db_path: str = "") -> Any:
         # Legacy dict contract takes precedence when a metrics DB is given.
@@ -347,8 +350,8 @@ class ObservabilityNamespace:
                 if dict_report.get("total_executed_ops", 0) > 0 or (
                         dict_report["compliance_violations_count"] > 0):
                     return dict_report
-            except sqlite3.OperationalError:
-                pass
+            except sqlite3.OperationalError as exc:
+                logger.debug(f"QA report query fallback: {exc}")
             conn = sqlite3.connect(db_path)
             try:
                 total, ok = conn.execute(
@@ -395,8 +398,8 @@ class NetworkNamespace:
         try:
             with urllib.request.urlopen(req, timeout=effective_timeout) as resp:
                 resp.read(0)
-        except urllib.error.HTTPError:
-            pass  # 4xx/5xx still prove the roundtrip completed
+        except urllib.error.HTTPError as exc:
+            logger.debug(f"measure_response_time: HTTP status {exc.code} received (roundtrip completed in {time.perf_counter() - start:.3f}s)")
         return (time.perf_counter() - start) * 1000.0
 
     async def measure_response_time_async(self, url: str,

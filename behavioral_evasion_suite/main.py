@@ -1,4 +1,4 @@
-﻿"""
+"""
 Verification Integrity Runner & Benchmarks (v6.0.0 Level 5 Quantum Edition)
 Validates foundational modules, Level 5 Quantum Shields, Windows Kernel Bridges, and Fluent Code UX.
 """

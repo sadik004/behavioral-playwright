@@ -104,8 +104,8 @@ class JSONResponseSniffer:
         if hasattr(self.raw_page, "remove_listener"):
             try:
                 self.raw_page.remove_listener("response", self._handler)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(f"NetworkSniffer: Error removing listener during detach: {exc}")
         self._is_attached = False
 
     def clear(self) -> None:
@@ -125,8 +125,8 @@ class JSONResponseSniffer:
             try:
                 if re.search(pattern, url):
                     return True
-            except re.error:
-                pass
+            except re.error as exc:
+                logger.debug(f"NetworkSniffer: Invalid regex pattern '{pattern}': {exc}")
         return False
 
     async def intercept_json(

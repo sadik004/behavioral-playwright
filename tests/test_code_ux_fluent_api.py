@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unit and Integration Tests for Code UX, Presets, and Fluent Developer API (v6.0.0 Level 5 Quantum Edition)
 """
 import pytest

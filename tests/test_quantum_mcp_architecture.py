@@ -1,4 +1,4 @@
-﻿"""
+"""
 Comprehensive Architectural Verification for Unified Quantum Facade & MCP Server
 Validates that all 31 legacy sub-modules are 100% intact and functional,
 and tests the PersistentSessionManager, TokenOptimizedDOMReader, and MCP Server tools.

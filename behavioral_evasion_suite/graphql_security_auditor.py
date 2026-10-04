@@ -481,8 +481,8 @@ class MasterGraphQLDeepLogicEngine:
             finally:
                 try:
                     await route.continue_()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(f"GraphQLSecurityAuditor: Route continue skipped/failed: {exc}")
 
         try:
             res = active_page.route("**/*", handle_route)
