@@ -47,6 +47,7 @@ from behavioral_playwright.orchestration.state import StateTransitionRecord, Wor
 from behavioral_playwright.orchestration.verification import (
     VerificationEvidence,
     WorkflowVerifier,
+    verify_workflow_result,
 )
 
 __all__ = [
@@ -73,6 +74,7 @@ __all__ = [
     "ConditionEvaluator",
     "WorkflowVerifier",
     "VerificationEvidence",
+    "verify_workflow_result",
     # Planner & Executor
     "BasePlanner",
     "DeterministicPlanner",

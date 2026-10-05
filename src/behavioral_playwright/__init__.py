@@ -6,7 +6,7 @@ and all core configuration/session classes for clean global imports:
     from behavioral_playwright import BP, AutomationConfig
 """
 
-__version__ = "6.0.0"
+__version__ = "10.0.2"
 
 from behavioral_playwright.automation.keyboard import KeyboardController
 from behavioral_playwright.automation.mouse import MouseController
@@ -117,9 +117,11 @@ from behavioral_playwright.orchestration import (
     StepStatus,
     WorkflowDefinition,
     WorkflowOrchestrator,
+    WorkflowProvenanceChain,
     WorkflowResult,
     WorkflowStatus,
     WorkflowStep,
+    verify_workflow_result,
 )
 import behavioral_playwright.orchestration as orchestration
 
@@ -217,8 +219,10 @@ __all__ = [
     "UndetectedChromedriverProvider",
     "WorkflowDefinition",
     "WorkflowOrchestrator",
+    "WorkflowProvenanceChain",
     "WorkflowResult",
     "WorkflowStatus",
     "WorkflowStep",
+    "verify_workflow_result",
 ]
 

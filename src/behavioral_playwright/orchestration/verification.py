@@ -170,3 +170,19 @@ class WorkflowVerifier:
                 return False
 
         return True
+
+
+def verify_workflow_result(
+    result: Any,
+    expected_session_id: Optional[str] = None,
+    expected_workflow_id: Optional[str] = None,
+    secret: Optional[bytes] = None,
+) -> bool:
+    """Convenience functional verifier for WorkflowResult."""
+    return WorkflowVerifier().verify_workflow_result(
+        result,
+        expected_session_id=expected_session_id,
+        expected_workflow_id=expected_workflow_id,
+        secret=secret,
+    )
+
