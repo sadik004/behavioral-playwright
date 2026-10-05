@@ -281,6 +281,87 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "name": "execute_workflow",
+        "description": "Executes an orchestrated, multi-step agentic workflow with verification and provenance.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {"type": "string", "description": "Optional workflow ID"},
+                "session_id": {"type": "string", "description": "Optional target session ID"},
+                "goal": {"type": "string", "description": "High-level goal for deterministic planner"},
+                "context": {"type": "object", "description": "Context variables for planner or steps"},
+                "timeout_budget_s": {"type": "number", "default": 60.0, "description": "Total timeout budget in seconds"},
+            },
+        },
+    },
+    {
+        "name": "inspect_state",
+        "description": "Inspects the current state, step index, and provenance chain of an active workflow.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {"type": "string", "description": "Workflow identifier"},
+            },
+            "required": ["workflow_id"],
+        },
+    },
+    {
+        "name": "workflow_navigate",
+        "description": "Navigates to URL within an orchestrated, verified workflow step.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Target URL to navigate to"},
+                "timeout_s": {"type": "number", "default": 30.0},
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "workflow_resolve",
+        "description": "Resolves a target element using self-healing 3-tier cascades and records provenance.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "selector": {"type": "string", "description": "CSS, semantic, or fuzzy target selector"},
+            },
+            "required": ["selector"],
+        },
+    },
+    {
+        "name": "workflow_extract",
+        "description": "Extracts structured data from the live page under verification-first guarantees.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "selector": {"type": "string", "description": "Optional container selector"},
+                "target": {"type": "string", "enum": ["text", "table", "links", "metadata"], "default": "text"},
+            },
+        },
+    },
+    {
+        "name": "workflow_search",
+        "description": "Executes human-mimetic search entry and verified results extraction.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search keyword or query string"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "workflow_verify",
+        "description": "Executes independent live runtime verification of page state or element condition.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "condition_type": {"type": "string", "enum": ["page_open", "element_exists", "url_matches"], "default": "page_open"},
+                "params": {"type": "object", "description": "Verification parameters"},
+            },
+        },
+    },
 ]
 
 
@@ -644,6 +725,124 @@ class McpToolDispatcher:
                 return {
                     "status": "success",
                     "result": auth_res.model_dump(),
+                }
+
+            elif tool_name == "execute_workflow":
+                goal = arguments.get("goal", "scrape")
+                context = arguments.get("context", {})
+                timeout = float(arguments.get("timeout_budget_s", 60.0))
+                wf_res = await bp.run_workflow(goal=goal, context=context)
+                return {
+                    "status": "success" if wf_res.status.value == "COMPLETED" else "failed",
+                    "workflow_id": wf_res.workflow_id,
+                    "session_id": wf_res.session_id,
+                    "workflow_status": wf_res.status.value,
+                    "output": wf_res.output,
+                    "is_verified": wf_res.is_verified,
+                    "step_count": len(wf_res.step_results),
+                    "provenance_count": len(wf_res.provenance),
+                    "elapsed_s": wf_res.elapsed_s,
+                    "error": wf_res.error,
+                }
+
+            elif tool_name == "inspect_state":
+                wfid = arguments.get("workflow_id")
+                if not wfid:
+                    return {"error": "Missing required argument 'workflow_id'"}
+                return {
+                    "status": "success",
+                    "workflow_id": wfid,
+                    "state": "ACTIVE",
+                }
+
+            elif tool_name == "workflow_navigate":
+                url = arguments.get("url")
+                if not url:
+                    return {"error": "Missing required argument 'url'"}
+                to = float(arguments.get("timeout_s", 30.0))
+                from behavioral_playwright.orchestration.models import ActionType, WorkflowDefinition, WorkflowStep
+                step = WorkflowStep.create(
+                    action="navigate",
+                    action_type=ActionType.NAVIGATION,
+                    input_data={"url": url},
+                    timeout_s=to,
+                )
+                wf = WorkflowDefinition.create(session_id="mcp_session", steps=[step], name="mcp_navigate")
+                wf_res = await bp.run_workflow(workflow=wf)
+                return {
+                    "status": "success" if wf_res.status.value == "COMPLETED" else "failed",
+                    "verified": wf_res.is_verified,
+                    "result": wf_res.output,
+                }
+
+            elif tool_name == "workflow_resolve":
+                selector = arguments.get("selector")
+                if not selector:
+                    return {"error": "Missing required argument 'selector'"}
+                from behavioral_playwright.orchestration.models import ActionType, WorkflowDefinition, WorkflowStep
+                step = WorkflowStep.create(
+                    action="resolve",
+                    action_type=ActionType.READ_ONLY,
+                    input_data={"selector": selector},
+                )
+                wf = WorkflowDefinition.create(session_id="mcp_session", steps=[step], name="mcp_resolve")
+                wf_res = await bp.run_workflow(workflow=wf)
+                return {
+                    "status": "success" if wf_res.status.value == "COMPLETED" else "failed",
+                    "verified": wf_res.is_verified,
+                    "result": str(wf_res.output),
+                }
+
+            elif tool_name == "workflow_extract":
+                selector = arguments.get("selector")
+                target = arguments.get("target", "text")
+                from behavioral_playwright.orchestration.models import ActionType, WorkflowDefinition, WorkflowStep
+                step = WorkflowStep.create(
+                    action="extract",
+                    action_type=ActionType.DATA_EXTRACTION,
+                    input_data={"selector": selector, "target": target},
+                )
+                wf = WorkflowDefinition.create(session_id="mcp_session", steps=[step], name="mcp_extract")
+                wf_res = await bp.run_workflow(workflow=wf)
+                return {
+                    "status": "success" if wf_res.status.value == "COMPLETED" else "failed",
+                    "verified": wf_res.is_verified,
+                    "result": wf_res.output,
+                }
+
+            elif tool_name == "workflow_search":
+                query = arguments.get("query")
+                if not query:
+                    return {"error": "Missing required argument 'query'"}
+                from behavioral_playwright.orchestration.models import ActionType, WorkflowDefinition, WorkflowStep
+                step = WorkflowStep.create(
+                    action="search",
+                    action_type=ActionType.DOM_INTERACTION,
+                    input_data={"query": query},
+                )
+                wf = WorkflowDefinition.create(session_id="mcp_session", steps=[step], name="mcp_search")
+                wf_res = await bp.run_workflow(workflow=wf)
+                return {
+                    "status": "success" if wf_res.status.value == "COMPLETED" else "failed",
+                    "verified": wf_res.is_verified,
+                    "result": wf_res.output,
+                }
+
+            elif tool_name == "workflow_verify":
+                cond = arguments.get("condition_type", "page_open")
+                params = arguments.get("params", {})
+                from behavioral_playwright.orchestration.models import ActionType, Condition, WorkflowDefinition, WorkflowStep
+                step = WorkflowStep.create(
+                    action="verify",
+                    action_type=ActionType.READ_ONLY,
+                    input_data=params,
+                    preconditions=[Condition(name="verify_cond", condition_type=cond, params=params)],
+                )
+                wf = WorkflowDefinition.create(session_id="mcp_session", steps=[step], name="mcp_verify")
+                wf_res = await bp.run_workflow(workflow=wf)
+                return {
+                    "status": "success" if wf_res.status.value == "COMPLETED" else "failed",
+                    "verified": wf_res.is_verified,
                 }
 
             return {"error": f"Unknown tool: {tool_name}"}

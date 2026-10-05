@@ -1,5 +1,8 @@
-"""Deterministic CircuitBreaker for fault tolerance and failure isolation."""
+"""Deterministic, thread/async-safe CircuitBreaker for fault tolerance and failure isolation."""
 
+from __future__ import annotations
+
+import asyncio
 from enum import Enum
 import time
 from typing import Any, Callable, Coroutine, Optional, TypeVar
@@ -23,7 +26,7 @@ class CircuitState(str, Enum):
 class CircuitBreaker:
     """
     Finite State Machine CircuitBreaker isolating systemic failures.
-    Accepts an injectable clock function for deterministic testing.
+    Thread/async safe with asyncio.Lock and injectable clock function for deterministic testing.
     """
 
     def __init__(
@@ -37,6 +40,7 @@ class CircuitBreaker:
         self._failure_count = 0
         self._last_state_change = self._clock_fn()
         self._half_open_successes = 0
+        self._lock = asyncio.Lock()
 
     @property
     def state(self) -> CircuitState:
@@ -89,16 +93,24 @@ class CircuitBreaker:
         coro_fn: Callable[[], Coroutine[Any, Any, T]],
         operation_name: str = "operation"
     ) -> T:
-        """Executes an operation protected by the circuit breaker."""
-        if self.state == CircuitState.OPEN:
-            raise CircuitBreakerError(
-                f"CircuitBreaker is OPEN for {operation_name}. Operation rejected."
-            )
+        """Executes an operation protected by the circuit breaker with lock synchronization."""
+        # 1. State check under lock to prevent race conditions during state transitions
+        async with self._lock:
+            current_st = self.state
+            if current_st == CircuitState.OPEN:
+                raise CircuitBreakerError(
+                    f"CircuitBreaker is OPEN for {operation_name}. Operation rejected."
+                )
 
         try:
             result = await coro_fn()
-            self.record_success()
+            async with self._lock:
+                self.record_success()
             return result
+        except asyncio.CancelledError:
+            # Cancellation should not count as a service failure
+            raise
         except Exception as e:
-            self.record_failure()
+            async with self._lock:
+                self.record_failure()
             raise e

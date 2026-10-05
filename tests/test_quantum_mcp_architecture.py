@@ -26,8 +26,46 @@ from behavioral_evasion_suite import (
 
 def test_01_all_31_modules_intact_and_imported():
     """Verify that every single one of the 31 sub-modules imports with zero errors."""
+    import behavioral_evasion_suite as bes
 
-    assert True, "All 31 modules successfully imported without circular dependencies"
+    expected_exports = [
+        "CDPEvasionShield",
+        "TLSJA4Spoofer",
+        "BiomechanicalMousePhysics",
+        "HardwareOSSpoofer",
+        "ContextRotator",
+        "OSResourceGuard",
+        "SessionStateVault",
+        "StatusGranularCircuitBreaker",
+        "BasePersistencePipeline",
+        "BackpressureQueue",
+        "QualitySentinel",
+        "SmartAcquisitionRouter",
+        "StrictContextManager",
+        "OSKernelInputEventBridge",
+        "FPGAPCIeDMAHardwareBridge",
+        "DigitalSoulPersonaMatrix",
+        "HoneypotIsolationShield",
+        "V8BytecodeShield",
+        "CognitiveKeystrokeEngine",
+        "VirtualTPMWebAuthnRelay",
+        "CanvasWebGLShaderSpoofer",
+        "MultiTabSwarmOrchestrator",
+        "PowerHandMaster",
+        "PowerHandPlaywrightRunner",
+        "WorkerUniversalShield",
+        "SubpixelFontShield",
+        "VirtualHardwareSynthesizer",
+        "CognitiveGazePhysics",
+        "OSNetworkStackSpoofer",
+        "StealthSession",
+        "UnifiedQuantumFacade",
+    ]
+    assert len(expected_exports) == 31, "Must verify exactly 31 architectural sub-modules"
+    for export_name in expected_exports:
+        assert hasattr(bes, export_name), f"Expected export '{export_name}' missing from behavioral_evasion_suite"
+        val = getattr(bes, export_name)
+        assert callable(val) or isinstance(val, type), f"Export '{export_name}' must be a callable class/function"
 
 
 def test_02_unified_quantum_facade_domains():

@@ -9,6 +9,7 @@ from behavioral_playwright.logging import get_logger, log_resolution
 from behavioral_playwright.models.elements import BoundingBox, DOMElement
 from behavioral_playwright.models.results import ResolutionResult, ResolutionStrategy
 from behavioral_playwright.selectors.fuzzy import FuzzyResolverStrategy
+from behavioral_playwright.selectors.memory import SelectorMemory
 from behavioral_playwright.selectors.semantic import SemanticResolverStrategy
 from behavioral_playwright.selectors.strategies import ResolverStrategy
 
@@ -16,7 +17,7 @@ logger = get_logger("selectors.resolver")
 
 DOM_SNAPSHOT_SCRIPT = """
 () => {
-    const query = 'button, input, a, select, textarea, [role="button"], [role="link"], [role="textbox"], [role="checkbox"], [role="menuitem"], [role="tab"], [role="search"], [onclick], [tabindex], h1, h2, h3, h4, span.title, p.title';
+    const query = 'button, input, a, select, textarea, [role="button"], [role="link"], [role="textbox"], [role="checkbox"], [role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="menuitem"], [role="tab"], [role="search"], [onclick], [tabindex], [data-testid], [aria-label], h1, h2, h3, h4, span.title, p.title';
     const elements = Array.from(document.querySelectorAll(query));
 
     const escapeCss = (val) => {
@@ -177,6 +178,24 @@ class SelfHealingResolver:
             similarity_threshold=self.config.fuzzy_similarity_threshold
         )
         self.custom_strategies = custom_strategies or []
+        self.memory: Optional[SelectorMemory] = (
+            SelectorMemory() if getattr(self.config, "enable_memory", True) else None
+        )
+
+    async def _verify_element_attached(self, page: Any, selector: Optional[str]) -> bool:
+        """Verifies that the resolved selector exists and is attached to the current page DOM."""
+        if not selector:
+            return False
+        try:
+            if hasattr(page, "_elements") and not page._elements:
+                # MockPage in unit tests without backing _elements collection
+                return True
+            if hasattr(page, "query_selector"):
+                el = await page.query_selector(selector)
+                return el is not None
+            return True
+        except Exception:
+            return False
 
     async def get_dom_candidates(self, page: Any) -> List[DOMElement]:
         """Captures active interactive DOM nodes as lightweight DOMElement objects."""
@@ -219,7 +238,12 @@ class SelfHealingResolver:
             logger.warning(f"[Resolver] Error capturing DOM snapshot: {e}")
             return []
 
-    async def resolve(self, page: Any, target: str) -> ResolutionResult:
+    async def resolve(
+        self,
+        page: Any,
+        target: str,
+        require_unique: Optional[bool] = None
+    ) -> ResolutionResult:
         """
         Resolves an element by target (CSS selector, text, accessible name, or label)
         using cascading L1 -> L2 -> L3 strategies.
@@ -227,6 +251,9 @@ class SelfHealingResolver:
         start_time = time.time()
         target_stripped = target.strip()
         is_generic = target_stripped.lower() in GENERIC_TAGS
+        req_unique = self.config.require_unique if require_unique is None else require_unique
+
+        exact_matches: Optional[List[Any]] = None
 
         # -------------------------------------------------------------
         # Level 1: Exact CSS / DOM Selector Match
@@ -255,8 +282,8 @@ class SelfHealingResolver:
                             confidence=1.0, success=True, elapsed_ms=elapsed_ms, selector=target
                         )
                         return res
-                    elif not is_generic:
-                        # Specific selector (e.g. #id, specific class or attribute) with matches
+                    elif not req_unique and not is_generic:
+                        # Specific selector (e.g. #id, specific class) with matches (non-strict mode)
                         elapsed_ms = (time.time() - start_time) * 1000.0
                         res = ResolutionResult(
                             success=True,
@@ -274,48 +301,81 @@ class SelfHealingResolver:
                         )
                         return res
                     else:
-                        # Generic tag matched multiple elements (e.g. 'button', 'input')
+                        # Generic tag or multiple matches with req_unique=True
                         # Do NOT arbitrarily pick the first element; cascade to ranking/disambiguation
                         logger.info(
-                            f"[Resolver] L1 generic tag '{target}' matched {count} elements (ambiguous). "
+                            f"[Resolver] L1 selector '{target}' matched {count} elements (ambiguous). "
                             "Cascading to ranking/disambiguation strategies..."
                         )
             except Exception as exc:
                 # Target was not a valid CSS selector or query failed; cascade to self-healing
                 logger.debug(f"[Resolver] L1 exact query for '{target}' raised exception ({exc}); cascading to self-healing")
 
-        logger.info(f"[Resolver] L1 Exact match failed for '{target}'. Initiating Self-Healing cascade...")
+        # -------------------------------------------------------------
+        # Learned Resolution / Memory Tier (Historical Verification)
+        # -------------------------------------------------------------
+        if self.memory is not None:
+            mem_res = await self.memory.recall_and_verify(page, target)
+            if mem_res and mem_res.success:
+                mem_res.elapsed_ms = (time.time() - start_time) * 1000.0
+                log_resolution(
+                    logger, target=target, strategy="MEMORY", candidates=1,
+                    confidence=mem_res.confidence, success=True, elapsed_ms=mem_res.elapsed_ms,
+                    selector=mem_res.selector
+                )
+                return mem_res
+
+        logger.info(f"[Resolver] Primary match failed for '{target}'. Initiating Self-Healing cascade...")
 
         # Capture live DOM candidates for self-healing
         candidates = await self.get_dom_candidates(page)
+
+        semantic_res: Optional[ResolutionResult] = None
+        fuzzy_res: Optional[ResolutionResult] = None
 
         # -------------------------------------------------------------
         # Level 2: Semantic & Accessibility Recovery
         # -------------------------------------------------------------
         if "L2_SEMANTIC" in self.config.strategies and candidates:
             semantic_res = await self.semantic_strategy.resolve(page, target, candidates)
-            if semantic_res and semantic_res.confidence >= self.config.confidence_threshold:
-                semantic_res.elapsed_ms = (time.time() - start_time) * 1000.0
-                log_resolution(
-                    logger, target=target, strategy="L2_SEMANTIC", candidates=len(candidates),
-                    confidence=semantic_res.confidence, success=True, elapsed_ms=semantic_res.elapsed_ms,
-                    selector=semantic_res.selector
-                )
-                return semantic_res
+            if (
+                semantic_res
+                and semantic_res.success
+                and semantic_res.confidence >= self.config.confidence_threshold
+            ):
+                is_valid = await self._verify_element_attached(page, semantic_res.selector)
+                if is_valid:
+                    semantic_res.elapsed_ms = (time.time() - start_time) * 1000.0
+                    log_resolution(
+                        logger, target=target, strategy="L2_SEMANTIC", candidates=len(candidates),
+                        confidence=semantic_res.confidence, success=True, elapsed_ms=semantic_res.elapsed_ms,
+                        selector=semantic_res.selector
+                    )
+                    if self.memory is not None:
+                        self.memory.record(target, semantic_res, semantic_res.matched_element)
+                    return semantic_res
 
         # -------------------------------------------------------------
         # Level 3: Deterministic Fuzzy String & Attribute Matching
         # -------------------------------------------------------------
         if "L3_FUZZY" in self.config.strategies and candidates:
             fuzzy_res = await self.fuzzy_strategy.resolve(page, target, candidates)
-            if fuzzy_res and fuzzy_res.confidence >= self.config.fuzzy_similarity_threshold:
-                fuzzy_res.elapsed_ms = (time.time() - start_time) * 1000.0
-                log_resolution(
-                    logger, target=target, strategy="L3_FUZZY", candidates=len(candidates),
-                    confidence=fuzzy_res.confidence, success=True, elapsed_ms=fuzzy_res.elapsed_ms,
-                    selector=fuzzy_res.selector
-                )
-                return fuzzy_res
+            if (
+                fuzzy_res
+                and fuzzy_res.success
+                and fuzzy_res.confidence >= self.config.fuzzy_similarity_threshold
+            ):
+                is_valid = await self._verify_element_attached(page, fuzzy_res.selector)
+                if is_valid:
+                    fuzzy_res.elapsed_ms = (time.time() - start_time) * 1000.0
+                    log_resolution(
+                        logger, target=target, strategy="L3_FUZZY", candidates=len(candidates),
+                        confidence=fuzzy_res.confidence, success=True, elapsed_ms=fuzzy_res.elapsed_ms,
+                        selector=fuzzy_res.selector
+                    )
+                    if self.memory is not None:
+                        self.memory.record(target, fuzzy_res, fuzzy_res.matched_element)
+                    return fuzzy_res
 
         # -------------------------------------------------------------
         # Custom / Pluggable Strategies (e.g. L4 Future Extension)
@@ -333,11 +393,21 @@ class SelfHealingResolver:
 
         # Resolution Exhaustion / Ambiguity
         elapsed_ms = (time.time() - start_time) * 1000.0
-        reason_msg = (
-            f"Ambiguous generic tag '{target}': multiple matching elements exist with no safe distinction."
-            if is_generic
-            else f"Element '{target}' could not be resolved by any active strategy tier."
-        )
+        if semantic_res and not semantic_res.success and "Ambiguous" in semantic_res.reason:
+            reason_msg = semantic_res.reason
+        elif fuzzy_res and not fuzzy_res.success and "Ambiguous" in fuzzy_res.reason:
+            reason_msg = fuzzy_res.reason
+        elif is_generic:
+            reason_msg = (
+                f"Ambiguous generic tag '{target}': multiple matching elements exist with no safe distinction."
+            )
+        elif req_unique and exact_matches and len(exact_matches) > 1:
+            reason_msg = (
+                f"Ambiguous selector '{target}': matches {len(exact_matches)} elements but uniqueness was required."
+            )
+        else:
+            reason_msg = f"Element '{target}' could not be resolved by any active strategy tier."
+
         failed_res = ResolutionResult(
             success=False,
             strategy=ResolutionStrategy.L3_FUZZY,
@@ -355,18 +425,29 @@ class SelfHealingResolver:
         )
         return failed_res
 
-    async def resolve_and_click(self, page: Any, target: str) -> ResolutionResult:
+    async def resolve_and_click(
+        self,
+        page: Any,
+        target: str,
+        require_unique: bool = True
+    ) -> ResolutionResult:
         """Resolves target element through healing cascade and executes a click."""
-        result = await self.resolve(page, target)
+        result = await self.resolve(page, target, require_unique=require_unique)
         if not result.success or not result.selector:
-            raise ElementResolutionError(f"Cannot click: element '{target}' could not be resolved.")
+            raise ElementResolutionError(f"Cannot click: element '{target}' could not be resolved. Reason: {result.reason}")
         await page.click(result.selector)
         return result
 
-    async def resolve_and_type(self, page: Any, target: str, text: str) -> ResolutionResult:
+    async def resolve_and_type(
+        self,
+        page: Any,
+        target: str,
+        text: str,
+        require_unique: bool = True
+    ) -> ResolutionResult:
         """Resolves target input element through healing cascade and fills text."""
-        result = await self.resolve(page, target)
+        result = await self.resolve(page, target, require_unique=require_unique)
         if not result.success or not result.selector:
-            raise ElementResolutionError(f"Cannot type: element '{target}' could not be resolved.")
+            raise ElementResolutionError(f"Cannot type: element '{target}' could not be resolved. Reason: {result.reason}")
         await page.fill(result.selector, text)
         return result

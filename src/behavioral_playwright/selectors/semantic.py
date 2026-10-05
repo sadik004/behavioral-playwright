@@ -9,12 +9,12 @@ from behavioral_playwright.selectors.strategies import ResolverStrategy
 
 
 def _extract_tokens(s: str) -> str:
-    """Extracts alphanumeric words from selector or text strings."""
+    """Extracts alphanumeric/unicode words from selector or text strings."""
     if not s:
         return ""
     # Strip common selector prefixes / noise words
     s = re.sub(r"^(button|a|input|select|div|span)[\.#]", "", s.strip(), flags=re.IGNORECASE)
-    words = re.findall(r"[a-zA-Z0-9]+", s.lower())
+    words = re.findall(r"\w+", s.lower(), flags=re.UNICODE)
     # Filter out pure noise terms
     meaningful = [w for w in words if w not in ["btn", "button", "v1", "v2", "v3", "v4", "link", "custom", "item", "wrapper", "dynamic", "hash"]]
     if meaningful:
@@ -76,9 +76,13 @@ class SemanticResolverStrategy(ResolverStrategy):
                 if overlap >= 0.50:
                     score = max(score, weight * overlap)
 
-        # Role and Tag boost
+        # Role and Tag boost:
+        # Boost existing matches, or match if target is purely specifying the role itself
         if el.role and el.role.lower() in target.lower():
-            score = max(score, 0.70)
+            if score > 0.0:
+                score = min(1.0, score + 0.10)
+            elif target_tokens == el.role.lower():
+                score = 0.70
 
         if el.tag in ["button", "a", "input", "textarea", "select"] and score > 0.0:
             score = min(1.0, score + 0.05)

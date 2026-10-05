@@ -27,6 +27,8 @@ class ResolverConfig:
     fuzzy_similarity_threshold: float = 0.65
     max_candidates: int = 50
     timeout_ms: int = 10000
+    require_unique: bool = False
+    enable_memory: bool = True
 
 
 @dataclass

@@ -105,7 +105,18 @@ class BrowserPoolManager:
                 logger.info("[BrowserPoolManager] Master browser process initialized successfully.")
             except Exception as exc:
                 logger.error(f"[BrowserPoolManager] Failed to initialize master browser: {exc}")
-                await self.shutdown()
+                try:
+                    if self._browser:
+                        await self._browser.close()
+                    if self._playwright:
+                        await self._playwright.stop()
+                except Exception as close_exc:
+                    logger.warning(f"[BrowserPoolManager] Error cleaning up after failed init: {close_exc}")
+                finally:
+                    self._browser = None
+                    self._playwright = None
+                    self._initialized = False
+                    self._active_contexts = 0
                 raise BrowserProviderError(f"BrowserPool initialization failed: {exc}") from exc
 
     async def _setup_route_interception(self, context: BrowserContext, allow_media: bool) -> None:

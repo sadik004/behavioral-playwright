@@ -68,9 +68,9 @@ def test_provider_matrix_reports_honest_local_state():
         "browser/playwright", "browser/patchright", "browser/undetected_chromedriver",
         "network/curl_cffi", "agent/browser_use", "agent/stagehand",
     }
-    assert matrix["browser/playwright"].installed is True
-    assert matrix["browser/patchright"].installed is True
-    assert matrix["browser/undetected_chromedriver"].installed is True
+    assert matrix["browser/playwright"].installed is PlaywrightProvider().is_available()
+    assert matrix["browser/patchright"].installed is PatchrightProvider().is_available()
+    assert matrix["browser/undetected_chromedriver"].installed is UndetectedChromedriverProvider().is_available()
 
     # curl_cffi: environment-aware honesty verification
     curl_available = CurlCffiProvider().is_available()
@@ -81,8 +81,8 @@ def test_provider_matrix_reports_honest_local_state():
     else:
         assert matrix["network/curl_cffi"].error is not None
 
-    assert matrix["agent/browser_use"].installed is False
-    assert matrix["agent/stagehand"].installed is False
+    assert matrix["agent/browser_use"].installed is BrowserUseProvider().is_available()
+    assert matrix["agent/stagehand"].installed is StagehandProvider().is_available()
 
 
 # ------------------------------------------------- honest provider gating

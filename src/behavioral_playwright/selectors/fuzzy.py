@@ -14,7 +14,7 @@ def normalize_text(text: str) -> str:
         return ""
     text = text.lower()
     text = re.sub(r"^(button|a|input|select|div|span)[\.#]", "", text)
-    text = re.sub(r"[^\w\s]", " ", text)
+    text = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -50,9 +50,9 @@ def calculate_similarity_ratio(s1: str, s2: str) -> float:
         return 0.0
     if n1 == n2:
         return 1.0
-    if n1 in n2 or n2 in n1:
-        shorter = min(len(n1), len(n2))
-        longer = max(len(n1), len(n2))
+    shorter = min(len(n1), len(n2))
+    longer = max(len(n1), len(n2))
+    if (n1 in n2 or n2 in n1) and (shorter / longer >= 0.35 or shorter >= 4):
         return round(0.70 + (0.30 * (shorter / longer)), 3)
 
     dist = calculate_levenshtein_distance(n1, n2)

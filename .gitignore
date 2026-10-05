@@ -36,3 +36,5 @@ test_pipeline_output.ndjson
 pseo-growth-engine/
 Reddit.mcp/
 n8n.mcp/
+screenshot.png
+network_trace.json

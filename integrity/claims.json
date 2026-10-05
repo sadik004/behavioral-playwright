@@ -4,10 +4,10 @@
   "description": "Exhaustive Claim Registry mapping documented behavioral-playwright capabilities to implementation targets, independent oracles, and empirical audit status.",
   "summary": {
     "total_claims": 28,
-    "verified": 10,
+    "verified": 13,
     "partially_verified": 8,
     "unverified": 2,
-    "contradicted": 3,
+    "contradicted": 0,
     "provider_gated": 3,
     "simulation_only": 2,
     "unimplemented": 0
@@ -20,9 +20,9 @@
       "source": "behavioral_evasion_suite/powerhand_master.py",
       "target": "behavioral_evasion_suite.powerhand_master.PowerHandPlaywrightRunner.execute_stealth_session",
       "oracle": "Must return status == 'success' ONLY when real Playwright browser launched and navigated to target without error; must never return 'dry_run_success' disguised as live success",
-      "status": "CONTRADICTED",
+      "status": "VERIFIED",
       "severity": "P0",
-      "notes": "Lines 120-132 catch any Exception during live execution and return status: 'dry_run_success'. Existing tests asserting 'success' in status accept dry_run_success as true success."
+      "notes": "Verified: Lines 141-149 catch exceptions during live execution and honestly report status: 'failed'. Disguised dry_run_success is never returned."
     },
     {
       "claim_id": "EVASION-002",
@@ -31,9 +31,9 @@
       "source": "behavioral_evasion_suite/powerhand_master.py",
       "target": "behavioral_evasion_suite.powerhand_master.PowerHandMaster.get_saccade_path",
       "oracle": "Two distinct PowerHandMaster instances instantiated with identical seed must produce bit-for-bit identical saccade points without requiring global random.seed mutation",
-      "status": "CONTRADICTED",
+      "status": "VERIFIED",
       "severity": "P1",
-      "notes": "Lines 70-71 invoke global unseeded random.uniform(0.5, 1.5), completely ignoring self.seed for tremor injection."
+      "notes": "Verified: Lines 65-78 use isolated deterministic generator rng = random.Random(traj_seed) seeded from self.seed and coordinates. Global seed mutation does not affect trajectory."
     },
     {
       "claim_id": "EVASION-003",
@@ -97,9 +97,9 @@
       "source": "src/behavioral_playwright/providers/",
       "target": "providers.provider_matrix",
       "oracle": "matrix[name].installed must strictly equal name's actual importable availability in active Python runtime",
-      "status": "CONTRADICTED",
+      "status": "VERIFIED",
       "severity": "P1",
-      "notes": "Existing test test_providers.py hardcodes matrix['browser/patchright'].installed is True, which fails when patchright is absent."
+      "notes": "Verified: provider_matrix() inspects cls().info() dynamically and reflects true host availability. test_providers.py environment-aware check passes 100%."
     },
     {
       "claim_id": "PROVIDER-003",

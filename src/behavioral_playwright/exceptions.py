@@ -87,3 +87,64 @@ class ProviderUnavailableError(BehavioralPlaywrightError, RuntimeError):
 class ProviderError(BehavioralPlaywrightError):
     """Raised when an underlying provider operation fails at runtime."""
     pass
+
+
+class MappingError(BehavioralPlaywrightError):
+    """Raised when structured schema mapping or page understanding fails."""
+    pass
+
+
+class AmbiguityError(MappingError):
+    """Raised when candidate fields or targets are ambiguous and cannot be resolved with confidence."""
+    pass
+
+
+class SearchError(BehavioralPlaywrightError):
+    """Raised when a search query or result extraction fails."""
+    pass
+
+
+class OrchestrationError(BehavioralPlaywrightError):
+    """Base exception for workflow orchestration and agentic execution failures."""
+    pass
+
+
+class WorkflowError(OrchestrationError):
+    """Raised when workflow construction or execution fails."""
+    pass
+
+
+class PlanError(OrchestrationError):
+    """Raised when a planner fails to produce a valid execution plan."""
+    pass
+
+
+class ExecutionError(OrchestrationError):
+    """Raised when an underlying workflow step execution fails."""
+    pass
+
+
+class PolicyViolationError(OrchestrationError):
+    """Raised when a proposed action violates safety, security, or execution policy."""
+    pass
+
+
+class ApprovalRequiredError(OrchestrationError):
+    """Raised when a sensitive or irreversible action requires human or policy approval."""
+    pass
+
+
+class RunawayLoopError(OrchestrationError):
+    """Raised when an autonomous loop, action oscillation, or runaway execution is detected."""
+    pass
+
+
+class VerificationFailedError(OrchestrationError):
+    """Raised when live runtime post-execution verification fails to validate state."""
+    pass
+
+
+class WorkflowTimeoutError(OrchestrationError):
+    """Raised when a workflow or step exceeds its monotonic timeout budget."""
+    pass
+

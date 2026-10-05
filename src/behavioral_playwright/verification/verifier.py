@@ -45,20 +45,39 @@ class StateVerifier:
             issues.append(f"Expected URL to be '{expected_url}', got '{current_url}'")
             
         if expected_element_selector:
-            # Check element visibility
-            loc = self.page.raw_page.locator(expected_element_selector)
             try:
-                # wait for it briefly
-                await loc.wait_for(state="visible", timeout=2000)
-            except Exception:
+                if hasattr(self.page.raw_page, "locator"):
+                    loc = self.page.raw_page.locator(expected_element_selector)
+                    try:
+                        await loc.wait_for(state="visible", timeout=2000)
+                    except Exception:
+                        verification_passed = False
+                        issues.append(f"Expected element '{expected_element_selector}' was not visible.")
+
+                    if verification_passed and expected_text:
+                        actual_text = await loc.inner_text()
+                        if expected_text not in actual_text:
+                            verification_passed = False
+                            issues.append(f"Expected text '{expected_text}' in element '{expected_element_selector}', got '{actual_text}'")
+                else:
+                    script = """
+                    (args) => {
+                        const el = document.querySelector(args.sel);
+                        if (!el) return { found: false, visible: false, text: "" };
+                        return { found: true, visible: true, text: (el.innerText || el.textContent || '').trim() };
+                    }
+                    """
+                    res = await self.page.evaluate(script, {"sel": expected_element_selector})
+                    if not res or not res.get("visible"):
+                        verification_passed = False
+                        issues.append(f"Expected element '{expected_element_selector}' was not visible.")
+                    elif expected_text and expected_text not in res.get("text", ""):
+                        verification_passed = False
+                        issues.append(f"Expected text '{expected_text}' in element '{expected_element_selector}', got '{res.get('text')}'")
+            except Exception as e:
                 verification_passed = False
-                issues.append(f"Expected element '{expected_element_selector}' was not visible.")
-                
-            if verification_passed and expected_text:
-                actual_text = await loc.inner_text()
-                if expected_text not in actual_text:
-                    verification_passed = False
-                    issues.append(f"Expected text '{expected_text}' in element '{expected_element_selector}', got '{actual_text}'")
+                issues.append(f"Verification of element '{expected_element_selector}' failed: {e}")
+
 
         if state_before:
             if "url" in state_before and state_before["url"] != current_url:

@@ -43,7 +43,7 @@ class Crawler:
                     
                     # Add new links to queue
                     for link_record in page_links:
-                        url = link_record.metadata.get("url")
+                        url = link_record.href or link_record.url or link_record.get("url")
                         if url and isinstance(url, str) and url.startswith("http") and url not in visited:
                             queue.append(url)
             except Exception as e:

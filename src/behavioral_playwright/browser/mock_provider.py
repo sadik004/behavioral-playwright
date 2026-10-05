@@ -27,6 +27,11 @@ class MockElementHandle:
     async def fill(self, text: str) -> None:
         self.text = text
 
+    async def evaluate(self, script: str, arg: Any = None) -> Any:
+        if "tagName" in script:
+            return self.tag.upper()
+        return None
+
 
 class MockPage:
     """Mock Page object representing an in-memory browser tab."""
@@ -76,26 +81,44 @@ class MockPage:
                 return res
         return None
 
+    def _element_matches(self, el: MockElementHandle, selector: str) -> bool:
+        sel = selector.strip()
+        if sel == "*":
+            return True
+        if sel.startswith("#"):
+            return el.attributes.get("id") == sel[1:]
+        if sel.startswith("."):
+            return sel[1:] in el.attributes.get("class", "").split()
+        if sel == el.tag:
+            return True
+        if "#" in sel:
+            tag, eid = sel.split("#", 1)
+            return el.tag == tag and el.attributes.get("id") == eid
+        if "." in sel:
+            tag, cls = sel.split(".", 1)
+            return el.tag == tag and cls in el.attributes.get("class", "").split()
+        if "[" in sel and "]" in sel:
+            tag_part = sel[:sel.index("[")].strip()
+            attr_part = sel[sel.index("[") + 1:sel.rindex("]")].strip()
+            if tag_part and tag_part != el.tag:
+                return False
+            if "=" in attr_part:
+                attr_name, attr_val = attr_part.split("=", 1)
+                attr_name = attr_name.strip()
+                attr_val = attr_val.strip("\"'")
+                return el.attributes.get(attr_name) == attr_val
+            else:
+                return attr_part in el.attributes
+        return False
+
     async def query_selector(self, selector: str) -> Optional[MockElementHandle]:
         for el in self._elements:
-            if selector.startswith("#") and el.attributes.get("id") == selector[1:]:
-                return el
-            if selector.startswith(".") and selector[1:] in el.attributes.get("class", "").split():
-                return el
-            if el.tag == selector:
+            if self._element_matches(el, selector):
                 return el
         return None
 
     async def query_selector_all(self, selector: str) -> List[MockElementHandle]:
-        matches = []
-        for el in self._elements:
-            if selector.startswith("#") and el.attributes.get("id") == selector[1:]:
-                matches.append(el)
-            elif selector.startswith(".") and selector[1:] in el.attributes.get("class", "").split():
-                matches.append(el)
-            elif el.tag == selector or selector == "*":
-                matches.append(el)
-        return matches
+        return [el for el in self._elements if self._element_matches(el, selector)]
 
     async def click(self, selector: str) -> None:
         self.clicks_recorded.append(selector)

@@ -112,11 +112,22 @@ from behavioral_playwright.providers import (
     create_agent_provider,
     provider_matrix,
 )
+from behavioral_playwright.orchestration import (
+    ActionType,
+    StepStatus,
+    WorkflowDefinition,
+    WorkflowOrchestrator,
+    WorkflowResult,
+    WorkflowStatus,
+    WorkflowStep,
+)
+import behavioral_playwright.orchestration as orchestration
 
 __all__ = [
     "__version__",
     "AIOAuditResult",
     "AIOAuditor",
+    "ActionType",
     "AutomationConfig",
     "BaseBrowserProvider",
     "BehavioralPlaywrightError",
@@ -167,6 +178,7 @@ __all__ = [
     "MouseController",
 
     "NavigationError",
+    "orchestration",
     "PAAMiner",
     "PAANode",
     "PageSession",
@@ -197,10 +209,16 @@ __all__ = [
     "SERPCannibalizationEngine",
     "StagehandProvider",
     "StateTracker",
+    "StepStatus",
     "SuggestMiner",
     "SuggestResult",
     "TimeoutError",
     "UltimateVisionLanguageActionGuard",
     "UndetectedChromedriverProvider",
+    "WorkflowDefinition",
+    "WorkflowOrchestrator",
+    "WorkflowResult",
+    "WorkflowStatus",
+    "WorkflowStep",
 ]
 

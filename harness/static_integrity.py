@@ -43,9 +43,11 @@ class StaticIntegrityAuditor(ast.NodeVisitor):
         self.findings: List[StaticFinding] = []
         self._in_test_file = "test" in file_path.name
         self._raw_lines: List[str] = []
+        self._assigned_vars: Dict[str, ast.AST] = {}
 
     def audit(self, source_text: str) -> List[StaticFinding]:
         self._raw_lines = source_text.splitlines()
+        self._assigned_vars.clear()
         try:
             tree = ast.parse(source_text, filename=str(self.file_path))
             self.visit(tree)
@@ -69,6 +71,12 @@ class StaticIntegrityAuditor(ast.NodeVisitor):
             return self._raw_lines[lineno - 1].strip()
         return ""
 
+    def visit_Assign(self, node: ast.Assign) -> None:
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                self._assigned_vars[target.id] = node.value
+        self.generic_visit(node)
+
     def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
         # 1. Broad exception swallowing: except: pass or except Exception: pass
         if len(node.body) == 1 and isinstance(node.body[0], ast.Pass):
@@ -89,9 +97,18 @@ class StaticIntegrityAuditor(ast.NodeVisitor):
 
         # 2. Exception to Fake Success Conversion: except: return {"status": "success" | "dry_run_success"}
         for stmt in node.body:
-            if isinstance(stmt, ast.Return) and isinstance(stmt.value, ast.Dict):
+            dict_node = None
+            if isinstance(stmt, ast.Return):
+                if isinstance(stmt.value, ast.Dict):
+                    dict_node = stmt.value
+                elif isinstance(stmt.value, ast.Name) and stmt.value.id in self._assigned_vars:
+                    assigned_val = self._assigned_vars[stmt.value.id]
+                    if isinstance(assigned_val, ast.Dict):
+                        dict_node = assigned_val
+
+            if dict_node:
                 # Check dictionary keys and values
-                for k, v in zip(stmt.value.keys, stmt.value.values):
+                for k, v in zip(dict_node.keys, dict_node.values):
                     if isinstance(k, ast.Constant) and k.value == "status":
                         if isinstance(v, ast.Constant) and ("success" in str(v.value).lower()):
                             self.findings.append(

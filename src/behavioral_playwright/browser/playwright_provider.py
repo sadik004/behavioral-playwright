@@ -76,6 +76,7 @@ class PlaywrightProvider(BrowserProvider):
             logger.info("[Provider] Playwright browser context launched successfully.")
         except Exception as e:
             logger.error(f"[Provider] Failed to launch Playwright browser: {e}")
+            await self.close()
             raise BrowserProviderError(f"Playwright launch failed: {e}") from e
 
     @staticmethod

@@ -1321,12 +1321,41 @@ class BP:
         if not self.page:
             raise RuntimeError("BP is not booted. Call bp.boot() first.")
         
-        if target == "links":
+        target_lower = str(target).lower()
+        if target_lower == "links":
             return await self.page.extract_links(container_selector)
-        elif target == "articles":
+        elif target_lower == "articles":
             return await self.page.extract_articles(container_selector)
+        elif target_lower == "table":
+            table_sel = container_selector or (options.get("table_selector") if options else None) or "table"
+            return await self.page.extract_table(table_sel)
+        elif target_lower == "images":
+            return await self.page.extract_images(container_selector)
+        elif target_lower == "text":
+            text_sel = container_selector or "body"
+            normalize = options.get("normalize", True) if options else True
+            return await self.page.extract_text(text_sel, normalize=normalize)
+        elif target_lower == "attributes":
+            attr_sel = container_selector or "body"
+            attrs = options.get("attributes") if options else None
+            return await self.page.extract_attributes(attr_sel, attributes=attrs)
+        elif target_lower == "list":
+            list_sel = container_selector or "ul"
+            return await self.page.extract_list(list_sel)
+        elif target_lower == "cards":
+            item_sel = (options.get("item_selector") if options else None) or ".card"
+            return await self.page.extract_cards(item_sel, schema=schema or {}, container_selector=container_selector)
+        elif target_lower in ("json_ld", "jsonld"):
+            return await self.page.extract_json_ld()
+        elif target_lower in ("open_graph", "opengraph", "og"):
+            return await self.page.extract_open_graph()
+        elif target_lower == "next_data":
+            return await self.page.extract_next_data()
+        elif target_lower == "nuxt_data":
+            return await self.page.extract_nuxt_data()
         else:
             raise ValueError(f"Extraction target '{target}' is not supported by DOMExtractor.")
+
 
     async def crawl(self, start_url: str, max_pages: int = 5) -> List[ExtractionRecord]:
         """Crawls starting from a URL and extracts data."""
@@ -1351,6 +1380,53 @@ class BP:
         from behavioral_playwright.mapping.mapper import SiteMapper
         mapper = SiteMapper(self.page)
         return await mapper.map(url)
+
+    async def map_schema(
+        self,
+        schema: Any,
+        confidence_threshold: float = 0.60,
+        strict_ambiguity: bool = False,
+        require_all_fields: bool = False,
+    ) -> Any:
+        """Extracts and maps live page evidence to target schema."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        return await self.page.map_schema(
+            schema,
+            confidence_threshold=confidence_threshold,
+            strict_ambiguity=strict_ambiguity,
+            require_all_fields=require_all_fields,
+        )
+
+
+    async def recover(self, reason: Optional[str] = None, restore_url: bool = True) -> bool:
+        """Executes coordinated recovery of the active page session."""
+        if not self.page:
+            await self.boot()
+        return await self.page.recover(reason=reason, restore_url=restore_url)
+
+    async def execute_resilient(
+        self,
+        coro_fn: Callable[[], Coroutine[Any, Any, T]],
+        operation_name: str = "operation",
+        operation_type: Any = None,
+        timeout_budget_s: Optional[float] = None,
+        auto_recover: bool = True,
+        explicit_idempotent: Optional[bool] = None,
+    ) -> T:
+        """Executes an operation protected by circuit breaker, retry policy with timeout budget/idempotency, and recovery."""
+        from behavioral_playwright.resilience.idempotency import OperationType
+        if not self.page:
+            await self.boot()
+        op_t = operation_type or OperationType.READ
+        return await self.page.execute_resilient(
+            coro_fn,
+            operation_name=operation_name,
+            operation_type=op_t,
+            timeout_budget_s=timeout_budget_s,
+            auto_recover=auto_recover,
+            explicit_idempotent=explicit_idempotent,
+        )
 
     async def handoff(self, context_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Exports or injects the current context state for handoff."""
@@ -1469,3 +1545,27 @@ class BP:
 
     async def press(self, selector: str, key: str) -> bool:
         return await self.browser.press(selector, key)
+
+    async def run_workflow(
+        self,
+        workflow: Optional[Any] = None,
+        goal: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+        planner: Optional[Any] = None,
+    ) -> Any:
+        """Executes an orchestrated, verification-driven workflow via BP facade."""
+        from behavioral_playwright.orchestration.models import WorkflowDefinition
+        from behavioral_playwright.orchestration.orchestrator import WorkflowOrchestrator
+        from behavioral_playwright.orchestration.planner import DeterministicPlanner
+        from behavioral_playwright.page.session import PageSession
+
+        session = getattr(self, "_active_page_session", None)
+        if session is None:
+            raw_page = getattr(self.browser, "_page", None)
+            if raw_page is None:
+                raw_page = await self.browser.new_page()
+            provider = getattr(self.browser, "provider", None) or getattr(self.browser, "_provider", None)
+            session = PageSession(raw_page=raw_page, provider=provider, config=self.config)
+            self._active_page_session = session
+
+        return await session.run_workflow(workflow=workflow, goal=goal, context=context, planner=planner)

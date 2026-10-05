@@ -14,6 +14,7 @@ class ResolutionStrategy(str, Enum):
     L1_EXACT = "L1_EXACT"
     L2_SEMANTIC = "L2_SEMANTIC"
     L3_FUZZY = "L3_FUZZY"
+    MEMORY = "MEMORY"
     L4_VISION_LLM = "L4_VISION_LLM"  # Planned future extension
 
 
@@ -93,6 +94,11 @@ class ExtractionRecord(BaseModel):
     url: Optional[str] = None
     attributes: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    page_url: Optional[str] = None
+    selector: Optional[str] = None
+    timestamp: Optional[str] = None
+    extracted_at: Optional[float] = None
+    raw_value: Optional[str] = None
 
     def __init__(
         self,
@@ -101,6 +107,11 @@ class ExtractionRecord(BaseModel):
         attributes: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         url: Optional[str] = None,
+        page_url: Optional[str] = None,
+        selector: Optional[str] = None,
+        timestamp: Optional[str] = None,
+        extracted_at: Optional[float] = None,
+        raw_value: Optional[str] = None,
         **data: Any,
     ) -> None:
         if href is None and url is not None:
@@ -117,8 +128,14 @@ class ExtractionRecord(BaseModel):
             url=url,
             attributes=attributes,
             metadata=metadata,
+            page_url=page_url,
+            selector=selector,
+            timestamp=timestamp,
+            extracted_at=extracted_at,
+            raw_value=raw_value,
             **data,
         )
+
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary representation."""
