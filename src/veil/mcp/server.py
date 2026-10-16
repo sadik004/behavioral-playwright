@@ -75,6 +75,20 @@ class McpServer:
 
     async def run_stdio(self) -> None:
         """Reads JSON-RPC lines from stdin and writes responses to stdout."""
+        import logging
+
+        logging.basicConfig(
+            stream=sys.stderr,
+            level=logging.INFO,
+            format="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
+        )
+        for h in list(logging.root.handlers):
+            if getattr(h, "stream", None) == sys.stdout:
+                h.stream = sys.stderr
+
+        real_stdout = sys.stdout
+        sys.stdout = sys.stderr
+
         loop = asyncio.get_running_loop()
 
         while True:
@@ -85,21 +99,20 @@ class McpServer:
             if not line_str:
                 continue
 
-
             try:
                 req = json.loads(line_str)
                 resp = await self.handle_request(req)
                 if resp:
-                    sys.stdout.write(json.dumps(resp) + "\n")
-                    sys.stdout.flush()
+                    real_stdout.write(json.dumps(resp) + "\n")
+                    real_stdout.flush()
             except Exception as exc:
                 err_resp = {
                     "jsonrpc": "2.0",
                     "id": None,
                     "error": {"code": -32700, "message": f"Parse error: {str(exc)}"},
                 }
-                sys.stdout.write(json.dumps(err_resp) + "\n")
-                sys.stdout.flush()
+                real_stdout.write(json.dumps(err_resp) + "\n")
+                real_stdout.flush()
 
     @staticmethod
     def generate_claude_config(python_path: str = "python") -> Dict[str, Any]:
