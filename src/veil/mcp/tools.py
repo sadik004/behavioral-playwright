@@ -532,6 +532,96 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
             "properties": {},
         },
     },
+    {
+        "name": "scrape",
+        "description": "Scrapes a webpage using self-healing browser automation and returns markdown/content.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "The URL to scrape"},
+                "target": {"type": "string", "enum": ["links", "articles", "raw"], "default": "links"},
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "search",
+        "description": "Submits a search query with human-mimetic typing and extracts structured search results.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query text"},
+                "url": {"type": "string", "description": "Optional search engine or starting URL"},
+                "search_input_selector": {"type": "string", "description": "CSS selector for search input", "default": "input[type='search'], input[name='q']"},
+                "submit_selector": {"type": "string", "description": "CSS selector for submit button", "default": "button[type='submit']"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "map_site",
+        "description": "Maps out structural links, articles, and hierarchical page graph of a target website.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Target website URL to map"},
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "ocr_image",
+        "description": "Performs contrast-boosted OCR text extraction and watermark removal on an image file.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "file_path": {"type": "string", "description": "Absolute or relative file path to the image"},
+            },
+            "required": ["file_path"],
+        },
+    },
+    {
+        "name": "audit_aio",
+        "description": "Audits Google SERPs for Search Generative Experience (SGE) / AI Overview cards, citations, and brand prominence.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query being analyzed"},
+                "html_content": {"type": "string", "description": "Raw HTML content of the Google SERP page"},
+                "url": {"type": "string", "description": "Optional live SERP URL to scrape and audit"},
+                "brand": {"type": "string", "description": "Target brand domain or name to check presence for"},
+                "competitors": {"type": "array", "items": {"type": "string"}, "description": "Competitor domains to check presence for"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "rag_chunk",
+        "description": "Splits markdown content into token-budgeted chunks with H1>H2>H3 breadcrumbs and lexical cohesion boundaries.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "markdown": {"type": "string", "description": "Markdown text to chunk"},
+                "url": {"type": "string", "description": "Document source URL", "default": "https://document.local"},
+                "max_tokens": {"type": "integer", "description": "Maximum tokens per chunk", "default": 120},
+                "overlap_tokens": {"type": "integer", "description": "Overlap tokens between chunks", "default": 20},
+            },
+            "required": ["markdown"],
+        },
+    },
+    {
+        "name": "trigger_webhook",
+        "description": "Sends a JSON payload to an external webhook endpoint (e.g. n8n workflow, Slack, Discord).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "webhook_url": {"type": "string", "description": "HTTP/HTTPS webhook URL"},
+                "payload": {"type": "object", "description": "JSON payload dictionary to dispatch"},
+                "timeout": {"type": "number", "description": "Request timeout in seconds", "default": 10.0},
+            },
+            "required": ["webhook_url", "payload"],
+        },
+    },
 ]
 
 
@@ -584,7 +674,7 @@ class McpToolDispatcher:
         res: Any = None
 
         try:
-            if tool_name == "scrape_page":
+            if tool_name in ("scrape_page", "scrape"):
                 url = arguments.get("url")
                 target = arguments.get("target", "links")
                 if not url:
@@ -1174,6 +1264,85 @@ if __name__ == "__main__":
             ):
                 from behavioral_evasion_suite.mcp_server import handle_tool_call as suite_handle
                 return await suite_handle(tool_name, arguments)
+
+            elif tool_name == "search":
+                query = arguments.get("query")
+                if not query:
+                    return {"error": "Missing required argument 'query'"}
+                url = arguments.get("url")
+                search_input = arguments.get("search_input_selector", "input[type='search'], input[name='q']")
+                submit_sel = arguments.get("submit_selector", "button[type='submit']")
+                async with bp:
+                    if url:
+                        await bp.goto(url)
+                    from behavioral_playwright.search.engine import SearchEngine
+                    engine = SearchEngine(bp.page)
+                    records = await engine.search(query, search_input_selector=search_input, submit_selector=submit_sel)
+                    res = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
+                    return {"status": "success", "result": res}
+
+            elif tool_name in ("map_site", "map"):
+                url = arguments.get("url")
+                if not url:
+                    return {"error": "Missing required argument 'url'"}
+                async with bp:
+                    from behavioral_playwright.mapping.mapper import SiteMapper
+                    mapper = SiteMapper(bp.page)
+                    res = await mapper.map(url)
+                    return {"status": "success", "result": res}
+
+            elif tool_name == "ocr_image":
+                file_path = arguments.get("file_path")
+                if not file_path:
+                    return {"error": "Missing required argument 'file_path'"}
+                from behavioral_playwright.document.ocr import DocumentNamespace
+                doc = DocumentNamespace()
+                res = await doc.ocr_image_with_autocorrect(file_path)
+                return {"status": "success", "result": res}
+
+            elif tool_name == "audit_aio":
+                query = arguments.get("query")
+                if not query:
+                    return {"error": "Missing required argument 'query'"}
+                html = arguments.get("html_content")
+                url = arguments.get("url")
+                brand = arguments.get("brand")
+                competitors = arguments.get("competitors")
+                if not html and url:
+                    async with bp:
+                        await bp.goto(url)
+                        html = await bp.page.evaluate("() => document.documentElement.outerHTML")
+                if not html:
+                    return {"error": "Must provide either 'html_content' or 'url' to audit Google AIO"}
+                from behavioral_playwright.mining.aio_auditor import AIOAuditor
+                from dataclasses import asdict
+                auditor = AIOAuditor(brand_domain_or_name=brand, competitor_domains=competitors)
+                report = auditor.audit_html(html, query=query, brand=brand, competitors=competitors)
+                res = asdict(report) if hasattr(report, "__dataclass_fields__") else (vars(report) if hasattr(report, "__dict__") else report)
+                return {"status": "success", "result": res}
+
+            elif tool_name == "rag_chunk":
+                markdown = arguments.get("markdown")
+                if not markdown:
+                    return {"error": "Missing required argument 'markdown'"}
+                url = arguments.get("url", "https://document.local")
+                max_tokens = arguments.get("max_tokens", 120)
+                overlap_tokens = arguments.get("overlap_tokens", 20)
+                from behavioral_playwright.extraction.rag_chunker_exporter import HierarchicalRAGChunker
+                from dataclasses import asdict
+                chunker = HierarchicalRAGChunker(max_tokens=max_tokens, overlap_tokens=overlap_tokens)
+                chunks = chunker.chunk_markdown(url, markdown)
+                return {"status": "success", "chunks": [asdict(c) if hasattr(c, "__dataclass_fields__") else vars(c) for c in chunks]}
+
+            elif tool_name == "trigger_webhook":
+                webhook_url = arguments.get("webhook_url")
+                payload = arguments.get("payload")
+                timeout = arguments.get("timeout", 10.0)
+                if not webhook_url or payload is None:
+                    return {"error": "Missing required arguments 'webhook_url' and 'payload'"}
+                from behavioral_playwright.integrations.extensions import IntegrationExtensions
+                ok = IntegrationExtensions._dispatch_webhook(webhook_url, payload, timeout=timeout)
+                return {"status": "success", "delivered": ok}
 
             return {"error": f"Unknown tool: {tool_name}"}
 
