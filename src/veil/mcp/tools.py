@@ -34,6 +34,19 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "crawl",
+        "description": "Recursively crawls a website or domain with 4-tier adaptive anti-bot escalation and extracts structured data.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Starting URL for crawl"},
+                "max_pages": {"type": "integer", "default": 5, "description": "Maximum number of pages to crawl"},
+                "depth": {"type": "integer", "default": 2, "description": "Maximum recursion depth"},
+            },
+            "required": ["url"],
+        },
+    },
+    {
         "name": "take_screenshot",
         "description": "Navigates to a URL and returns a Base64-encoded PNG screenshot for vision analysis.",
         "inputSchema": {
@@ -586,7 +599,7 @@ class McpToolDispatcher:
                         res = await bp.page.evaluate("() => document.documentElement.outerHTML")
                     return {"status": "success", "result": res}
 
-            elif tool_name == "crawl_domain":
+            elif tool_name in ("crawl_domain", "crawl"):
                 url = arguments.get("url")
                 max_pages = arguments.get("max_pages", 5)
                 if not url:

@@ -10,6 +10,7 @@ def test_mcp_tool_definitions():
     tool_names = [t["name"] for t in MCP_TOOL_DEFINITIONS]
     assert "scrape_page" in tool_names
     assert "crawl_domain" in tool_names
+    assert "crawl" in tool_names
     assert "take_screenshot" in tool_names
     assert "quant_pit_align" in tool_names
     assert "get_provider_matrix" in tool_names

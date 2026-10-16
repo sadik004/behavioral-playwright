@@ -55,8 +55,12 @@ class TestMcpContractsIntegrity:
         # scrape_page requires 'url'
         res = await dispatcher.execute_tool("scrape_page", {})
         assert isinstance(res, dict)
-        # Should return error without crashing
         assert "error" in res or res.get("status") in ("failed", "error")
+
+        # crawl requires 'url'
+        res_crawl = await dispatcher.execute_tool("crawl", {})
+        assert isinstance(res_crawl, dict)
+        assert "error" in res_crawl or res_crawl.get("status") in ("failed", "error")
 
     @pytest.mark.asyncio
     async def test_mcp_get_provider_matrix_returns_data(self):
