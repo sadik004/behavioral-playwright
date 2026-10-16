@@ -793,11 +793,8 @@ async def verify_subsystems(server_url: str) -> List[FeatureResult]:
     tool2 = await handle_tool_call("quant_pit_align", {"filing": {"symbol": "AAPL", "revenue": 1000000}})
     tool3 = await handle_tool_call("audit_biometrics", {"samples": [{"x": 10, "y": 10, "t": 0.0}]})
     tool4 = await handle_tool_call("memory_pid_health", {"current_rss_mb": 450.0, "target_rss_mb": 512.0})
-    tool5 = await handle_tool_call("check_cannibalization", {
-        "query_a": "python web scraping", "query_b": "python browser automation",
-        "urls_a": ["https://python.org"], "urls_b": ["https://python.org"], "threshold": 0.3,
-    })
-    tool6 = await handle_tool_call("mine_google_suggest", {"query": "fastapi vs", "alphabet": False})
+    tool5 = await handle_tool_call("crawl_domain", {"url": f"{server_url}/html", "max_pages": 1, "depth": 1})
+    tool6 = await handle_tool_call("rag_chunk", {"markdown": "# Heading\nSome text content here."})
     tool7 = await handle_tool_call("inspect_state", {"workflow_id": "wf_test_01"})
     tool8 = await handle_tool_call("extract_metadata", {"url": f"{server_url}/html"})
     tool9 = await handle_tool_call("run_graphql_security_audit", {"target_url": f"{server_url}/html"})

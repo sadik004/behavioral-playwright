@@ -118,11 +118,12 @@ async def test_mcp_extract_metadata_and_sniff_tools():
     mock_bp.goto = AsyncMock()
     mock_bp.boot = AsyncMock()
 
-    mock_bp.mining = AsyncMock()
-    mock_bp.mining.extract_next_data = AsyncMock(return_value={"page": "/home"})
-    mock_bp.mining.extract_nuxt_data = AsyncMock(return_value=None)
-    mock_bp.mining.extract_json_ld = AsyncMock(return_value=[{"@type": "WebSite"}])
-    mock_bp.mining.extract_open_graph = AsyncMock(return_value={"og:title": "Test"})
+    mock_bp.metadata = AsyncMock()
+    mock_bp.metadata.extract_next_data = AsyncMock(return_value={"page": "/home"})
+    mock_bp.metadata.extract_nuxt_data = AsyncMock(return_value=None)
+    mock_bp.metadata.extract_json_ld = AsyncMock(return_value=[{"@type": "WebSite"}])
+    mock_bp.metadata.extract_open_graph = AsyncMock(return_value={"og:title": "Test"})
+    mock_bp.mining = mock_bp.metadata
 
     mock_sniffer = AsyncMock()
     mock_sniffer.intercept_json = AsyncMock(return_value=[{"data": [1, 2, 3]}])

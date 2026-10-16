@@ -76,9 +76,8 @@ behavioral-playwright/
 │   │   ├── crawling/                      # 4-tier adaptive crawler, SQLite WAL, SimHash, OPIC frontier
 │   │   ├── resilience/                    # Circuit breaker, exponential backoff, retry, recovery
 │   │   ├── security/                      # GraphQL auditor, OOB listener, CSRF, security protocols
-│   │   ├── orchestration/                 # Declarative pipeline planner, executors, step conditions
-│   │   ├── mining/                        # PAA, AIO, Google Suggest, query cannibalization miners
-│   │   ├── mcp/                           # Fast JSON-RPC 2.0 MCP server with 20+ specialized tools
+│   │   ├── verification/                  # CSR rendering drift auditor, state verifier
+│   │   ├── mcp/                           # Fast JSON-RPC 2.0 MCP server with 47 specialized tools
 │   │   ├── powerplay/                     # Hardened biomechanics, captcha solver, L4 network, schema guard
 │   │   ├── providers/                     # Multi-engine browser & HTTP provider factory and adapters
 │   │   ├── storage/                       # Async task queue, unified data stores, multi-format exporters
@@ -256,10 +255,7 @@ async with BP() as bp:
   10. `memory_pid_health`: Closed-loop Chromium memory PID controller status.
   11. `extract_metadata`: Next.js `__NEXT_DATA__`, Nuxt state, JSON-LD schemas, and OpenGraph tags.
   12. `sniff_api_responses`: Intercepts background XHR/Fetch JSON responses matching URL patterns.
-  13. `mine_google_suggest`: Google autocomplete and recursive A-Z alphabet drilldown.
-  14. `audit_csr_drift`: CSR vs SSR rendering drift auditor and SEO indexation risk evaluator.
-  15. `mine_paa`: People Also Ask question tree miner.
-  16. `check_cannibalization`: Jaccard SERP overlap keyword cannibalization checker.
+  13. `audit_csr_drift`: CSR vs SSR rendering drift auditor and indexation risk evaluator.
 
 ---
 
@@ -448,17 +444,13 @@ Client-side and protocol-level diagnostic auditing engine for modern APIs, Singl
 
 ---
 
-### 16. SEO, AEO & GEO Data Mining & Verification Engine (`bp.mining`)
-A production-grade search intelligence, autocomplete prediction, hydration extraction, and rendering drift auditing subsystem:
+### 16. DOM Metadata Extraction & CSR Drift Verification (`bp.metadata`, `bp.verification`)
+A production-grade metadata extraction, hydration parsing, and rendering drift auditing subsystem:
 
 | Module / Component | Namespace / Class | Capabilities & Architectural Functions |
 | :--- | :--- | :--- |
-| **`suggest_miner.py`** | `bp.mining.suggest` / `GoogleSuggestMiner` | High-throughput Google Suggest autocomplete extraction with wildcard (`*`, `_`) replacement and concurrent A-Z alphabet drilldown (`alphabet_tree`). |
 | **`rendering_auditor.py`** | `bp.verification.drift` / `CSRRenderingDriftAuditor` | Evaluates token-level Jaccard rendering divergence between initial static SSR/HTML and hydrated CSR DOM; detects missing H1 headings, page titles, client-injected links, and JSON-LD schemas. |
-| **`paa_miner.py`** | `bp.mining.paa` / `PAAMiner` | Recursive People Also Ask accordion crawler with dynamic mutation observation, snippet capture, and source citation extraction. |
-| **`cannibalization.py`** | `bp.mining.cannibalization` / `SERPCannibalizationEngine` | Jaccard overlap similarity coefficient ($J = |A \cap B| / |A \cup B|$) on SERP URLs, outputting canonical `MERGE` vs `SPLIT` directives. |
-| **`aio_auditor.py`** | `bp.mining.aio` / `AIOAuditor` | Audits Google AI Overview (SGE) card presence, citations, brand rank, and competitor share of voice. |
-| **`dom.py`** | `bp.mining.extract_*` | Zero-latency Next.js `__NEXT_DATA__`, Nuxt state `__NUXT__`, JSON-LD schemas (`@graph` unpacked), and OpenGraph metadata extractor. |
+| **`dom.py`** | `bp.metadata.extract_*` | Zero-latency Next.js `__NEXT_DATA__`, Nuxt state `__NUXT__`, JSON-LD schemas (`@graph` unpacked), and OpenGraph metadata extractor. |
 | **`sniffer.py`** | `bp.network.create_sniffer` / `JSONResponseSniffer` | Background XHR/Fetch API payload interceptor and async sniffer. |
 
 ---
@@ -729,16 +721,7 @@ bp mcp-config --python-path python
 # 1. Zero-latency Next.js / Nuxt hydration & JSON-LD metadata extraction
 bp extract-meta "https://example.com" -o meta.json
 
-# 2. Recursively mine Google People Also Ask tree
-bp mine-paa "best mechanical keyboard for coding" --depth 2 -o paa.json
-
-# 3. Check search intent cannibalization (Jaccard Overlap)
-bp check-overlap "python web scraping" "python web automation" --threshold 0.40
-
-# 4. Run Google wildcard & alphabet suggest drilldown
-bp mine-suggest "fastapi vs" --alphabet -o suggestions.json
-
-# 5. Audit CSR vs SSR rendering drift & SEO indexation risk
+# 2. Audit CSR vs SSR rendering drift & SEO indexation risk
 bp audit-drift "https://example.com" -o drift.json
 ```
 

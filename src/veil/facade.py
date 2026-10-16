@@ -956,64 +956,11 @@ class SecurityNamespace:
         return await auditor.run_audit(target_url)
 
 
-class MiningNamespace:
-    """SEO, AEO, and GEO search intelligence mining namespace."""
+class MetadataNamespace:
+    """DOM metadata, structured data, hydration state, and CSR drift verification namespace."""
 
     def __init__(self, facade: "BP") -> None:
         self._facade = facade
-        self._engine: Optional[Any] = None
-
-    @property
-    def engine(self) -> Any:
-        if self._engine is None:
-            from behavioral_playwright.mining import SEOMiningEngine
-            self._engine = SEOMiningEngine()
-        return self._engine
-
-    async def mine_paa(self, page_or_html: Any = None, query: Optional[str] = None, max_depth: int = 3) -> Any:
-        """Mines People Also Ask question hierarchies."""
-        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
-        if target is None:
-            await self._facade.boot()
-            target = self._facade.page
-        from behavioral_playwright.mining import PAAMiner
-        miner = PAAMiner(max_depth=max_depth)
-        if isinstance(target, str):
-            return miner.parse_from_html(target)
-        raw_p = getattr(target, "raw_page", None) or target
-        return await miner.extract_from_page(raw_p, target_query=query)
-
-    async def audit_aio(
-        self,
-        query: str,
-        page_or_html: Any = None,
-        brand: Optional[str] = None,
-        competitors: Optional[List[str]] = None,
-    ) -> Any:
-        """Audits AI Overview card presence, citations, brand rank, and competitor mentions."""
-        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
-        if target is None and not isinstance(page_or_html, str):
-            await self._facade.boot()
-            target = self._facade.page
-        from behavioral_playwright.mining import AIOAuditor
-        auditor = AIOAuditor(brand_domain_or_name=brand, competitor_domains=competitors)
-        if isinstance(target, str):
-            return auditor.audit_html(target, query=query, brand=brand, competitors=competitors)
-        raw_p = getattr(target, "raw_page", None) or target
-        return await auditor.audit_page(raw_p, query=query, brand=brand, competitors=competitors)
-
-    def audit_cannibalization(
-        self,
-        query_a: str,
-        query_b: str,
-        urls_a: List[str],
-        urls_b: List[str],
-        threshold: float = 0.40,
-    ) -> Any:
-        """Computes Jaccard similarity and returns CANONICAL MERGE/SPLIT recommendations."""
-        from behavioral_playwright.mining import SERPCannibalizationEngine
-        engine = SERPCannibalizationEngine(merge_threshold=threshold)
-        return engine.evaluate_cannibalization(query_a, query_b, urls_a, urls_b)
 
     async def extract_next_data(self, page_or_html: Any = None) -> Optional[Dict[str, Any]]:
         """Extracts Next.js __NEXT_DATA__ state payload without traversing DOM."""
@@ -1059,25 +1006,13 @@ class MiningNamespace:
             raise RuntimeError("Cannot instantiate sniffer: active page is None. Call bp.boot() first.")
         return JSONResponseSniffer(target)
 
-    async def mine_suggest(
-        self,
-        query: str,
-        alphabet: bool = False,
-        lang: str = "en",
-        country: str = "us",
-    ) -> Any:
-        """Mines Google autocomplete suggestions with optional A-Z alphabet drilldown."""
-        from behavioral_playwright.mining.suggest_miner import GoogleSuggestMiner
-        miner = GoogleSuggestMiner(default_lang=lang, default_country=country)
-        return await miner.mine(query=query, alphabet=alphabet, lang=lang, country=country)
-
     async def audit_csr_drift(
         self,
         url: Optional[str] = None,
         raw_html: Optional[str] = None,
         rendered_html: Optional[str] = None,
     ) -> Any:
-        """Audits CSR vs static HTML rendering drift and SEO indexation risk."""
+        """Audits CSR vs static HTML rendering drift and indexation risk."""
         from behavioral_playwright.verification.rendering_auditor import CSRRenderingDriftAuditor
         auditor = CSRRenderingDriftAuditor()
         if raw_html is not None and rendered_html is not None:
@@ -1086,45 +1021,6 @@ class MiningNamespace:
             target = getattr(self._facade, "page", None)
             return await auditor.audit_url_drift(url=url, page=target)
         raise ValueError("Must provide either url or both (raw_html, rendered_html)")
-
-    async def check_overlap(
-        self,
-        query_a: str,
-        query_b: str,
-        urls_a: Optional[List[str]] = None,
-        urls_b: Optional[List[str]] = None,
-        threshold: float = 0.40,
-    ) -> Any:
-        """Computes Jaccard similarity between two search queries to detect cannibalization."""
-        from behavioral_playwright.mining.cannibalization import SERPCannibalizationEngine
-        engine = SERPCannibalizationEngine(merge_threshold=threshold)
-
-        if urls_a is None or urls_b is None:
-            # Zero-latency SERP resolution via DuckDuckGo HTML / curl_cffi
-            async def _resolve_urls(q: str) -> List[str]:
-                try:
-                    from curl_cffi.requests import AsyncSession
-                    from bs4 import BeautifulSoup
-                    async with AsyncSession(impersonate="chrome120") as s:
-                        r = await s.post("https://html.duckduckgo.com/html/", data={"q": q}, timeout=6.0)
-                        soup = BeautifulSoup(r.text, "html.parser")
-                        found = []
-                        for a in soup.select("a.result__url"):
-                            href = a.get("href", "").strip()
-                            if href:
-                                found.append("https://" + href if not href.startswith("http") else href)
-                        return found
-                except Exception:
-                    return []
-
-            if urls_a is None:
-                urls_a = await _resolve_urls(query_a)
-            if urls_b is None:
-                urls_b = await _resolve_urls(query_b)
-
-        return engine.evaluate_cannibalization(
-            query_a=query_a, query_b=query_b, urls_a=urls_a, urls_b=urls_b, threshold=threshold
-        )
 
 
 class BP:
@@ -1177,8 +1073,8 @@ class BP:
         self.intelligence = IntelligenceNamespace(bp=self)
         self.intel = self.intelligence
         self.security = SecurityNamespace(self)
-        self.mining = MiningNamespace(self)
-        self.seo = self.mining
+        self.metadata = MetadataNamespace(self)
+        self.mining = self.metadata
 
 
     @property

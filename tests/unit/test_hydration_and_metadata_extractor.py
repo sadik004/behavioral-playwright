@@ -247,8 +247,8 @@ async def test_dom_extractor_class_methods():
 
 
 @pytest.mark.asyncio
-async def test_facade_mining_hydration_delegation():
-    """Verify BP facade bp.mining delegations for hydration and metadata extraction."""
+async def test_facade_metadata_hydration_delegation():
+    """Verify BP facade bp.metadata delegations for hydration and metadata extraction."""
     bp = BP()
     html = """
     <html>
@@ -262,12 +262,12 @@ async def test_facade_mining_hydration_delegation():
     </html>
     """
 
-    res_next = await bp.mining.extract_next_data(page_or_html=html)
+    res_next = await bp.metadata.extract_next_data(page_or_html=html)
     assert res_next == {"page": "/facade"}
 
-    res_jsonld = await bp.mining.extract_json_ld(page_or_html=html)
+    res_jsonld = await bp.metadata.extract_json_ld(page_or_html=html)
     assert len(res_jsonld) == 1
     assert res_jsonld[0]["@type"] == "BreadcrumbList"
 
-    res_og = await bp.mining.extract_open_graph(page_or_html=html)
+    res_og = await bp.metadata.extract_open_graph(page_or_html=html)
     assert res_og["og:title"] == "BP Facade Test"

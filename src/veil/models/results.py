@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from behavioral_playwright.models.elements import DOMElement
 
@@ -164,3 +164,31 @@ class ExtractionRecord(BaseModel):
             val = getattr(self, "url", None) or getattr(self, "href", None)
             return val if val is not None else default
         return getattr(self, key, default)
+
+
+class CSRDriftReport(BaseModel):
+    """Client-Side Rendering (CSR) vs Static HTML Rendering Drift evaluation report."""
+    url: Optional[str] = Field(default=None, description="Audited target URL.")
+    raw_html_bytes: int = Field(default=0, ge=0, description="Initial static SSR/HTML payload size in bytes.")
+    rendered_html_bytes: int = Field(default=0, ge=0, description="Fully rendered DOM HTML payload size in bytes.")
+    raw_dom_nodes: int = Field(default=0, ge=0, description="DOM element count in static HTML.")
+    rendered_dom_nodes: int = Field(default=0, ge=0, description="DOM element count in fully rendered page.")
+    raw_text_length: int = Field(default=0, ge=0, description="Visible text length in static HTML.")
+    rendered_text_length: int = Field(default=0, ge=0, description="Visible text length in rendered DOM.")
+    drift_ratio: float = Field(..., ge=0.0, le=1.0, description="Drift score between static and CSR (0.0 to 1.0).")
+    missing_in_raw: List[str] = Field(default_factory=list, description="Elements absent in initial HTML but present in CSR.")
+    hydration_drift_detected: bool = Field(default=False, description="Whether significant client-side rendering drift was detected.")
+    seo_indexation_risk: str = Field(..., description="Risk assessment: 'LOW', 'MEDIUM', 'HIGH', or 'CRITICAL'.")
+
+    @field_validator("seo_indexation_risk")
+    @classmethod
+    def validate_risk(cls, v: str) -> str:
+        allowed = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
+        v_upper = v.upper()
+        if v_upper not in allowed:
+            raise ValueError(f"Risk must be one of {allowed}, got {v!r}")
+        return v_upper
+
+
+__all__ = ["ResolutionStrategy", "ResolutionResult", "ExtractionRecord", "CSRDriftReport"]
+

@@ -12,7 +12,7 @@ from typing import Any, List, Optional, Set
 from urllib.parse import urlparse
 
 from behavioral_playwright.logging import get_logger
-from behavioral_playwright.models.seo_dtos import CSRDriftReport
+from behavioral_playwright.models.results import CSRDriftReport
 
 logger = get_logger("verification.rendering_auditor")
 

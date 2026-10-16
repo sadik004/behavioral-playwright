@@ -1,14 +1,14 @@
 # 🤖 Model Context Protocol (MCP) Server & Tool Registry Guide
 
 > **Framework Version**: `10.0.2 Quantum Architecture`  
-> **Total Active Tools**: `51 Tools (42 Modern + 9 Quantum/Legacy Compatibility)`  
-> **Status**: [VERIFIED & PASSING 742 GATES]
+> **Total Active Tools**: `47 Tools (38 Modern + 9 Quantum/Legacy Compatibility)`  
+> **Status**: [VERIFIED & PASSING]
 
 ---
 
 ## 1. Overview
 
-Behavioral Playwright includes a high-performance **JSON-RPC 2.0 Stdio MCP Server** (`veil.mcp.server`) designed for integration with AI agents, Claude Desktop, Cursor AI, and Antigravity IDE. It exposes **51 specialized tools** covering stealth browser automation, deep crawling, OCR, RAG chunking, webhooks, search, site mapping, SEO/AEO mining, social intelligence, security auditing, and quantum evasion diagnostics.
+Behavioral Playwright includes a high-performance **JSON-RPC 2.0 Stdio MCP Server** (`veil.mcp.server`) designed for integration with AI agents, Claude Desktop, Cursor AI, and Antigravity IDE. It exposes **47 specialized tools** covering stealth browser automation, deep crawling, OCR, RAG chunking, webhooks, search, site mapping, social intelligence, security auditing, and quantum evasion diagnostics.
 
 ---
 
@@ -47,7 +47,7 @@ Add the server to your `mcp_config.json`:
 
 ---
 
-## 3. Complete 51-Tool Registry Taxonomy
+## 3. Complete 47-Tool Registry Taxonomy
 
 ### A. Core Scraping, Crawling & Vision (8 Tools)
 1. **`scrape_page`** / **`scrape`**: Scrapes a webpage using self-healing browser automation and returns markdown/content.
@@ -66,13 +66,9 @@ Add the server to your `mcp_config.json`:
 12. **`audit_biometrics`**: Validates kinematic trajectory authenticity via two-sample Kolmogorov-Smirnov test.
 13. **`memory_pid_health`**: Inspects Chromium memory PID controller metrics to prevent heap exhaustion.
 
-### C. Search, SEO, AEO & GEO Mining (6 Tools)
-14. **`mine_google_suggest`**: Mines A-Z alphabetical search query suggestions with real-time tree drilldown.
-15. **`mine_paa`**: Mines recursive People Also Ask (PAA) question-and-answer trees up to depth 5.
-16. **`audit_csr_drift`**: Evaluates Client-Side Rendering (CSR) drift against raw static SSR HTML.
-17. **`check_cannibalization`**: Detects SERP keyword cannibalization across competing landing pages.
-18. **`audit_aio`**: Audits Google SERPs for Search Generative Experience (SGE) / AI Overview cards, citations, and brand prominence.
-19. **`sniff_api_responses`**: Intercepts background JSON/REST API payloads triggered by user interactions.
+### C. DOM Verification & API Intelligence (2 Tools)
+14. **`audit_csr_drift`**: Evaluates Client-Side Rendering (CSR) drift against raw static SSR HTML.
+15. **`sniff_api_responses`**: Intercepts background JSON/REST API payloads triggered by user interactions.
 
 ### D. Social Media & B2B Intelligence (7 Tools)
 20. **`linkedin_check_auth`**: Validates whether the active browser session has authenticated LinkedIn cookies.

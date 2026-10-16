@@ -523,11 +523,8 @@ async def test_subsystem_10_tiered_crawler_mcp_and_cli(real_server_url: str) -> 
     t2 = await handle_tool_call("quant_pit_align", {"filing": {"symbol": "AAPL", "revenue": 1000000}})
     t3 = await handle_tool_call("audit_biometrics", {"samples": [{"x": 10, "y": 10, "t": 0.0}]})
     t4 = await handle_tool_call("memory_pid_health", {"current_rss_mb": 450.0, "target_rss_mb": 512.0})
-    t5 = await handle_tool_call("check_cannibalization", {
-        "query_a": "python web scraping", "query_b": "python browser automation",
-        "urls_a": ["https://python.org"], "urls_b": ["https://python.org"], "threshold": 0.3,
-    })
-    t6 = await handle_tool_call("mine_google_suggest", {"query": "fastapi vs", "alphabet": False})
+    t5 = await handle_tool_call("crawl_domain", {"url": f"{real_server_url}/html", "max_pages": 1, "depth": 1})
+    t6 = await handle_tool_call("rag_chunk", {"markdown": "# Heading\nSome text content here."})
     t7 = await handle_tool_call("inspect_state", {"workflow_id": "wf_test_01"})
     t8 = await handle_tool_call("extract_metadata", {"url": f"{real_server_url}/html"})
     t9 = await handle_tool_call("run_graphql_security_audit", {"target_url": f"{real_server_url}/html"})

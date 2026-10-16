@@ -3,9 +3,9 @@
   "generated_at": "2026-10-04T23:45:00Z",
   "description": "Exhaustive Claim Registry mapping documented behavioral-playwright capabilities to implementation targets, independent oracles, and empirical audit status.",
   "summary": {
-    "total_claims": 28,
+    "total_claims": 26,
     "verified": 13,
-    "partially_verified": 8,
+    "partially_verified": 6,
     "unverified": 2,
     "contradicted": 0,
     "provider_gated": 3,
@@ -212,19 +212,8 @@
       "notes": "Implements JSON-RPC 2.0 specification handler."
     },
     {
-      "claim_id": "MINING-001",
-      "category": "SEO / AEO / GEO Mining",
-      "claim": "GoogleSuggestMiner queries autocomplete API with A-Z alphabet soup and returns unique deduplicated questions",
-      "source": "src/behavioral_playwright/mining/suggest_miner.py",
-      "target": "behavioral_playwright.mining.suggest_miner.GoogleSuggestMiner.mine_alphabet_soup",
-      "oracle": "Queries with A-Z return deduplicated SuggestResult DTOs with keyword, query, and ranking position",
-      "status": "PARTIALLY_VERIFIED",
-      "severity": "P2",
-      "notes": "Live network queries require active internet; unit tests verify parsing."
-    },
-    {
-      "claim_id": "MINING-002",
-      "category": "SEO / AEO / GEO Mining",
+      "claim_id": "DRIFT-001",
+      "category": "Verification & Rendering Drift",
       "claim": "CSR Rendering Drift Auditor quantifies Jaccard token divergence between SSR HTML and hydrated DOM",
       "source": "src/behavioral_playwright/verification/rendering_auditor.py",
       "target": "behavioral_playwright.verification.rendering_auditor.CSRRenderingDriftAuditor.audit_drift",
@@ -232,17 +221,6 @@
       "status": "VERIFIED",
       "severity": "P1",
       "notes": "Mathematical Jaccard distance calculation verified."
-    },
-    {
-      "claim_id": "MINING-003",
-      "category": "SEO / AEO / GEO Mining",
-      "claim": "PAAMiner extracts Google People Also Ask questions and accordion answers recursively",
-      "source": "src/behavioral_playwright/mining/paa_miner.py",
-      "target": "behavioral_playwright.mining.paa_miner.PAAMiner.mine_paa",
-      "oracle": "Recursively clicks and parses accordion items up to max_depth; handles CAPTCHA walls gracefully",
-      "status": "PARTIALLY_VERIFIED",
-      "severity": "P2",
-      "notes": "HTML parser verified; live browser accordion expansion tested against mock DOM."
     },
     {
       "claim_id": "QUANT-001",

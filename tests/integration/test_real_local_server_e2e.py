@@ -151,22 +151,18 @@ async def test_cli_commands_and_mcp_tools_real_execution(local_http_server: str)
     })
     assert "status" in res_mem or "recommendation" in res_mem or "control_output" in res_mem
 
-    # Tool 5: check_cannibalization
-    res_cann = await handle_tool_call("check_cannibalization", {
-        "query_a": "python scraping framework",
-        "query_b": "python browser automation",
-        "urls_a": ["https://python.org", "https://playwright.dev"],
-        "urls_b": ["https://python.org", "https://selenium.dev"],
-        "threshold": 0.30,
+    # Tool 5: audit_csr_drift
+    res_drift = await handle_tool_call("audit_csr_drift", {
+        "raw_html": "<html><body><h1>Hello</h1></body></html>",
+        "rendered_html": "<html><body><h1>Hello</h1><p>CSR text</p></body></html>",
     })
-    assert "jaccard_similarity" in res_cann or "overlap" in res_cann or "status" in res_cann
+    assert "status" in res_drift and res_drift["status"] == "success"
 
-    # Tool 6: mine_google_suggest
-    res_sugg = await handle_tool_call("mine_google_suggest", {
-        "query": "fastapi vs",
-        "alphabet": False,
+    # Tool 6: rag_chunk
+    res_rag = await handle_tool_call("rag_chunk", {
+        "markdown": "# Title\n\nParagraph with sufficient words for chunking testing.",
     })
-    assert "suggestions" in res_sugg or "status" in res_sugg or "query" in res_sugg
+    assert "status" in res_rag and res_rag["status"] == "success"
 
     # Tool 7: inspect_state
     res_state = await handle_tool_call("inspect_state", {"workflow_id": "wf_test_01"})

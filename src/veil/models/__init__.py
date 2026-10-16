@@ -2,6 +2,7 @@
 
 from behavioral_playwright.models.elements import BoundingBox, DOMElement
 from behavioral_playwright.models.results import (
+    CSRDriftReport,
     ExtractionRecord,
     ResolutionResult,
     ResolutionStrategy,
@@ -16,13 +17,6 @@ from behavioral_playwright.models.reddit_dtos import (
     RedditLeadAuditDTO,
     RedditLeadDTO,
 )
-from behavioral_playwright.models.seo_dtos import (
-    AIOAuditResult,
-    CannibalizationReport,
-    CSRDriftReport,
-    PAANode,
-    SuggestResult,
-)
 
 __all__ = [
     "BoundingBox",
@@ -30,10 +24,6 @@ __all__ = [
     "ExtractionRecord",
     "ResolutionResult",
     "ResolutionStrategy",
-    "PAANode",
-    "AIOAuditResult",
-    "CannibalizationReport",
-    "SuggestResult",
     "CSRDriftReport",
     "LinkedInProfileDTO",
     "LinkedInAuthStatusDTO",

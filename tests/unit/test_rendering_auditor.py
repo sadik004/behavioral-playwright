@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pydantic import ValidationError
 
-from behavioral_playwright.models.seo_dtos import CSRDriftReport
+from behavioral_playwright.models.results import CSRDriftReport
 from behavioral_playwright.verification.rendering_auditor import (
     CSRRenderingDriftAuditor,
     RenderingDriftAuditor,

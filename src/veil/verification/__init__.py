@@ -5,7 +5,7 @@ from behavioral_playwright.verification.rendering_auditor import (
     RenderingDriftAuditor,
 )
 from behavioral_playwright.verification.verifier import StateVerifier
-from behavioral_playwright.models.seo_dtos import CSRDriftReport
+from behavioral_playwright.models.results import CSRDriftReport
 
 __all__ = [
     "CSRRenderingDriftAuditor",
