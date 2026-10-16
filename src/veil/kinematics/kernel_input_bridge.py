@@ -9,6 +9,7 @@ import math
 import time
 import struct
 import logging
+import ctypes
 from typing import List, Dict, Optional, Any
 
 logger = logging.getLogger("BehavioralEvasion.DMAKernelBridge")
@@ -16,6 +17,28 @@ logger = logging.getLogger("BehavioralEvasion.DMAKernelBridge")
 # =============================================================================
 # 1. WINDOWS NATIVE KERNEL INPUT BRIDGE (C-TYPES SENDINPUT / RAW INPUT)
 # =============================================================================
+
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", ctypes.c_long),
+        ("dy", ctypes.c_long),
+        ("mouseData", ctypes.c_ulong),
+        ("dwFlags", ctypes.c_ulong),
+        ("time", ctypes.c_ulong),
+        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong))
+    ]
+
+
+class INPUT_UNION(ctypes.Union):
+    _fields_ = [("mi", MOUSEINPUT)]
+
+
+class INPUT(ctypes.Structure):
+    _fields_ = [
+        ("type", ctypes.c_ulong),
+        ("union", INPUT_UNION)
+    ]
+
 
 class WindowsKernelInputEventBridge:
     """
@@ -36,9 +59,8 @@ class WindowsKernelInputEventBridge:
         self._user32 = None
         if self.is_available:
             try:
-                import ctypes
                 self._ctypes = ctypes
-                self._user32 = ctypes.windll.user32
+                self._user32 = getattr(ctypes, "windll", None).user32 if hasattr(ctypes, "windll") else None
                 logger.info("Windows Native Kernel Input Bridge (SendInput) active.")
             except Exception as e:
                 self.is_available = False
@@ -50,27 +72,6 @@ class WindowsKernelInputEventBridge:
             return False
 
         try:
-            ctypes = self._ctypes
-
-            class MOUSEINPUT(ctypes.Structure):
-                _fields_ = [
-                    ("dx", ctypes.c_long),
-                    ("dy", ctypes.c_long),
-                    ("mouseData", ctypes.c_ulong),
-                    ("dwFlags", ctypes.c_ulong),
-                    ("time", ctypes.c_ulong),
-                    ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong))
-                ]
-
-            class INPUT_UNION(ctypes.Union):
-                _fields_ = [("mi", MOUSEINPUT)]
-
-            class INPUT(ctypes.Structure):
-                _fields_ = [
-                    ("type", ctypes.c_ulong),
-                    ("union", INPUT_UNION)
-                ]
-
             # Handle NaN / Inf defensively
             if math.isnan(dx) or math.isinf(dx):
                 dx = 0.0
