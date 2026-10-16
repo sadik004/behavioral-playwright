@@ -1,12 +1,12 @@
 # Feature Specification: Network Namespace (`bp.network`)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
 
 ## 1. Overview & Capabilities
-The `NetworkNamespace` ([`bp_facade12.py:1177`](file:///c:/Users/User/SAA/bp_facade12.py#L1177)) provides real HTTP/network latency probing, custom header injection, and Gzip payload compression.
+The `NetworkNamespace` ([`veil/facade.py`](src/veil/facade.py)) provides real HTTP/network latency probing, custom header injection, and Gzip payload compression.
 
 ---
 

@@ -1,6 +1,6 @@
 # Project Evolution & Historical Chronicle
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED & HISTORICAL]
 
 ---
@@ -25,8 +25,8 @@
 
 ---
 
-## 4. Stage 4: 9-Namespace Core Refactor (`Commits bdfbb3d`, `68a3d1e`)
-- **Files**: `bp_facade12.py` (1,978 LOC), 6 dedicated test suites (39 tests).
+## 4. Stage 4: 9-Namespace Core Refactor (`Commits bdfbb3d`, `v10.0.2`)
+- **Files**: `veil/facade.py` (1,978 LOC), 6 dedicated test suites (39 tests).
 - **Key Features Introduced**:
   - Partitioned 109 capabilities into 9 decoupled namespaces.
   - Replaced mock crawler with real breadth-first recursive crawler using SQLite state persistence and domain bounds.

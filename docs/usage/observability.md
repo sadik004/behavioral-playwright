@@ -1,6 +1,6 @@
 # Observability & Metrics Usage Guide
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -10,7 +10,7 @@
 Track operational latencies and generate automated pass/fail QA summary reports:
 
 ```python
-from bp_facade12 import BP
+from veil import BP
 import time
 
 bp = BP()

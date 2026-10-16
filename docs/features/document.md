@@ -1,12 +1,12 @@
 # Feature Specification: Document Namespace (`bp.document`)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
 
 ## 1. Overview & Capabilities
-The `DocumentNamespace` ([`bp_facade12.py:755`](file:///c:/Users/User/SAA/bp_facade12.py#L755)) provides spatial PDF/DOCX document parsing, table extraction, and image OCR with contrast enhancement.
+The `DocumentNamespace` ([`veil/facade.py`](src/veil/facade.py)) provides spatial PDF/DOCX document parsing, table extraction, and image OCR with contrast enhancement.
 
 ---
 

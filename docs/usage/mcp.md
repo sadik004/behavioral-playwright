@@ -1,6 +1,6 @@
 # Model Context Protocol (MCP) Bridge Guide
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -11,7 +11,7 @@ Expose web scraping, crawling, and search tools directly to AI agent platforms (
 
 ```python
 import asyncio
-from bp_facade12 import BP
+from veil import BP
 
 async def handle_mcp_call():
     async with BP() as bp:

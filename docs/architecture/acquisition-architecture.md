@@ -1,6 +1,6 @@
 # Acquisition Architecture
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -30,7 +30,7 @@ The acquisition subsystem abstracts web content retrieval through a standardized
 
 ---
 
-## 2. Recursive Crawling Engine ([`WebNamespace.crawl_recursive`](file:///c:/Users/User/SAA/bp_facade12.py#L90))
+## 2. Recursive Crawling Engine ([`WebNamespace.crawl_recursive`](src/veil/facade.py))
 
 The crawler operates as a bounded, breadth-first traversal system backed by SQLite persistence:
 

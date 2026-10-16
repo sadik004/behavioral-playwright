@@ -1,6 +1,6 @@
 # Automation & Scraping Cookbook (Real-World Recipes)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -8,7 +8,7 @@
 ## Recipe 1: End-to-End Stealth Login & Screenshot
 ```python
 import asyncio
-from bp_facade12 import BP
+from veil import BP
 
 async def recipe_login():
     async with BP() as bp:
@@ -30,7 +30,7 @@ if __name__ == "__main__":
 ## Recipe 2: Recursive Crawling, Offline Caching & Sitemap Generation
 ```python
 import asyncio
-from bp_facade12 import BP
+from veil import BP
 
 async def recipe_crawl():
     async with BP() as bp:
@@ -47,7 +47,7 @@ if __name__ == "__main__":
 ## Recipe 3: Image OCR to Slack Notification
 ```python
 import asyncio
-from bp_facade12 import BP
+from veil import BP
 
 async def recipe_ocr_slack():
     async with BP() as bp:
@@ -68,7 +68,7 @@ if __name__ == "__main__":
 ## Recipe 4: Performance Profiling with Monotonic Traces & QA Audit
 ```python
 import asyncio
-from bp_facade12 import BP
+from veil import BP
 
 async def recipe_observability():
     async with BP() as bp:

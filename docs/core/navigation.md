@@ -1,6 +1,6 @@
 # Navigation & Resilience Engineering
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -22,4 +22,4 @@ stateDiagram-v2
 
 ## 2. Redirection Loop & Trap Detection
 
-When crawling or automating dynamic sites, infinite redirection traps can exhaust memory. [`WebNamespace.detect_redirection_loops`](file:///c:/Users/User/SAA/bp_facade12.py#L350) tracks sliding window URL history and computes entropy and repetition counts, halting navigation when circular redirects are identified.
+When crawling or automating dynamic sites, infinite redirection traps can exhaust memory. [`WebNamespace.detect_redirection_loops`](src/veil/facade.py) tracks sliding window URL history and computes entropy and repetition counts, halting navigation when circular redirects are identified.

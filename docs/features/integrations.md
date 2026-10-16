@@ -1,12 +1,12 @@
 # Feature Specification: Integrations Namespace (`bp.integrations`)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
 
 ## 1. Overview & Capabilities
-The `IntegrationsNamespace` ([`bp_facade12.py:1266`](file:///c:/Users/User/SAA/bp_facade12.py#L1266)) dispatches real HTTP webhook notifications (Slack, Discord, n8n), exports HAR traces, and bridges tools to AI agents via the Model Context Protocol (MCP).
+The `IntegrationsNamespace` ([`veil/facade.py`](src/veil/facade.py)) dispatches real HTTP webhook notifications (Slack, Discord, n8n), exports HAR traces, and bridges tools to AI agents via the Model Context Protocol (MCP).
 
 ---
 

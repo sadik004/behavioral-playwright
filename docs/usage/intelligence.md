@@ -1,6 +1,6 @@
 # Intelligence & Bot Shield Diagnostics Guide
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -10,7 +10,7 @@
 Scan HTML payloads for anti-bot challenge interstitial markers:
 
 ```python
-from bp_facade12 import BP
+from veil import BP
 
 bp = BP()
 html_payload = "<div id='cf-turnstile-wrapper'>Please verify you are human</div>"

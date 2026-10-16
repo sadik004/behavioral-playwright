@@ -1,12 +1,12 @@
 # Feature Specification: Intelligence Namespace (`bp.intelligence`)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
 
 ## 1. Overview & Capabilities
-The `AdvancedIntelligenceNamespace` ([`bp_facade12.py:1575`](file:///c:/Users/User/SAA/bp_facade12.py#L1575)) provides bot-shield signature detection, Levenshtein selector healing, and predictive resource forecasting.
+The `AdvancedIntelligenceNamespace` ([`veil/facade.py`](src/veil/facade.py)) provides bot-shield signature detection, Levenshtein selector healing, and predictive resource forecasting.
 
 ---
 

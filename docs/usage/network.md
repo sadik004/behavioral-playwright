@@ -1,6 +1,6 @@
 # Network Measurement & Diagnostics Guide
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -11,7 +11,7 @@ Perform low-overhead HTTP `HEAD` probes with automatic `405 Method Not Allowed` 
 
 ```python
 import asyncio
-from bp_facade12 import BP
+from veil import BP
 
 async def test_latency():
     async with BP() as bp:

@@ -1,6 +1,6 @@
 # Getting Started with Behavioral Playwright
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -29,7 +29,7 @@ The standard way to use Behavioral Playwright is through the `async with BP() as
 
 ```python
 import asyncio
-from bp_facade12 import BP
+from veil import BP
 
 async def main():
     async with BP() as bp:

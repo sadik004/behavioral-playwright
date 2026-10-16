@@ -1,12 +1,12 @@
 # Feature Specification: AI Namespace (`bp.ai`)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
 
 ## 1. Overview & Capabilities
-The `AINamespace` ([`bp_facade12.py:1004`](file:///c:/Users/User/SAA/bp_facade12.py#L1004)) provides zero-cost, offline statistical NLP, multilingual document re-ranking, and structured schema coercion.
+The `AINamespace` ([`veil/facade.py`](src/veil/facade.py)) provides zero-cost, offline statistical NLP, multilingual document re-ranking, and structured schema coercion.
 
 ---
 

@@ -1,12 +1,12 @@
 # Feature Specification: Infrastructure Namespace (`bp.infrastructure`)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
 
 ## 1. Overview & Capabilities
-The `InfrastructureNamespace` ([`bp_facade12.py:560`](file:///c:/Users/User/SAA/bp_facade12.py#L560)) manages WAL-mode SQLite priority task queues, encrypted page caching, and proxy rotation.
+The `InfrastructureNamespace` ([`veil/facade.py`](src/veil/facade.py)) manages WAL-mode SQLite priority task queues, encrypted page caching, and proxy rotation.
 
 ---
 

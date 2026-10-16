@@ -1,6 +1,6 @@
 # Infrastructure Usage Guide (Queue & Cache)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -10,7 +10,7 @@
 Manage asynchronous automation queues across background worker processes:
 
 ```python
-from bp_facade12 import BP
+from veil import BP
 
 bp = BP()
 db_path = "crawler_tasks.db"

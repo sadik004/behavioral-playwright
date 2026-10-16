@@ -1,6 +1,6 @@
 # AI & Statistical NLP Usage Guide
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -10,7 +10,7 @@
 Rank raw documents against a natural language search query without external API costs or model weights:
 
 ```python
-from bp_facade12 import BP
+from veil import BP
 
 bp = BP()
 documents = [

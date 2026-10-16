@@ -1,6 +1,6 @@
 # Webhook Integrations Usage Guide (Slack / Discord / n8n)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -11,7 +11,7 @@ Send real HTTP notifications upon workflow completion:
 
 ```python
 import asyncio
-from bp_facade12 import BP
+from veil import BP
 
 async def notify():
     async with BP() as bp:

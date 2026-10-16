@@ -1,6 +1,6 @@
 # Development & Release Changelog
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ## [v6.0.0] - 2026-09-25
@@ -16,7 +16,7 @@
 - **Documentation**: Added complete 20-section `README.md` and created the permanent engineering knowledge base in `docs/` (`architecture/`, `core/`, `features/`, `decisions/`, `evolution/`, `debugging/`, `testing/`, `usage/`).
 
 ## [v1.0.0-facade] - Commit `bdfbb3d`
-- **Feature**: Completed Parts 1–7 refactor consolidating 109 capabilities into 9 decoupled namespaces in `bp_facade12.py`.
+- **Feature**: Completed Parts 1–7 refactor consolidating 109 capabilities into 9 decoupled namespaces in `veil/facade.py`.
 - **Fix**: Replaced crawler mock links with real BFS crawler using BeautifulSoup4 and SQLite.
 - **Fix**: Replaced mock OCR with real PIL contrast enhancement and Tesseract worker thread execution.
 - **Fix**: Replaced simulated network latency with real HTTP HEAD probe and monotonic performance counter timing.

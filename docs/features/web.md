@@ -1,12 +1,12 @@
 # Feature Specification: Web Namespace (`bp.web`)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
 
 ## 1. Overview & Capabilities
-The `WebNamespace` ([`bp_facade12.py:47`](file:///c:/Users/User/SAA/bp_facade12.py#L47)) provides high-speed, stateless HTML data acquisition, link filtering, and bounded recursive crawling.
+The `WebNamespace` ([`veil/facade.py`](src/veil/facade.py)) provides high-speed, stateless HTML data acquisition, link filtering, and bounded recursive crawling.
 
 ---
 

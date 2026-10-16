@@ -1,6 +1,6 @@
 # Web Scraping & HTML Processing Guide
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
@@ -11,7 +11,7 @@ Scrape web pages without spawning a full browser, removing non-content tags (suc
 
 ```python
 import asyncio
-from bp_facade12 import BP
+from veil import BP
 
 async def main():
     async with BP() as bp:

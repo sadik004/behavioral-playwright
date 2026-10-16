@@ -1,12 +1,12 @@
 # Feature Specification: Browser Namespace (`bp.browser`)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
 
 ## 1. Overview & Capabilities
-The `BrowserNamespace` ([`bp_facade12.py:388`](file:///c:/Users/User/SAA/bp_facade12.py#L388)) manages stateful Chromium automation, anti-fingerprint shimming, and bio-emulated human actions.
+The `BrowserNamespace` ([`veil/facade.py`](src/veil/facade.py)) manages stateful Chromium automation, anti-fingerprint shimming, and bio-emulated human actions.
 
 ---
 

@@ -1,12 +1,12 @@
 # Feature Specification: Observability Namespace (`bp.observability`)
 
-> **Last Verified Against Commit**: `68a3d1e`
+> **Last Verified Against Commit**: `v10.0.2`
 > **Status**: [VERIFIED]
 
 ---
 
 ## 1. Overview & Capabilities
-The `ObservabilityNamespace` ([`bp_facade12.py:1426`](file:///c:/Users/User/SAA/bp_facade12.py#L1426)) provides DDL-cached performance metric logging, trace duration timers, session replay storage, and automated QA report generation.
+The `ObservabilityNamespace` ([`veil/facade.py`](src/veil/facade.py)) provides DDL-cached performance metric logging, trace duration timers, session replay storage, and automated QA report generation.
 
 ---
 
