@@ -1104,7 +1104,8 @@ class McpToolDispatcher:
                             await bp.page.hover(selector)
                         return {"status": "success", "action": "hover", "selector": selector}
                     elif action in ("pause", "wait"):
-                        await bp.wait(500)
+                        import asyncio
+                        await asyncio.sleep(0.5)
                         return {"status": "success", "action": "pause", "duration_ms": 500}
                     return {"error": f"Unknown action: {action}"}
 

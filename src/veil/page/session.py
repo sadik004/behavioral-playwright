@@ -121,6 +121,21 @@ class PageSession:
             return url_val() if callable(url_val) else url_val
         return await self.provider.get_url()
 
+    @property
+    def url(self) -> str:
+        """Returns active page URL property for direct Playwright API compatibility."""
+        if hasattr(self.raw_page, "url"):
+            u = self.raw_page.url
+            return u() if callable(u) else str(u)
+        return ""
+
+    @property
+    def title(self) -> Any:
+        """Returns active page title callable or string for direct Playwright API compatibility."""
+        if hasattr(self.raw_page, "title"):
+            return self.raw_page.title
+        return self.get_title
+
     async def evaluate(self, script: str, arg: Any = None) -> Any:
         """Evaluates JavaScript expression."""
         if hasattr(self.raw_page, "evaluate") and callable(self.raw_page.evaluate):
