@@ -33,7 +33,7 @@ A production-grade, enterprise behavioral evasion, stealth automation, and deep 
   - [15. Deep Logic & Protected Attribute Security Auditing Suite (`behavioral_evasion_suite`)](#15-deep-logic--protected-attribute-security-auditing-suite-behavioral_evasion_suite)
   - [16. SEO, AEO & GEO Data Mining & Verification Engine (`bp.mining`)](#16-seo-aeo--geo-data-mining--verification-engine-bpmining)
 - [🧩 Unified Facade (`BP`) API Reference](#-unified-facade-bp-api-reference)
-- [? PowerPlay Integration Subsystem (`bp.powerplay` / `Bpp`)](#-powerplay-integration-subsystem-bppowerplay--bpp)
+- [⚡ PowerPlay Integration Subsystem (`bp.powerplay` / `Bpp`)](#-powerplay-integration-subsystem-bppowerplay--bpp)
 - [🔐 Shared Authentication Architecture](#-shared-authentication-architecture)
 - [🤖 Claude Desktop & Cursor AI Setup Guide](#-claude-desktop--cursor-ai-setup-guide)
 - [💻 Complete CLI Command Reference](#-complete-cli-command-reference)
@@ -120,7 +120,7 @@ playwright install chromium
 
 ```python
 import asyncio
-from behavioral_playwright import BP
+from veil import BP  # Modern Clean Architecture entrypoint (or: from behavioral_playwright import BP)
 
 async def main():
     async with BP() as bp:
@@ -140,7 +140,7 @@ if __name__ == "__main__":
 
 ```python
 import asyncio
-from behavioral_playwright import BP, AutomationConfig, AuthConfig
+from veil import BP, AutomationConfig, AuthConfig
 
 async def main():
     config = AutomationConfig(
@@ -458,7 +458,7 @@ async with BP(config=config) as bp:
 
 ---
 
-## 13 PowerPlay Integration Subsystem (`bp.powerplay` / `Bpp`)
+## ⚡ PowerPlay Integration Subsystem (`bp.powerplay` / `Bpp`)
 
 The **PowerPlay** subsystem provides an additive, decoupled layer of advanced mathematical models, trajectory synthesis, keystroke dynamics, information entropy auditing, and closed-loop memory control.
 
