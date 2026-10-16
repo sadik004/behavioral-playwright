@@ -1,11 +1,7 @@
-"""Automation controllers for mouse, keyboard, and scrolling."""
+"""Backward-compatible package alias forwarding to `veil.automation`."""
+import importlib as _importlib
 
-from behavioral_playwright.automation.keyboard import KeyboardController
-from behavioral_playwright.automation.mouse import MouseController
-from behavioral_playwright.automation.scroll import ScrollController
-
-__all__ = [
-    "KeyboardController",
-    "MouseController",
-    "ScrollController",
-]
+_mod = _importlib.import_module("veil.automation")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v

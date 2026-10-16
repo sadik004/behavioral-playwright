@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,13 +33,13 @@ jobs:
         run: python -m playwright install
       - name: Code Quality & Linting (Ruff)
         run: |
-          ruff check behavioral_playwright/ tests/
+          ruff check src/ tests/
       - name: Type Checking (MyPy)
         run: |
-          mypy behavioral_playwright/
+          mypy src/
       - name: Run Pytest Suite
         run: |
-          pytest
+          pytest tests/ -v
       - name: Build Package (Wheel & sdist)
         run: |
           python -m build

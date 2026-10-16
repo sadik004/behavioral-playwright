@@ -27,8 +27,9 @@ async def test_real_search_logic():
         try:
             res = await bp.search("test query")
             assert isinstance(res, list)
-        except Exception:
-            pass # Mock provider might raise exception if selectors not found, which is fine
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).debug(f"Search fallback with MockBrowserProvider: {exc}")
 
 @pytest.mark.asyncio
 async def test_real_map_logic():

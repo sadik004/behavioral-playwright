@@ -1,91 +1,15 @@
-"""
-behavioral-playwright: Resilient, self-healing browser automation framework
-built on Playwright. Primary package interface — exposes the unified BP facade
-and all core configuration/session classes for clean global imports:
+"""Backward-compatible package alias forwarding to `veil`."""
+from __future__ import annotations
 
-    from behavioral_playwright import BP, AutomationConfig
-"""
+import importlib as _importlib
 
-__version__ = "10.0.0"
+_mod = _importlib.import_module("veil")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v
 
-from behavioral_playwright.automation.keyboard import KeyboardController
-from behavioral_playwright.automation.mouse import MouseController
-from behavioral_playwright.automation.scroll import ScrollController
-from behavioral_playwright.browser.base import BrowserProvider
-from behavioral_playwright.browser.mock_provider import MockBrowserProvider
-from behavioral_playwright.browser.playwright_provider import PlaywrightProvider
-from behavioral_playwright.config.settings import (
-    AutomationConfig,
-    BrowserConfig,
-    CircuitBreakerConfig,
-    ResolverConfig,
-    RetryConfig,
-)
-from behavioral_playwright.exceptions import (
-    BehavioralPlaywrightError,
-    BrowserProviderError,
-    CircuitBreakerError,
-    ConfigurationError,
-    ElementResolutionError,
-    ExtractionError,
-    NavigationError,
-    TimeoutError,
-)
-from behavioral_playwright.extraction.dom import DOMExtractor
-from behavioral_playwright.models.elements import BoundingBox, DOMElement
-from behavioral_playwright.models.results import (
-    ExtractionRecord,
-    ResolutionResult,
-    ResolutionStrategy,
-)
-from behavioral_playwright.page.session import BrowserSession, PageSession
-from behavioral_playwright.resilience.circuit_breaker import (
-    CircuitBreaker,
-    CircuitState,
-)
-from behavioral_playwright.resilience.retry import RetryPolicy
-from behavioral_playwright.resilience.state import PageStateEntry, StateTracker
-from behavioral_playwright.selectors.fuzzy import FuzzyResolverStrategy
-from behavioral_playwright.selectors.resolver import SelfHealingResolver
-from behavioral_playwright.selectors.semantic import SemanticResolverStrategy
-from behavioral_playwright.facade import BP
+__all__ = getattr(_mod, "__all__", [k for k in globals() if not k.startswith("_")])
 
-__all__ = [
-    "__version__",
-    "AutomationConfig",
-    "BehavioralPlaywrightError",
-    "BoundingBox",
-    "BP",
-    "BrowserConfig",
-    "BrowserProvider",
-    "BrowserProviderError",
-    "BrowserSession",
-    "CircuitBreaker",
-    "CircuitBreakerConfig",
-    "CircuitBreakerError",
-    "CircuitState",
-    "ConfigurationError",
-    "DOMElement",
-    "DOMExtractor",
-    "ElementResolutionError",
-    "ExtractionError",
-    "ExtractionRecord",
-    "FuzzyResolverStrategy",
-    "KeyboardController",
-    "MockBrowserProvider",
-    "MouseController",
-    "NavigationError",
-    "PageSession",
-    "PageStateEntry",
-    "PlaywrightProvider",
-    "ResolutionResult",
-    "ResolutionStrategy",
-    "ResolverConfig",
-    "RetryConfig",
-    "RetryPolicy",
-    "ScrollController",
-    "SelfHealingResolver",
-    "SemanticResolverStrategy",
-    "StateTracker",
-    "TimeoutError",
-]
+
+def __getattr__(name: str):
+    return getattr(_mod, name)

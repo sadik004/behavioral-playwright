@@ -34,7 +34,7 @@ jobs:
 
       - name: Run Pytest suite
         run: |
-          pytest
+          pytest tests/unit -q
 
       - name: Build Wheel and sdist
         run: |

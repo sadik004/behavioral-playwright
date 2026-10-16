@@ -1,5 +1,7 @@
-"""Page and session management abstractions."""
+"""Backward-compatible package alias forwarding to `veil.page`."""
+import importlib as _importlib
 
-from behavioral_playwright.page.session import BrowserSession, PageSession
-
-__all__ = ["BrowserSession", "PageSession"]
+_mod = _importlib.import_module("veil.page")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v

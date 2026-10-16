@@ -1,16 +1,7 @@
-"""Resilience and fault tolerance primitives."""
+"""Backward-compatible package alias forwarding to `veil.resilience`."""
+import importlib as _importlib
 
-from behavioral_playwright.resilience.circuit_breaker import (
-    CircuitBreaker,
-    CircuitState,
-)
-from behavioral_playwright.resilience.retry import RetryPolicy
-from behavioral_playwright.resilience.state import PageStateEntry, StateTracker
-
-__all__ = [
-    "CircuitBreaker",
-    "CircuitState",
-    "PageStateEntry",
-    "RetryPolicy",
-    "StateTracker",
-]
+_mod = _importlib.import_module("veil.resilience")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v

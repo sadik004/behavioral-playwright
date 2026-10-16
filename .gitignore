@@ -1,11 +1,11 @@
-# Python bytecode & cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-
-# Distribution / Packaging
+env/
+venv/
+.venv/
 build/
 develop-eggs/
 dist/
@@ -21,27 +21,26 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# Virtual Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Testing & Quality
 .pytest_cache/
-.coverage
-htmlcov/
-.hypothesis/
 .mypy_cache/
 .ruff_cache/
-
-# Runtime Logs, Test Artifacts & Scratch
-*.log
-*.csv
-*.png
-*.jpg
+.coverage
+htmlcov/
+forensics/
+*.db
+*.sqlite
+*.zip
+*storage_state.json
 scratch/
+test_pipeline_output.ndjson
+*.log
+.DS_Store
+pseo-growth-engine/
+Reddit.mcp/
+n8n.mcp/
+screenshot.png
+network_trace.json
+.gemini/
+.agents/
+.vscode/
+

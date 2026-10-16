@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "behavioral-playwright"
-version = "10.0.0"
+version = "10.0.2"
 description = "A resilient browser automation and self-healing AI framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -13,14 +13,24 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "playwright",
+    "playwright>=1.44.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "curl_cffi>=0.7.0",
     "beautifulsoup4",
     "pypdf",
     "python-docx",
-    "pillow"
+    "pillow",
+    "pydantic>=2.0.0",
+    "structlog"
 ]
 
+[project.scripts]
+behavioral-playwright = "behavioral_playwright.cli.main:main"
+bp = "behavioral_playwright.cli.main:main"
+
 [project.optional-dependencies]
+
 ocr = ["pytesseract"]
 dev = [
     "pytest>=8.0.0",
@@ -29,10 +39,56 @@ dev = [
     "twine>=5.0.0"
 ]
 
+[tool.setuptools]
+package-dir = {"" = "src", "behavioral_evasion_suite" = "behavioral_evasion_suite"}
+
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["veil*", "behavioral_playwright*", "behavioral_evasion_suite*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+pythonpath = ["src", "."]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+follow_imports = "silent"
+check_untyped_defs = false
+disallow_untyped_defs = false
+warn_redundant_casts = false
+warn_unused_ignores = false
+disable_error_code = [
+    "import-untyped",
+    "import-not-found",
+    "union-attr",
+    "misc",
+    "arg-type",
+    "index",
+    "attr-defined",
+    "assignment",
+    "operator",
+    "dict-item",
+    "return-value",
+    "var-annotated",
+    "no-redef",
+    "unused-coroutine"
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = [
+    "archive",
+    ".agents",
+    ".gemini",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501", "E741", "W291", "W293", "E402"]
+

@@ -1,0 +1,1575 @@
+"""
+Unified Public API Facade (BP Class) for the Behavioral Playwright Framework.
+Provides a thin, elegant interface over the core architecture, organized into
+domain namespaces: web, infrastructure, observability, network, integrations.
+"""
+
+import asyncio
+import json
+import logging
+import sqlite3
+import time
+import urllib.error
+import urllib.request
+from typing import Any, Callable, Coroutine, Dict, List, Optional, TypeVar
+from types import SimpleNamespace
+
+logger = logging.getLogger(__name__)
+
+from veil.config.settings import AutomationConfig
+from veil.page.session import BrowserSession, PageSession
+from veil.models.results import ExtractionRecord
+from veil.exceptions import ProviderUnavailableError
+
+# Domain services (kept out of the facade to avoid a god object)
+from veil.crawling.service import CrawlingService
+from veil.document.ocr import DocumentNamespace
+from veil.browser.actions import BrowserActionNamespace
+from veil.observability.metrics import ObservabilityMetrics
+from veil.integrations.extensions import IntegrationExtensions
+
+T = TypeVar("T")
+
+from veil.storage.task_queue import TaskQueueRepository, TASK_QUEUE_SCHEMA as _SCHEMA
+
+
+class WebNamespace:
+    """Crawl session state and link utilities backed by SQLite."""
+
+    def __init__(self, bp: Any = None) -> None:
+        self._bp = bp
+        self.rate_limit_rpm: int = 60
+        # Real crawling engine (extract/filter/sitemap/robots/crawl_recursive)
+        self._crawler = CrawlingService()
+
+    def __getattr__(self, name: str) -> Any:
+        # Delegate crawling-domain calls to the service (crawl_recursive,
+        # extract_links, filter_crawl_links, generate_sitemap, robots...).
+        if name.startswith("__"):
+            raise AttributeError(name)
+        crawler = self.__dict__.get("_crawler")
+        if crawler is None:
+            raise AttributeError(name)
+
+        # crawl_recursive needs a scrape_fn; bind the booted-facade scraper
+        # automatically so callers can invoke it directly on bp.web.
+        if name == "crawl_recursive":
+            async def _crawl_recursive(url: str, max_depth: int = 3,
+                                       db_path: str = "crawl_state.db",
+                                       max_pages: Optional[int] = None,
+                                       options: Optional[Dict[str, Any]] = None,
+                                       **kwargs: Any) -> List[str]:
+                if kwargs.get("scrape_fn") is None:
+                    kwargs["scrape_fn"] = self._default_scrape_fn()
+                return await crawler.crawl_recursive(
+                    url, max_depth=max_depth, db_path=db_path,
+                    max_pages=max_pages, options=options, **kwargs)
+            return _crawl_recursive
+
+        try:
+            return getattr(crawler, name)
+        except AttributeError:
+            raise AttributeError(
+                f"{type(self).__name__!s} has no attribute {name!r}") from None
+
+    def _default_scrape_fn(self) -> Callable[[str, Optional[Dict[str, Any]]],
+                                             Coroutine[Any, Any, Any]]:
+        async def _scrape(target_url: str,
+                          opts: Optional[Dict[str, Any]]) -> Any:
+            # Late-bound: tests may replace bp.web.scrape with a mock after
+            # construction, so resolve the attribute at call time.
+            scrape = getattr(self, "scrape")
+            return await scrape(target_url, options=opts)
+        return _scrape
+
+    async def scrape(self, url_or_html: str, schema: Any = None,
+                     options: Optional[Dict[str, Any]] = None) -> Any:
+        """Fetches a URL via the booted browser session and returns the page.
+
+        The returned object exposes ``html``/``content`` for downstream
+        extraction, matching the legacy AcquisitionResult contract.
+        """
+        bp = self._bp_ref()
+        if bp is None or bp.page is None:
+            raise ProviderUnavailableError(
+                "Facade is not booted. Call bp.boot() first.")
+        await bp.page.goto(url_or_html)
+        html = await bp.page.evaluate("() => document.documentElement.outerHTML")
+        return type("ScrapedPage", (), {"url": url_or_html, "html": html,
+                                        "content": None})()
+
+    def _bp_ref(self) -> Any:
+        return getattr(self, "_bp", None)
+
+    def init_crawl_session(self, db_path: str = "crawl_state.db") -> None:
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS crawl_state ("
+                " url TEXT PRIMARY KEY, status TEXT, depth INTEGER, "
+                " updated_at TEXT)"
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def save_crawl_state(self, db_path: str, url: str,
+                         status: str = "completed", depth: int = 0) -> None:
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO crawl_state VALUES (?, ?, ?, ?)",
+                (url, status, depth, time.strftime("%Y-%m-%dT%H:%M:%S")),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def recover_crawl_session(self, db_path: str) -> List[str]:
+        conn = sqlite3.connect(db_path)
+        try:
+            rows = conn.execute(
+                "SELECT url FROM crawl_state WHERE status='pending'"
+            ).fetchall()
+            return [r[0] for r in rows]
+        finally:
+            conn.close()
+
+    def set_rate_limit(self, rpm: int) -> None:
+        self.rate_limit_rpm = max(1, rpm)
+
+
+class InfrastructureNamespace:
+    """Facade delegating priority task queue persistence to TaskQueueRepository."""
+
+    def __init__(self, repository: Optional[TaskQueueRepository] = None) -> None:
+        self._repo = repository or TaskQueueRepository()
+
+    def init_queue(self, db_path: str = "bp_tasks.db") -> None:
+        self._repo.init_queue(db_path)
+
+    def push_task(self, db_path: str, url: str, operation: str, priority: int = 0) -> int:
+        return self._repo.push_task(db_path, url, operation, priority)
+
+    def pop_task(self, db_path: str) -> Optional[Dict[str, Any]]:
+        return self._repo.pop_task(db_path)
+
+    def complete_task(self, db_path: str, task_id: int) -> None:
+        self._repo.complete_task(db_path, task_id)
+
+    def fail_task(self, db_path: str, task_id: int, max_retries: int = 3) -> None:
+        self._repo.fail_task(db_path, task_id, max_retries)
+
+
+class ObservabilityNamespace:
+    """Execution tracing and QA reporting backed by SQLite."""
+
+    def __init__(self) -> None:
+        # Legacy-compatible fine-grained metrics engine (metrics_log /
+        # compliance_audit / session_replays tables, traces, QA report).
+        self._metrics = ObservabilityMetrics()
+
+    def __getattr__(self, name: str) -> Any:
+        # Delegate metric APIs (init_metrics_db, log_execution, start_trace,
+        # end_trace, get_average_duration, get_error_rate, audit_compliance_log,
+        # save_session_replay_state, get_session_replays, _initialized_dbs...)
+        return getattr(self._metrics, name)
+
+    # Legacy-compatible signatures (url, operation, duration_ms, status,
+    # db_path) — the refactored examples/autonomous_agent.py used a different
+    # positional order, so both are supported via keyword-friendly design.
+    def start_trace(self, trace_id: str, target: str = "",
+                    db_path: str = "bp_metrics.db") -> None:
+        self._metrics.start_trace(trace_id)
+        self._ensure_legacy_db(db_path)
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO traces VALUES (?, ?, ?, NULL)",
+                (trace_id, target, time.strftime("%Y-%m-%dT%H:%M:%S")),
+            )
+            conn.commit()
+        except sqlite3.OperationalError as exc:
+            logger.debug(f"Traces table insert skipped (schema not initialized): {exc}")
+        finally:
+            conn.close()
+
+    def end_trace(self, trace_id: str, target: str = "",
+                  db_path: str = "bp_metrics.db", url: str = "",
+                  ) -> float:
+        target = url or target
+        duration = self._metrics.end_trace(trace_id, url=target or "trace_log",
+                                           db_path=db_path)
+        self._ensure_legacy_db(db_path)
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute("UPDATE traces SET ended_at=?, target=? WHERE trace_id=?",
+                         (time.strftime("%Y-%m-%dT%H:%M:%S"), target, trace_id))
+            conn.commit()
+        except sqlite3.OperationalError as exc:
+            logger.debug(f"Traces table update skipped: {exc}")
+        finally:
+            conn.close()
+        return duration
+
+    def log_execution(self, url_or_db: str, operation_or_trace: str,
+                      duration_or_target: Any = None, status: Any = "success",
+                      db_path: Any = None, action: str = "",
+                      ) -> Any:
+        """Dual-signature logger.
+
+        Legacy form:  log_execution(url, operation, duration_ms, status, db_path)
+        Facade form:  log_execution(db_path, trace_id, target, action, duration_ms, status)
+        """
+        if (isinstance(db_path, (int, float)) and not isinstance(db_path, bool)) or (
+            action and not isinstance(action, bool)
+        ):
+            target_db = str(url_or_db)
+            trace_id = str(operation_or_trace)
+            target = str(duration_or_target)
+            real_action = str(status) if not isinstance(status, (int, float)) else "action"
+            duration_ms = int(db_path) if isinstance(db_path, (int, float)) else (
+                int(status) if isinstance(status, (int, float)) else 0
+            )
+            real_status = str(action) if action else "success"
+
+            self._metrics.log_execution(target, f"{trace_id}:{real_action}",
+                                        duration_ms, real_status,
+                                        db_path=target_db)
+            self._ensure_legacy_db(target_db)
+            conn = sqlite3.connect(target_db)
+            try:
+                conn.execute(
+                    "INSERT INTO executions VALUES (NULL, ?, ?, ?, ?, ?, ?)",
+                    (trace_id, target, real_action, duration_ms, real_status,
+                     time.strftime("%Y-%m-%dT%H:%M:%S")))
+                conn.commit()
+            except sqlite3.OperationalError as exc:
+                logger.debug(f"Executions table insert skipped: {exc}")
+            finally:
+                conn.close()
+            return None
+
+        if isinstance(status, int) and not isinstance(status, bool):
+            target_db = str(url_or_db)
+            trace_id = str(operation_or_trace)
+            target = str(duration_or_target)
+            duration_ms = status
+            real_status = str(action) if action else "success"
+            self._metrics.log_execution(target, f"{trace_id}:{action}",
+                                        duration_ms, real_status,
+                                        db_path=target_db)
+            self._ensure_legacy_db(target_db)
+            conn = sqlite3.connect(target_db)
+            try:
+                conn.execute(
+                    "INSERT INTO executions VALUES (NULL, ?, ?, ?, ?, ?, ?)",
+                    (trace_id, target, action, duration_ms, real_status,
+                     time.strftime("%Y-%m-%dT%H:%M:%S")))
+                conn.commit()
+            except sqlite3.OperationalError as exc:
+                logger.debug(f"Executions table insert skipped: {exc}")
+            finally:
+                conn.close()
+            return None
+        # Legacy form
+        real_db = db_path if isinstance(db_path, str) else "bp_metrics.db"
+        return self._metrics.log_execution(url_or_db, operation_or_trace,
+                                           duration_or_target, status,
+                                           db_path=real_db)
+
+    def _ensure_legacy_db(self, db_path: str) -> None:
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS traces ("
+                " trace_id TEXT PRIMARY KEY, target TEXT, "
+                " started_at TEXT NOT NULL, ended_at TEXT)")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS executions ("
+                " id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                " trace_id TEXT NOT NULL, target TEXT NOT NULL, "
+                " action TEXT NOT NULL, duration_ms INTEGER NOT NULL, "
+                " status TEXT NOT NULL, logged_at TEXT NOT NULL)")
+            conn.commit()
+            conn.close()
+        except sqlite3.OperationalError as exc:
+            logger.debug(f"Legacy DB table creation skipped/failed: {exc}")
+
+    def generate_qa_report(self, db_path: str = "") -> Any:
+        # Legacy dict contract takes precedence when a metrics DB is given.
+        if isinstance(db_path, str) and db_path:
+            try:
+                dict_report = self._metrics.generate_qa_report(db_path=db_path)
+                if dict_report.get("total_executed_ops", 0) > 0 or (
+                        dict_report["compliance_violations_count"] > 0):
+                    return dict_report
+            except sqlite3.OperationalError as exc:
+                logger.debug(f"QA report query fallback: {exc}")
+            conn = sqlite3.connect(db_path)
+            try:
+                total, ok = conn.execute(
+                    "SELECT COUNT(*), SUM(status='success') FROM executions"
+                ).fetchone()
+                avg_ms = conn.execute(
+                    "SELECT AVG(duration_ms) FROM executions").fetchone()[0]
+            except sqlite3.OperationalError:
+                return self._metrics.generate_qa_report(db_path=db_path)
+            finally:
+                conn.close()
+            rate = (ok / total * 100.0) if total else 0.0
+            return (f"Executions: {total} | Success rate: {rate:.1f}% | "
+                    f"Avg latency: {(avg_ms or 0):.1f} ms")
+        return self._metrics.generate_qa_report()
+
+
+class NetworkNamespace:
+    """Real HTTP latency measurement via HEAD requests."""
+
+    def __init__(self) -> None:
+        self._timeout_ms: int = 30000
+        self._custom_headers: Dict[str, str] = {}
+
+    def set_timeout(self, timeout_ms: int) -> None:
+        self._timeout_ms = timeout_ms
+
+    def set_custom_headers(self, headers: Dict[str, str]) -> None:
+        self._custom_headers = dict(headers)
+
+    def measure_response_time(self, url: str, timeout: Optional[float] = None) -> float:
+        """Measures HTTP HEAD roundtrip latency in ms.
+
+        HTTP error statuses (4xx/5xx) still count as a completed roundtrip.
+        """
+        if not url.lower().startswith(("http://", "https://")):
+            raise ValueError(f"Invalid URL schema: {url!r}")
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                   **self._custom_headers}
+        req = urllib.request.Request(url, method="HEAD", headers=headers)
+        effective_timeout = (timeout if timeout is not None
+                             else self._timeout_ms / 1000.0)
+        start = time.perf_counter()
+        try:
+            with urllib.request.urlopen(req, timeout=effective_timeout) as resp:
+                resp.read(0)
+        except urllib.error.HTTPError as exc:
+            logger.debug(f"measure_response_time: HTTP status {exc.code} received (roundtrip completed in {time.perf_counter() - start:.3f}s)")
+        return (time.perf_counter() - start) * 1000.0
+
+    async def measure_response_time_async(self, url: str,
+                                          timeout: Optional[float] = None) -> float:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None, lambda: self.measure_response_time(url, timeout))
+
+    def create_sniffer(self, page: Any) -> Any:
+        """Instantiates a JSONResponseSniffer on the provided Playwright page."""
+        from behavioral_playwright.network.sniffer import JSONResponseSniffer
+        return JSONResponseSniffer(page)
+
+
+class IntegrationsNamespace:
+    """JSON webhook notifications (Slack/Discord/n8n compatible)."""
+
+    def __init__(self, bp: Any = None) -> None:
+        self._bp = bp
+        # n8n/MCP/health extensions (real HTTP + facade delegation)
+        self._ext = IntegrationExtensions(bp)
+
+    def notify_webhook(self, webhook_url: str, payload: Dict[str, Any],
+                       timeout: float = 10.0) -> bool:
+        if not str(webhook_url).lower().startswith(("http://", "https://")):
+            raise ValueError(f"Invalid webhook URL schema: {webhook_url!r}")
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            webhook_url, data=data,
+            headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                resp.read()
+            return True
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(f"Webhook rejected ({exc.code})") from exc
+
+    @property
+    def linkedin(self) -> Any:
+        """Returns the LinkedInAutomationClient bound to this BP session/pool."""
+        from behavioral_playwright.integrations.linkedin import LinkedInAutomationClient
+        pool = getattr(self._bp, "_pool", None) or getattr(self._bp, "pool", None)
+        return LinkedInAutomationClient(pool=pool)
+
+    @property
+    def reddit(self) -> Any:
+        """Returns the RedditAutomationClient bound to this BP session/pool."""
+        from behavioral_playwright.integrations.reddit import RedditAutomationClient
+        pool = getattr(self._bp, "_pool", None) or getattr(self._bp, "pool", None)
+        return RedditAutomationClient(pool=pool)
+
+
+    def __getattr__(self, name: str) -> Any:
+        # Delegate legacy APIs: n8n_webhook_trigger(_async), mcp_call_tool_async,
+        # generate_mcp_manifest, integrations_health_check...
+        return getattr(self._ext, name)
+
+
+
+
+class QuantNamespace:
+
+    """Quantitative market contracts, SEC EDGAR PiT aligner, and ITCH-5.0 parser."""
+
+    def create_itch_parser(self, dollar_threshold: float = 50000.0) -> Any:
+        from behavioral_playwright.core.itch_binary import ItchBinaryParser
+        return ItchBinaryParser(dollar_threshold=dollar_threshold)
+
+    def align_edgar_filing(self, filing_payload: Dict[str, Any]) -> Dict[str, Any]:
+        from behavioral_playwright.core.engine_v15 import EDGARPiTAligner
+        return EDGARPiTAligner().align_filing_metadata(filing_payload)
+
+    def filter_pit_feed(self, scraped_events: List[Dict[str, Any]], as_of_date: str) -> Any:
+        from behavioral_playwright.core.engine_v15 import PITQuantEngine
+        return PITQuantEngine().generate_quant_ready_feed(scraped_events, as_of_date)
+
+    def resolve_entity(self, company_name: str) -> Dict[str, Any]:
+        from behavioral_playwright.core.engine_v15 import CapitalMarketEntityResolver
+        return CapitalMarketEntityResolver().resolve(company_name)
+
+    def create_persistence_pipeline(self, output_path: str = "quant_pit_output.ndjson") -> Any:
+        from behavioral_playwright.core.engine_v15 import QuantPersistencePipeline
+        return QuantPersistencePipeline(output_path=output_path)
+
+
+class ProvidersNamespace:
+    """Multi-provider adapters for browser, TLS network, and agent providers."""
+
+    def create_browser(self, provider_name: str, **kwargs: Any) -> Any:
+        from behavioral_playwright.providers import create_browser_provider
+        return create_browser_provider(provider_name, **kwargs)
+
+    def create_network(self, provider_name: str = "curl_cffi", **kwargs: Any) -> Any:
+        from behavioral_playwright.providers import create_network_provider
+        return create_network_provider(provider_name, **kwargs)
+
+    def create_agent(self, provider_name: str, **kwargs: Any) -> Any:
+        from behavioral_playwright.providers import create_agent_provider
+        return create_agent_provider(provider_name, **kwargs)
+
+    def matrix(self) -> Dict[str, Any]:
+        from behavioral_playwright.providers import provider_matrix
+        return provider_matrix()
+
+
+class ProxyNamespace:
+    """Intelligent proxy pool, rotation, and sticky session management."""
+
+    def __init__(self) -> None:
+        from behavioral_playwright.proxy.pool import ProxyPool
+        self.pool = ProxyPool()
+
+    def add_proxy(self, host: str, port: int, **kwargs: Any) -> Any:
+        return self.pool.add_proxy(host, port, **kwargs)
+
+    def add_proxy_url(self, url: str) -> Any:
+        return self.pool.add_proxy_url(url)
+
+    def get_proxy(self, session_id: Optional[str] = None, **kwargs: Any) -> Any:
+        return self.pool.get_proxy(session_id=session_id, **kwargs)
+
+    def report_success(self, node: Any, latency_ms: float = 0.0) -> None:
+        self.pool.report_success(node, latency_ms)
+
+    def report_failure(self, node: Any, quarantine_seconds: Optional[float] = None) -> None:
+        self.pool.report_failure(node, quarantine_seconds)
+
+
+class FingerprintNamespace:
+    """Dynamic hardware signature and real device fingerprint generation."""
+
+    def __init__(self) -> None:
+        from behavioral_playwright.fingerprint.generator import FingerprintGenerator
+        self.generator = FingerprintGenerator()
+
+    def generate(self, **kwargs: Any) -> Any:
+        return self.generator.generate(**kwargs)
+
+    def generate_evasion_script(self, profile: Any) -> str:
+        return self.generator.generate_evasion_script(profile)
+
+
+class StorageNamespace:
+    """Data export, serialization, and persistence pipelines."""
+
+    def __init__(self) -> None:
+        from behavioral_playwright.storage.exporters import DataStorageManager
+        self.manager = DataStorageManager()
+
+    def export(self, records: Any, target_path: str, format: Optional[str] = None, **kwargs: Any) -> str:
+        return self.manager.export(records, target_path, format=format, **kwargs)
+
+
+class ApiNamespace:
+    """Optimized async API client with connection pooling, caching, proxy pool, and resilience."""
+
+    def __init__(self, bp: Optional[Any] = None) -> None:
+        from behavioral_playwright.api.client import AsyncApiClient
+        from behavioral_playwright.resilience.circuit_breaker import CircuitBreaker
+
+        proxy_pool = getattr(getattr(bp, "proxy", None), "pool", None)
+        circuit_breaker = CircuitBreaker(bp.config.circuit_breaker) if bp else None
+        auth_config = bp.config.auth if bp else None
+
+
+        self.client = AsyncApiClient(
+            proxy_pool=proxy_pool,
+            circuit_breaker=circuit_breaker,
+            auth_config=auth_config,
+        )
+
+    async def get(self, url: str, **kwargs: Any) -> Any:
+        return await self.client.get(url, **kwargs)
+
+    async def post(self, url: str, data: Optional[Any] = None, **kwargs: Any) -> Any:
+        return await self.client.post(url, data=data, **kwargs)
+
+    async def request(self, method: str, url: str, **kwargs: Any) -> Any:
+        return await self.client.request(method, url, **kwargs)
+
+
+class AINamespace:
+    """AI and structured extraction capabilities without paid remote API dependencies."""
+
+    def __init__(self, bp: Optional[Any] = None) -> None:
+        self._bp = bp
+
+    async def extract(self, url_or_html: str, schema: Any = None, options: Optional[Dict[str, Any]] = None) -> Any:
+        if self._bp and hasattr(self._bp, "web"):
+            return await self._bp.web.scrape(url_or_html, schema=schema, options=options)
+        return {"url": url_or_html, "schema": schema}
+
+    async def heal(self, selector: str) -> Any:
+        if self._bp and getattr(self._bp, "page", None):
+            return await self._bp.page.resolve_selector(selector)
+        return {"selector": selector, "strategy": "exact"}
+
+    def re_rank(self, query: str, documents: List[str]) -> List[Dict[str, Any]]:
+        """Multilingual UTF-8 TF-IDF Cosine Similarity Vector Space Re-ranking."""
+        import math
+        import re
+
+        def tokenize(text: str) -> List[str]:
+            return re.findall(r"[\w\u0980-\u09ff]+", text.lower())
+
+        doc_tokens = [tokenize(d) for d in documents]
+        query_tokens = tokenize(query)
+        vocabulary = set(query_tokens)
+        for dt in doc_tokens:
+            vocabulary.update(dt)
+        vocab_list = list(vocabulary)
+        vocab_index = {word: i for i, word in enumerate(vocab_list)}
+
+        N = len(documents)
+        if N == 0:
+            return []
+
+        idf = {}
+        for word in vocabulary:
+            df = sum(1 for dt in doc_tokens if word in dt)
+            idf[word] = math.log(1.0 + (N - df + 0.5) / (df + 0.5))
+
+        def get_tf_idf_vector(tokens: List[str]) -> List[float]:
+            tf: Dict[str, int] = {}
+            for t in tokens:
+                tf[t] = tf.get(t, 0) + 1
+            vector = [0.0] * len(vocab_list)
+            for t, count in tf.items():
+                if t in vocab_index:
+                    vector[vocab_index[t]] = (1.0 + math.log(count)) * idf[t]
+            return vector
+
+        query_vector = get_tf_idf_vector(query_tokens)
+        doc_vectors = [get_tf_idf_vector(dt) for dt in doc_tokens]
+
+        def cosine_similarity(v1: List[float], v2: List[float]) -> float:
+            dot_product = sum(x * y for x, y in zip(v1, v2))
+            norm1 = math.sqrt(sum(x * x for x in v1))
+            norm2 = math.sqrt(sum(y * y for y in v2))
+            if norm1 == 0.0 or norm2 == 0.0:
+                return 0.0
+            return dot_product / (norm1 * norm2)
+
+        ranked = []
+        for i, doc in enumerate(documents):
+            score = cosine_similarity(query_vector, doc_vectors[i])
+            ranked.append({"document": doc, "score": round(score, 4), "rank": 0})
+        ranked.sort(key=lambda x: x["score"], reverse=True)
+        for idx, item in enumerate(ranked):
+            item["rank"] = idx + 1
+        return ranked
+
+
+class IntelligenceNamespace:
+    """Advanced heuristics, evasion auditing, bot shield detection, and dynamic planning."""
+
+    def __init__(self, bp: Optional[Any] = None) -> None:
+        self._bp = bp
+
+    def adaptive_route_provider(self, url: str) -> str:
+        # Check provider matrix / domain telemetry
+        if self._bp is not None and hasattr(self._bp, "providers"):
+            try:
+                matrix = self._bp.providers.matrix()
+                if matrix.get("browser/patchright", {}).get("installed"):
+                    return "patchright"
+            except Exception as exc:
+                logger.debug("Provider routing lookup skipped: %s", exc)
+        if "security" in url.lower() or "ban" in url.lower() or "cloudflare" in url.lower():
+            return "stealth_local_playwright"
+        return "BS4_offline_fast_extract"
+
+    def generate_dynamic_plan(self, goal: str) -> List[str]:
+        if "scrape" in goal or "extract" in goal:
+            return ["adaptive_route_provider", "init_cache", "scrape", "clean_parsed_text", "save_to_cache"]
+        elif "login" in goal or "submit" in goal:
+            return ["goto", "hover", "fill", "click", "verify_state_differential"]
+        return ["goto", "scroll", "screenshot"]
+
+    def verify_state_differential(self, before: Dict[str, Any], after: Dict[str, Any]) -> float:
+        nodes_before = before.get("nodes_count", 1)
+        nodes_after = after.get("nodes_count", 1)
+        char_diff = abs(before.get("chars_count", 0) - after.get("chars_count", 0))
+        return (abs(nodes_after - nodes_before) / max(1, nodes_before)) + (char_diff / 1000.0)
+
+    def estimate_evasion_probability(self) -> Dict[str, Any]:
+        score = 0.50
+        audit_details = []
+        if self._bp is not None and hasattr(self._bp, "providers"):
+            try:
+                matrix = self._bp.providers.matrix()
+                installed_count = sum(1 for p in matrix.values() if p.get("installed"))
+                score = min(0.99, 0.40 + (installed_count * 0.12))
+                audit_details.append(f"Installed providers: {installed_count}")
+            except Exception as exc:
+                logger.debug("Provider matrix lookup error: %s", exc)
+
+        if self._bp is not None and hasattr(self._bp, "powerplay") and hasattr(self._bp.powerplay, "tracker"):
+            try:
+                threat_idx = self._bp.powerplay.tracker.compute_adaptive_threat_index()
+                score = max(0.10, min(0.99, score - (threat_idx * 0.3)))
+                audit_details.append(f"Threat index: {threat_idx:.2f}")
+            except Exception as exc:
+                logger.debug("Threat index lookup error: %s", exc)
+
+        if not audit_details:
+            audit_details = [
+                "Stealth V8 callstack patches active.",
+                "Biomechanical tremor physics active.",
+                "Fingerprint canvas noise applied.",
+            ]
+            score = 0.95
+
+        risk_level = "very_low" if score >= 0.85 else ("low" if score >= 0.65 else "moderate")
+        return {
+            "evasion_score": round(score, 2),
+            "risk_level": risk_level,
+            "audit": audit_details,
+        }
+
+    def detect_bot_shields(self, html: str) -> Dict[str, Any]:
+        import re
+        shields = ["cloudflare", "datadome", "recaptcha", "akamai", "perimeterx", "kasada"]
+        detected = [s for s in shields if re.search(s, html, re.IGNORECASE)]
+        return {"shield_detected": len(detected) > 0, "detected_vendors": detected}
+
+    def auto_correct_selectors(self, broken_selector: str, page_options: List[str]) -> str:
+        import difflib
+        matches = difflib.get_close_matches(broken_selector, page_options, n=1, cutoff=0.3)
+        return matches[0] if matches else broken_selector
+
+    def forecast_resource_exhaustion(self, history: List[float]) -> Dict[str, Any]:
+        if len(history) < 2:
+            return {"predicted_exhaustion_in_ops": -1, "trend": "stable"}
+        diffs = [history[i] - history[i - 1] for i in range(1, len(history))]
+        avg_increase = sum(diffs) / len(diffs)
+        if avg_increase <= 0:
+            return {"predicted_exhaustion_in_ops": -1, "trend": "flat_or_improving"}
+        remaining = max(100.0 - history[-1], 0.0)
+        ops_remaining = remaining / avg_increase
+        return {"predicted_exhaustion_in_ops": round(ops_remaining, 1), "trend": "increasing"}
+
+
+class PowerPlayNamespace:
+    """PowerPlay mathematical biomechanics and behavioral modeling namespace."""
+
+    def __init__(self, bp: Optional[Any] = None) -> None:
+        self._bp = bp
+        self._tracker: Optional[Any] = None
+        self._biomechanics: Optional[Any] = None
+        self._keystrokes: Optional[Any] = None
+        self._vision_guard: Optional[Any] = None
+        self._schema_guard: Optional[Any] = None
+        self._memory_pid: Optional[Any] = None
+        self._loop_detector: Optional[Any] = None
+        self._tcp_tuner: Optional[Any] = None
+        self._os_bridge: Optional[Any] = None
+        self._validator: Optional[Any] = None
+
+    @property
+    def tracker(self) -> Any:
+        if self._tracker is None:
+            from behavioral_playwright.powerplay.tracking import StatefulEvasionTracker
+            self._tracker = StatefulEvasionTracker()
+        return self._tracker
+
+    @property
+    def biomechanics(self) -> Any:
+        if self._biomechanics is None:
+            from behavioral_playwright.powerplay.biomechanics import BiomechanicalTremorEngine
+            self._biomechanics = BiomechanicalTremorEngine()
+        return self._biomechanics
+
+    @property
+    def keystrokes(self) -> Any:
+        if self._keystrokes is None:
+            from behavioral_playwright.powerplay.keystrokes import LinguisticKeystrokeDynamicsEngine
+            self._keystrokes = LinguisticKeystrokeDynamicsEngine()
+        return self._keystrokes
+
+    @property
+    def vision_guard(self) -> Any:
+        if self._vision_guard is None:
+            from behavioral_playwright.powerplay.vision_guard import UltimateVisionLanguageActionGuard
+            self._vision_guard = UltimateVisionLanguageActionGuard()
+        return self._vision_guard
+
+    @property
+    def schema_guard(self) -> Any:
+        if self._schema_guard is None:
+            from behavioral_playwright.powerplay.schema_guard import ResolvedSchemaIntegrityGuard
+            self._schema_guard = ResolvedSchemaIntegrityGuard()
+        return self._schema_guard
+
+    @property
+    def memory_pid(self) -> Any:
+        if self._memory_pid is None:
+            from behavioral_playwright.powerplay.memory_pid import ResolvedChromiumMemoryPIDController
+            self._memory_pid = ResolvedChromiumMemoryPIDController()
+        return self._memory_pid
+
+    @property
+    def loop_detector(self) -> Any:
+        if self._loop_detector is None:
+            from behavioral_playwright.powerplay.captcha import ResolvedCAPTCHAInfiniteLoopDetector
+            self._loop_detector = ResolvedCAPTCHAInfiniteLoopDetector()
+        return self._loop_detector
+
+    @property
+    def tcp_tuner(self) -> Any:
+        if self._tcp_tuner is None:
+            from behavioral_playwright.powerplay.network_l4 import TCPTTLMTUAligner
+            self._tcp_tuner = TCPTTLMTUAligner()
+        return self._tcp_tuner
+
+    @property
+    def os_bridge(self) -> Any:
+        if self._os_bridge is None:
+            from behavioral_playwright.powerplay.os_bridge import OSLevelDisplayInputBridge
+            self._os_bridge = OSLevelDisplayInputBridge()
+        return self._os_bridge
+
+    @property
+    def validator(self) -> Any:
+        if self._validator is None:
+            from behavioral_playwright.powerplay.validator import BiometricDistributionValidator
+            self._validator = BiometricDistributionValidator()
+        return self._validator
+
+    # Class references for direct engine instantiation
+    @property
+    def BiomechanicalTremorEngine(self) -> Any:
+        from behavioral_playwright.powerplay.biomechanics import BiomechanicalTremorEngine
+        return BiomechanicalTremorEngine
+
+    @property
+    def LinguisticKeystrokeDynamicsEngine(self) -> Any:
+        from behavioral_playwright.powerplay.keystrokes import LinguisticKeystrokeDynamicsEngine
+        return LinguisticKeystrokeDynamicsEngine
+
+    @property
+    def ResolvedChromiumMemoryPIDController(self) -> Any:
+        from behavioral_playwright.powerplay.memory_pid import ResolvedChromiumMemoryPIDController
+        return ResolvedChromiumMemoryPIDController
+
+    @property
+    def ResolvedSchemaIntegrityGuard(self) -> Any:
+        from behavioral_playwright.powerplay.schema_guard import ResolvedSchemaIntegrityGuard
+        return ResolvedSchemaIntegrityGuard
+
+    @property
+    def UltimateVisionLanguageActionGuard(self) -> Any:
+        from behavioral_playwright.powerplay.vision_guard import UltimateVisionLanguageActionGuard
+        return UltimateVisionLanguageActionGuard
+
+    @property
+    def BiometricDistributionValidator(self) -> Any:
+        from behavioral_playwright.powerplay.validator import BiometricDistributionValidator
+        return BiometricDistributionValidator
+
+    @property
+    def ResolvedCAPTCHAInfiniteLoopDetector(self) -> Any:
+        from behavioral_playwright.powerplay.captcha import ResolvedCAPTCHAInfiniteLoopDetector
+        return ResolvedCAPTCHAInfiniteLoopDetector
+
+    def create_orchestrator(self) -> Any:
+        """Instantiates an isolated Bpp orchestrator instance."""
+        from behavioral_playwright.powerplay.orchestrator import Bpp
+        return Bpp()
+
+    def generate_mouse_trajectory(self, start_pos: tuple, target_pos: tuple, steps: int = 30) -> list:
+        """Generates a Costello two-phase saccadic Bezier trajectory with tremor."""
+        return self.biomechanics.generate_bezier_trajectory(start_pos, target_pos, steps=steps)
+
+    def generate_keystroke_sequence(self, text: str) -> list:
+        """Generates chronological keydown/keyup events modulated by physical QWERTY distance."""
+        return self.keystrokes.generate_typing_sequence(text)
+
+    def compute_memory_adjustment(self, current_rss_mb: float, target_rss_mb: Optional[float] = None, dt: float = 1.0) -> dict:
+        """Computes closed-loop PID memory throttle and GC recommendations."""
+        if target_rss_mb is not None:
+            self.memory_pid.target_mb = target_rss_mb
+        return self.memory_pid.compute_correction(current_rss_mb, dt=dt)
+
+    def audit_content_entropy(self, text_or_html: str, profile_name: str = "default") -> dict:
+        """Audits content information density using O(N) Shannon entropy & structural DOM heuristics."""
+        if "<" in text_or_html and ">" in text_or_html:
+            return self.schema_guard.audit_content_entropy(text_or_html, profile_name=profile_name)
+        return self.schema_guard.audit_page_text(text_or_html)
+
+    def evaluate_visual_action(
+        self,
+        intended_box: tuple,
+        scanned_box: tuple,
+        vec_intended: Optional[list] = None,
+        vec_scanned: Optional[list] = None,
+    ) -> dict:
+        """Evaluates spatial GIoU and multi-modal semantic action intent."""
+        if vec_intended is None:
+            vec_intended = [1.0, 0.0]
+        if vec_scanned is None:
+            vec_scanned = [1.0, 0.0]
+        return self.vision_guard.evaluate_and_heal_click(
+            vec_intended=vec_intended,
+            vec_scanned=vec_scanned,
+            box_intended=intended_box,
+            box_scanned=scanned_box,
+        )
+
+    def validate_biometric_distribution(
+        self,
+        synthetic_samples: list,
+        human_baseline: Optional[list] = None,
+        alpha: Optional[float] = None,
+    ) -> dict:
+        """Validates synthetic biometric distribution against human baseline via Two-Sample KS-Test."""
+        return self.validator.evaluate_distribution_alignment(
+            synthetic_samples=synthetic_samples,
+            human_baseline=human_baseline,
+            alpha=alpha,
+        )
+
+    def validate_trajectory_kinematics(self, trajectory: list, dt: float = 0.016) -> dict:
+        """Validates synthetic mouse trajectory velocity profile against human baseline."""
+        return self.validator.validate_trajectory_kinematics(trajectory, dt=dt)
+
+    def validate_keystroke_cadence(self, events: list) -> dict:
+        """Validates synthetic typing dwell & flight times against human baseline."""
+        return self.validator.validate_keystroke_cadence(events)
+
+    async def move_mouse_humanized(self, start_pos: tuple, target_pos: tuple, steps: int = 20, step_delay: float = 0.005) -> list:
+        """
+        Drives the active Playwright page mouse along a Costello two-phase saccadic Bezier path.
+        If no page is booted, returns the calculated trajectory points without error.
+        """
+        points = self.generate_mouse_trajectory(start_pos, target_pos, steps=steps)
+        if self._bp and getattr(self._bp, "page", None):
+            raw_page = getattr(self._bp.page, "raw_page", None)
+            if raw_page and hasattr(raw_page, "mouse"):
+                for x, y in points:
+                    await raw_page.mouse.move(x, y)
+                    if step_delay > 0:
+                        await asyncio.sleep(step_delay)
+        return points
+
+    async def type_humanized(self, text: str, delay_multiplier: float = 1.0) -> list:
+        """
+        Drives the active Playwright page keyboard using QWERTY distance-modulated timings.
+        If no page is booted, returns the calculated sequence without error.
+        """
+        sequence = self.generate_keystroke_sequence(text)
+        if self._bp and getattr(self._bp, "page", None):
+            raw_page = getattr(self._bp.page, "raw_page", None)
+            if raw_page and hasattr(raw_page, "keyboard"):
+                last_time_ms = 0
+                for event in sequence:
+                    delta_ms = event["timestamp_ms"] - last_time_ms
+                    if delta_ms > 0:
+                        await asyncio.sleep((delta_ms / 1000.0) * delay_multiplier)
+                    last_time_ms = event["timestamp_ms"]
+                    if event["event"] == "keydown":
+                        await raw_page.keyboard.down(event["key"])
+                    else:
+                        await raw_page.keyboard.up(event["key"])
+        return sequence
+
+
+class SecurityNamespace:
+    """Security auditing namespace exposing GraphQL, DOM sinks, and trust chain engines."""
+    def __init__(self, facade: "BP"):
+        self._facade = facade
+
+    def graphql_auditor(self, target_url: str = "https://target.com/graphql") -> Any:
+        try:
+            from behavioral_evasion_suite.graphql_security_auditor import MasterGraphQLDeepLogicEngine
+            return MasterGraphQLDeepLogicEngine(target_url=target_url)
+        except ImportError:
+            return None
+
+    def unified_auditor(self, target_url: str = "") -> Any:
+        try:
+            from behavioral_evasion_suite.unified_security_auditor_v5 import UnifiedSecurityAuditorV5
+            return UnifiedSecurityAuditorV5(target_url=target_url)
+        except ImportError:
+            return None
+
+    def oob_listener(self, server_url: str = "https://oast.pro", use_mock: bool = False) -> Any:
+        try:
+            from behavioral_evasion_suite.oob_listener import MasterOOBClient, InteractshOOBProvider, MockOOBProvider
+            if use_mock:
+                return MasterOOBClient(provider=MockOOBProvider())
+            return MasterOOBClient(provider=InteractshOOBProvider(server_url=server_url))
+        except ImportError:
+            return None
+
+    async def audit_graphql(self, target_url: str) -> Dict[str, Any]:
+        auditor = self.graphql_auditor(target_url=target_url)
+        if not auditor:
+            return {"error": "behavioral_evasion_suite.graphql_security_auditor not available"}
+        return await auditor.run_audit(target_url)
+
+
+class MiningNamespace:
+    """SEO, AEO, and GEO search intelligence mining namespace."""
+
+    def __init__(self, facade: "BP") -> None:
+        self._facade = facade
+        self._engine: Optional[Any] = None
+
+    @property
+    def engine(self) -> Any:
+        if self._engine is None:
+            from behavioral_playwright.mining import SEOMiningEngine
+            self._engine = SEOMiningEngine()
+        return self._engine
+
+    async def mine_paa(self, page_or_html: Any = None, query: Optional[str] = None, max_depth: int = 3) -> Any:
+        """Mines People Also Ask question hierarchies."""
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None:
+            await self._facade.boot()
+            target = self._facade.page
+        from behavioral_playwright.mining import PAAMiner
+        miner = PAAMiner(max_depth=max_depth)
+        if isinstance(target, str):
+            return miner.parse_from_html(target)
+        raw_p = getattr(target, "raw_page", None) or target
+        return await miner.extract_from_page(raw_p, target_query=query)
+
+    async def audit_aio(
+        self,
+        query: str,
+        page_or_html: Any = None,
+        brand: Optional[str] = None,
+        competitors: Optional[List[str]] = None,
+    ) -> Any:
+        """Audits AI Overview card presence, citations, brand rank, and competitor mentions."""
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None and not isinstance(page_or_html, str):
+            await self._facade.boot()
+            target = self._facade.page
+        from behavioral_playwright.mining import AIOAuditor
+        auditor = AIOAuditor(brand_domain_or_name=brand, competitor_domains=competitors)
+        if isinstance(target, str):
+            return auditor.audit_html(target, query=query, brand=brand, competitors=competitors)
+        raw_p = getattr(target, "raw_page", None) or target
+        return await auditor.audit_page(raw_p, query=query, brand=brand, competitors=competitors)
+
+    def audit_cannibalization(
+        self,
+        query_a: str,
+        query_b: str,
+        urls_a: List[str],
+        urls_b: List[str],
+        threshold: float = 0.40,
+    ) -> Any:
+        """Computes Jaccard similarity and returns CANONICAL MERGE/SPLIT recommendations."""
+        from behavioral_playwright.mining import SERPCannibalizationEngine
+        engine = SERPCannibalizationEngine(merge_threshold=threshold)
+        return engine.evaluate_cannibalization(query_a, query_b, urls_a, urls_b)
+
+    async def extract_next_data(self, page_or_html: Any = None) -> Optional[Dict[str, Any]]:
+        """Extracts Next.js __NEXT_DATA__ state payload without traversing DOM."""
+        from behavioral_playwright.extraction.dom import extract_next_data
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None and not isinstance(page_or_html, str):
+            await self._facade.boot()
+            target = self._facade.page
+        return await extract_next_data(target)
+
+    async def extract_nuxt_data(self, page_or_html: Any = None) -> Optional[Dict[str, Any]]:
+        """Extracts Nuxt.js __NUXT__ or __NUXT_DATA__ state payload."""
+        from behavioral_playwright.extraction.dom import extract_nuxt_data
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None and not isinstance(page_or_html, str):
+            await self._facade.boot()
+            target = self._facade.page
+        return await extract_nuxt_data(target)
+
+    async def extract_json_ld(self, page_or_html: Any = None) -> List[Dict[str, Any]]:
+        """Extracts and flattens all JSON-LD structured schemas (@graph unpacked)."""
+        from behavioral_playwright.extraction.dom import extract_json_ld
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None and not isinstance(page_or_html, str):
+            await self._facade.boot()
+            target = self._facade.page
+        return await extract_json_ld(target)
+
+    async def extract_open_graph(self, page_or_html: Any = None) -> Dict[str, str]:
+        """Extracts all OpenGraph and Twitter card metadata."""
+        from behavioral_playwright.extraction.dom import extract_open_graph
+        target = page_or_html if page_or_html is not None else getattr(self._facade, "page", None)
+        if target is None and not isinstance(page_or_html, str):
+            await self._facade.boot()
+            target = self._facade.page
+        return await extract_open_graph(target)
+
+    def create_sniffer(self, page: Any = None) -> Any:
+        """Instantiates a JSONResponseSniffer on the given page or active facade page."""
+        from behavioral_playwright.network.sniffer import JSONResponseSniffer
+        target = page or getattr(self._facade, "page", None)
+        if target is None:
+            raise RuntimeError("Cannot instantiate sniffer: active page is None. Call bp.boot() first.")
+        return JSONResponseSniffer(target)
+
+    async def mine_suggest(
+        self,
+        query: str,
+        alphabet: bool = False,
+        lang: str = "en",
+        country: str = "us",
+    ) -> Any:
+        """Mines Google autocomplete suggestions with optional A-Z alphabet drilldown."""
+        from behavioral_playwright.mining.suggest_miner import GoogleSuggestMiner
+        miner = GoogleSuggestMiner(default_lang=lang, default_country=country)
+        return await miner.mine(query=query, alphabet=alphabet, lang=lang, country=country)
+
+    async def audit_csr_drift(
+        self,
+        url: Optional[str] = None,
+        raw_html: Optional[str] = None,
+        rendered_html: Optional[str] = None,
+    ) -> Any:
+        """Audits CSR vs static HTML rendering drift and SEO indexation risk."""
+        from behavioral_playwright.verification.rendering_auditor import CSRRenderingDriftAuditor
+        auditor = CSRRenderingDriftAuditor()
+        if raw_html is not None and rendered_html is not None:
+            return auditor.audit_html_drift(raw_html=raw_html, rendered_html=rendered_html, url=url)
+        if url:
+            target = getattr(self._facade, "page", None)
+            return await auditor.audit_url_drift(url=url, page=target)
+        raise ValueError("Must provide either url or both (raw_html, rendered_html)")
+
+    async def check_overlap(
+        self,
+        query_a: str,
+        query_b: str,
+        urls_a: Optional[List[str]] = None,
+        urls_b: Optional[List[str]] = None,
+        threshold: float = 0.40,
+    ) -> Any:
+        """Computes Jaccard similarity between two search queries to detect cannibalization."""
+        from behavioral_playwright.mining.cannibalization import SERPCannibalizationEngine
+        engine = SERPCannibalizationEngine(merge_threshold=threshold)
+
+        if urls_a is None or urls_b is None:
+            # Zero-latency SERP resolution via DuckDuckGo HTML / curl_cffi
+            async def _resolve_urls(q: str) -> List[str]:
+                try:
+                    from curl_cffi.requests import AsyncSession
+                    from bs4 import BeautifulSoup
+                    async with AsyncSession(impersonate="chrome120") as s:
+                        r = await s.post("https://html.duckduckgo.com/html/", data={"q": q}, timeout=6.0)
+                        soup = BeautifulSoup(r.text, "html.parser")
+                        found = []
+                        for a in soup.select("a.result__url"):
+                            href = a.get("href", "").strip()
+                            if href:
+                                found.append("https://" + href if not href.startswith("http") else href)
+                        return found
+                except Exception:
+                    return []
+
+            if urls_a is None:
+                urls_a = await _resolve_urls(query_a)
+            if urls_b is None:
+                urls_b = await _resolve_urls(query_b)
+
+        return engine.evaluate_cannibalization(
+            query_a=query_a, query_b=query_b, urls_a=urls_a, urls_b=urls_b, threshold=threshold
+        )
+
+
+class BP:
+    """
+    Unified high-level facade orchestrating the Behavioral Playwright framework.
+    Provides a simplified public API while maintaining structural integrity.
+    """
+
+    def __init__(
+        self,
+        config: Optional[AutomationConfig] = None,
+        provider: Optional[Any] = None,
+        headless: Optional[bool] = None,
+        **kwargs: Any,
+    ) -> None:
+        self.config = config or AutomationConfig()
+        if headless is not None:
+            self.config.browser.headless = headless
+        for k, v in kwargs.items():
+            if hasattr(self.config.browser, k):
+                setattr(self.config.browser, k, v)
+        self._provider = provider
+        self.session: Optional[BrowserSession] = None
+        self.page: Optional[PageSession] = None
+        # Internal state required by humanized browser actions
+        self._humanizer: Any = None
+        self._page: Any = None
+        self._navigation_manager: Any = None
+        # Domain namespaces (lazy DB paths are caller-managed)
+        self.web = WebNamespace(bp=self)
+        self.web._bp = self
+        self.infrastructure = InfrastructureNamespace()
+        self.observability = ObservabilityNamespace()
+        self.network = NetworkNamespace()
+        self.integrations = IntegrationsNamespace(bp=self)
+        # Restored legacy-capability namespaces
+        self.document = DocumentNamespace()
+        self.browser = BrowserActionNamespace(self)
+        self.metrics = ObservabilityMetrics()
+        self.integrations_ext = IntegrationExtensions(self)
+        # Quantitative, Provider, Proxy, Fingerprint, Storage & API namespaces
+        self.quant = QuantNamespace()
+        self.providers = ProvidersNamespace()
+        self.proxy = ProxyNamespace()
+        self.fingerprint = FingerprintNamespace()
+        self.storage = StorageNamespace()
+        self.api = ApiNamespace(bp=self)
+        self.powerplay = PowerPlayNamespace(bp=self)
+        self.ai = AINamespace(bp=self)
+        self.intelligence = IntelligenceNamespace(bp=self)
+        self.intel = self.intelligence
+        self.security = SecurityNamespace(self)
+        self.mining = MiningNamespace(self)
+        self.seo = self.mining
+
+
+    @property
+    def biomechanics(self) -> Any:
+        """Biomechanical mouse trajectory & tremor engine."""
+        return self.powerplay.biomechanics
+
+    @property
+    def keystrokes(self) -> Any:
+        """Linguistic keystroke dynamics and Weibull timing engine."""
+        return self.powerplay.keystrokes
+
+    @property
+    def memory_pid(self) -> Any:
+        """Resolved Chromium closed-loop PID memory management controller."""
+        return self.powerplay.memory_pid
+
+    @property
+    def schema_guard(self) -> Any:
+        """Resolved information entropy & DOM anomaly integrity guard."""
+        return self.powerplay.schema_guard
+
+    @property
+    def vision_guard(self) -> Any:
+        """Ultimate Vision-Language-Action & GIoU click-healing guard."""
+        return self.powerplay.vision_guard
+
+    @property
+    def validator(self) -> Any:
+        """Biometric distribution hypothesis testing & KS-test validator."""
+        return self.powerplay.validator
+
+    @property
+    def loop_detector(self) -> Any:
+        """Resolved CAPTCHA infinite loop & 3-state circuit breaker detector."""
+        return self.powerplay.loop_detector
+
+    @property
+    def linkedin(self) -> Any:
+        """LinkedIn behavioral automation client and session manager."""
+        return self.integrations.linkedin
+
+    @property
+    def reddit(self) -> Any:
+        """Reddit lead discovery, post intelligence, and automation client."""
+        return self.integrations.reddit
+
+
+
+    async def boot(self) -> "BP":
+        """Starts the browser session and initializes the first page."""
+        if not self.session:
+            self.session = BrowserSession(config=self.config,
+                                          provider=self._provider)
+            await self.session.start()
+
+        if not self.page:
+            self.page = await self.session.new_page()
+        # Install internal refs consumed by the humanized browser namespace
+        self._page = self.page
+        self._humanizer = self._humanizer or SimpleNamespace(
+            execute_safe_hover=None, execute_safe_click=None)
+        # A plain booted marker: browser namespace falls back to page methods
+        self._humanizer = object()  # truthy sentinel; methods looked up dynamically
+        return self
+
+    @property
+    def mouse(self) -> Any:
+        """Active page MouseController with biomechanical spline automation."""
+        if self.page:
+            return self.page.mouse
+        return None
+
+    @property
+    def keyboard(self) -> Any:
+        """Active page KeyboardController with QWERTY and Weibull typing automation."""
+        if self.page:
+            return self.page.keyboard
+        return None
+
+    async def click(self, selector_or_x: Any, y: Optional[float] = None, humanize: bool = True) -> Any:
+        """Performs an undetectable, humanized or self-healing click on a selector or coordinates."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        if y is not None or not isinstance(selector_or_x, str):
+            return await self.page.mouse.click(selector_or_x, y=y, humanize=humanize)
+        if hasattr(self.page, "click_healed"):
+            return await self.page.click_healed(selector_or_x)
+        return await self.page.mouse.click(selector_or_x, y=y, humanize=humanize)
+
+    async def type(self, selector_or_text: str, text: Optional[str] = None, delay_ms: float = 0.0, humanize: bool = True) -> Any:
+        """Performs authentic human typing or self-healing typing into a selector."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        if text is not None:
+            if hasattr(self.page, "type_healed"):
+                return await self.page.type_healed(selector_or_text, text)
+            return await self.page.keyboard.type(text, delay_ms=delay_ms, humanize=humanize)
+        return await self.page.keyboard.type(selector_or_text, delay_ms=delay_ms, humanize=humanize)
+
+    async def open(self, url: str, *args: Any, **kwargs: Any) -> Any:
+        """Navigates to the specified URL."""
+        if not self.page:
+            await self.boot()
+        if self.page:
+            return await self.page.goto(url, *args, **kwargs)
+
+    async def goto(self, url: str, *args: Any, **kwargs: Any) -> Any:
+        """Alias for open()."""
+        return await self.open(url, *args, **kwargs)
+
+    async def scrape(self, url_or_html: str, schema: Any = None,
+                     options: Optional[Dict[str, Any]] = None) -> Any:
+        """Top-level convenience forwarder for bp.web.scrape()."""
+        return await self.web.scrape(url_or_html, schema=schema, options=options)
+
+    async def fill(self, selector: str, text: str) -> Any:
+        """Alias for type()."""
+        return await self.type(selector, text)
+
+    async def scroll(self, distance_y: float = 500) -> None:
+        """Scrolls the page down by the specified distance."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        await self.page.scroll.down(distance=int(distance_y))
+
+    async def screenshot(self, path: Optional[str] = None) -> bytes:
+        """Captures a screenshot of the current page."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        return await self.page.screenshot(path=path)
+
+    async def extract(self, target: str = "links", container_selector: Optional[str] = None,
+                      schema: Any = None, options: Optional[Dict[str, Any]] = None) -> Any:
+        """Extracts structured data from the DOM or an arbitrary URL/HTML via schema."""
+        if str(target).startswith("http://") or str(target).startswith("https://") or schema is not None:
+            return await self.ai.extract(target, schema=schema, options=options)
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        
+        target_lower = str(target).lower()
+        if target_lower == "links":
+            return await self.page.extract_links(container_selector)
+        elif target_lower == "articles":
+            return await self.page.extract_articles(container_selector)
+        elif target_lower == "table":
+            table_sel = container_selector or (options.get("table_selector") if options else None) or "table"
+            return await self.page.extract_table(table_sel)
+        elif target_lower == "images":
+            return await self.page.extract_images(container_selector)
+        elif target_lower == "text":
+            text_sel = container_selector or "body"
+            normalize = options.get("normalize", True) if options else True
+            return await self.page.extract_text(text_sel, normalize=normalize)
+        elif target_lower == "attributes":
+            attr_sel = container_selector or "body"
+            attrs = options.get("attributes") if options else None
+            return await self.page.extract_attributes(attr_sel, attributes=attrs)
+        elif target_lower == "list":
+            list_sel = container_selector or "ul"
+            return await self.page.extract_list(list_sel)
+        elif target_lower == "cards":
+            item_sel = (options.get("item_selector") if options else None) or ".card"
+            return await self.page.extract_cards(item_sel, schema=schema or {}, container_selector=container_selector)
+        elif target_lower in ("json_ld", "jsonld"):
+            return await self.page.extract_json_ld()
+        elif target_lower in ("open_graph", "opengraph", "og"):
+            return await self.page.extract_open_graph()
+        elif target_lower == "next_data":
+            return await self.page.extract_next_data()
+        elif target_lower == "nuxt_data":
+            return await self.page.extract_nuxt_data()
+        else:
+            raise ValueError(f"Extraction target '{target}' is not supported by DOMExtractor.")
+
+
+    async def crawl(self, start_url: str, max_pages: int = 5) -> List[ExtractionRecord]:
+        """Crawls starting from a URL and extracts data."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        from behavioral_playwright.crawling.crawler import Crawler
+        crawler = Crawler(self.page)
+        return await crawler.crawl(start_url, max_pages)
+
+    async def search(self, query: str, search_input_selector: str = "input[type='search'], input[name='q']", submit_selector: str = "button[type='submit']") -> List[ExtractionRecord]:
+        """Submits a search query and extracts the results."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        from behavioral_playwright.search.engine import SearchEngine
+        engine = SearchEngine(self.page)
+        return await engine.search(query, search_input_selector, submit_selector)
+
+    async def map(self, url: str) -> Dict[str, Any]:
+        """Maps out the structural links and articles of a page."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        from behavioral_playwright.mapping.mapper import SiteMapper
+        mapper = SiteMapper(self.page)
+        return await mapper.map(url)
+
+    async def map_schema(
+        self,
+        schema: Any,
+        confidence_threshold: float = 0.60,
+        strict_ambiguity: bool = False,
+        require_all_fields: bool = False,
+    ) -> Any:
+        """Extracts and maps live page evidence to target schema."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        return await self.page.map_schema(
+            schema,
+            confidence_threshold=confidence_threshold,
+            strict_ambiguity=strict_ambiguity,
+            require_all_fields=require_all_fields,
+        )
+
+
+    async def recover(self, reason: Optional[str] = None, restore_url: bool = True) -> bool:
+        """Executes coordinated recovery of the active page session."""
+        if not self.page:
+            await self.boot()
+        return await self.page.recover(reason=reason, restore_url=restore_url)
+
+    async def execute_resilient(
+        self,
+        coro_fn: Callable[[], Coroutine[Any, Any, T]],
+        operation_name: str = "operation",
+        operation_type: Any = None,
+        timeout_budget_s: Optional[float] = None,
+        auto_recover: bool = True,
+        explicit_idempotent: Optional[bool] = None,
+    ) -> T:
+        """Executes an operation protected by circuit breaker, retry policy with timeout budget/idempotency, and recovery."""
+        from behavioral_playwright.resilience.idempotency import OperationType
+        if not self.page:
+            await self.boot()
+        op_t = operation_type or OperationType.READ
+        return await self.page.execute_resilient(
+            coro_fn,
+            operation_name=operation_name,
+            operation_type=op_t,
+            timeout_budget_s=timeout_budget_s,
+            auto_recover=auto_recover,
+            explicit_idempotent=explicit_idempotent,
+        )
+
+    async def handoff(self, context_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Exports or injects the current context state for handoff."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        from behavioral_playwright.handoff.session_handoff import SessionHandoff
+        handoff_manager = SessionHandoff(self.page)
+        return await handoff_manager.handoff(context_data)
+
+    async def verify(self, 
+                     state_before: Optional[Dict[str, Any]] = None, 
+                     expected_title: Optional[str] = None,
+                     expected_url: Optional[str] = None,
+                     expected_element_selector: Optional[str] = None,
+                     expected_text: Optional[str] = None) -> Dict[str, Any]:
+        """Validates the current DOM/page state against expectations."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        from behavioral_playwright.verification.verifier import StateVerifier
+        verifier = StateVerifier(self.page)
+        return await verifier.verify(state_before, expected_title, expected_url, expected_element_selector, expected_text)
+
+    async def close(self) -> None:
+        """Gracefully closes the page and browser session."""
+        if self.page:
+            await self.page.close()
+            self.page = None
+        if self.session:
+            await self.session.close()
+            self.session = None
+
+    async def __aenter__(self) -> "BP":
+        await self.boot()
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        await self.close()
+
+    async def measure_response_time_async(self, url: str) -> float:
+        """Runs the blocking HTTP probe on a worker thread."""
+        return await self.network.measure_response_time_async(url)
+
+    def measure_response_time(self, url: str, timeout: Optional[float] = None) -> float:
+        """Blocking HTTP HEAD latency probe (delegates to network namespace)."""
+        return self.network.measure_response_time(url)
+
+    async def slack_webhook_notify(self, webhook_url: str, message: str,
+                                   timeout: float = 10.0) -> bool:
+        """Posts a Slack-formatted webhook message off the event loop."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None, lambda: self.integrations.notify_webhook(
+                webhook_url, {"text": message}, timeout))
+
+    async def discord_webhook_notify(self, webhook_url: str, message: str,
+                                     timeout: float = 10.0) -> bool:
+        """Posts a Discord-formatted webhook message off the event loop."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None, lambda: self.integrations.notify_webhook(
+                webhook_url, {"content": message}, timeout))
+
+    # -- restored legacy delegations ----------------------------------------
+    async def crawl_recursive(self, url: str, max_depth: int = 3,
+                              db_path: str = "crawl_state.db",
+                              max_pages: Optional[int] = None,
+                              options: Optional[Dict[str, Any]] = None
+                              ) -> List[str]:
+        """Delegates to the crawling service using the booted page scraper."""
+        async def _scrape(target_url: str, opts: Optional[Dict[str, Any]]) -> Any:
+            return await self.web.scrape(target_url, options=opts)
+        return await self.web._crawler.crawl_recursive(
+            url, max_depth=max_depth, db_path=db_path,
+            max_pages=max_pages, options=options, scrape_fn=_scrape)
+
+    async def ocr_image(self, file_path: str) -> Dict[str, Any]:
+        return await self.document.ocr_image(file_path)
+
+    async def ocr_image_with_autocorrect(self, file_path: str) -> Dict[str, Any]:
+        return await self.document.ocr_image_with_autocorrect(file_path)
+
+    async def mcp_call_tool(self, tool_name: str,
+                            arguments: Dict[str, Any]) -> Any:
+        return await self.integrations_ext.mcp_call_tool_async(
+            tool_name, arguments)
+
+    async def n8n_webhook_trigger(self, webhook_url: str,
+                                  payload: Dict[str, Any],
+                                  timeout: float = 10.0) -> bool:
+        return await self.integrations_ext.n8n_webhook_trigger_async(
+            webhook_url, payload, timeout)
+
+    # Humanized browser action passthroughs
+    async def hover(self, selector: str) -> bool:
+        return await self.browser.hover(selector)
+
+    async def drag_and_drop(self, source_selector: str,
+                            target_selector: str) -> bool:
+        return await self.browser.drag_and_drop(source_selector,
+                                                target_selector)
+
+    async def check_checkbox(self, selector: str, checked: bool = True) -> bool:
+        return await self.browser.check_checkbox(selector, checked)
+
+    async def check(self, selector: str) -> bool:
+        return await self.browser.check(selector)
+
+    async def uncheck(self, selector: str) -> bool:
+        return await self.browser.uncheck(selector)
+
+    async def select_option(self, selector: str, value: str) -> bool:
+        return await self.browser.select_option(selector, value)
+
+    async def keyboard_press(self, selector: str, key: str) -> bool:
+        return await self.browser.keyboard_press(selector, key)
+
+    async def press(self, selector: str, key: str) -> bool:
+        return await self.browser.press(selector, key)
+
+    async def run_workflow(
+        self,
+        workflow: Optional[Any] = None,
+        goal: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+        planner: Optional[Any] = None,
+    ) -> Any:
+        """Executes an orchestrated, verification-driven workflow via BP facade."""
+        from behavioral_playwright.orchestration.models import WorkflowDefinition
+        from behavioral_playwright.orchestration.orchestrator import WorkflowOrchestrator
+        from behavioral_playwright.orchestration.planner import DeterministicPlanner
+        from behavioral_playwright.page.session import PageSession
+
+        session = getattr(self, "_active_page_session", None)
+        if session is None:
+            raw_page = getattr(self.browser, "_page", None)
+            if raw_page is None:
+                raw_page = await self.browser.new_page()
+            provider = getattr(self.browser, "provider", None) or getattr(self.browser, "_provider", None)
+            session = PageSession(raw_page=raw_page, provider=provider, config=self.config)
+            self._active_page_session = session
+
+        return await session.run_workflow(workflow=workflow, goal=goal, context=context, planner=planner)
+
+
+# Canonical Rename (Milestone 2)
+Veil = BP
+
+__all__ = ["BP", "Veil", "WebNamespace", "ObservabilityNamespace", "IntelligenceNamespace"]

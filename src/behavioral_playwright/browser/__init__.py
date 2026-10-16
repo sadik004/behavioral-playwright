@@ -1,12 +1,7 @@
-"""Browser provider implementations."""
+"""Backward-compatible package alias forwarding to `veil.browser`."""
+import importlib as _importlib
 
-from behavioral_playwright.browser.base import BrowserProvider
-from behavioral_playwright.browser.mock_provider import MockBrowserProvider, MockPage
-from behavioral_playwright.browser.playwright_provider import PlaywrightProvider
-
-__all__ = [
-    "BrowserProvider",
-    "MockBrowserProvider",
-    "MockPage",
-    "PlaywrightProvider",
-]
+_mod = _importlib.import_module("veil.browser")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v
