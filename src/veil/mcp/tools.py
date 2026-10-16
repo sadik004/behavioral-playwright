@@ -10,12 +10,12 @@ from behavioral_playwright.config.settings import AutomationConfig
 MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
     {
         "name": "scrape_page",
-        "description": "Scrapes a webpage using self-healing browser automation and returns markdown/content.",
+        "description": "Scrapes a webpage using self-healing browser automation and returns markdown, links, articles, tables, or clean text.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "url": {"type": "string", "description": "The URL to scrape"},
-                "target": {"type": "string", "enum": ["links", "articles", "raw"], "default": "links"},
+                "target": {"type": "string", "enum": ["links", "articles", "markdown", "table", "text", "raw"], "default": "links", "description": "Extraction target format"},
             },
             "required": ["url"],
         },
@@ -534,12 +534,12 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
     },
     {
         "name": "scrape",
-        "description": "Scrapes a webpage using self-healing browser automation and returns markdown/content.",
+        "description": "Scrapes a webpage using self-healing browser automation and returns markdown, links, articles, tables, or clean text.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "url": {"type": "string", "description": "The URL to scrape"},
-                "target": {"type": "string", "enum": ["links", "articles", "raw"], "default": "links"},
+                "target": {"type": "string", "enum": ["links", "articles", "markdown", "table", "text", "raw"], "default": "links", "description": "Extraction target format"},
             },
             "required": ["url"],
         },
@@ -677,14 +677,21 @@ class McpToolDispatcher:
             if tool_name in ("scrape_page", "scrape"):
                 url = arguments.get("url")
                 target = arguments.get("target", "links")
+                query = arguments.get("query")
                 if not url:
                     return {"error": "Missing required argument 'url'"}
 
                 async with bp:
                     await bp.goto(url)
-                    if target in ("links", "articles"):
+                    if target in ("links", "articles", "table", "text", "images", "cards", "json_ld", "open_graph"):
                         records = await bp.extract(target=target)
-                        res = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
+                        res = [r.to_dict() if hasattr(r, "to_dict") else (vars(r) if hasattr(r, "__dict__") else r) for r in records]
+                    elif target == "markdown":
+                        html = await bp.page.evaluate("() => document.documentElement.outerHTML")
+                        from behavioral_playwright.extraction.markdown import html_to_fit_markdown
+                        from dataclasses import asdict
+                        distilled = html_to_fit_markdown(html, query=query)
+                        res = asdict(distilled)
                     else:
                         res = await bp.page.evaluate("() => document.documentElement.outerHTML")
                     return {"status": "success", "result": res}
@@ -692,13 +699,14 @@ class McpToolDispatcher:
             elif tool_name in ("crawl_domain", "crawl"):
                 url = arguments.get("url")
                 max_pages = arguments.get("max_pages", 5)
+                depth = arguments.get("depth", 2)
                 if not url:
                     return {"error": "Missing required argument 'url'"}
 
                 async with bp:
                     records = await bp.crawl(url, max_pages=max_pages)
                     res = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
-                    return {"status": "success", "result": res}
+                    return {"status": "success", "result": res, "pages_crawled": len(res)}
 
             elif tool_name == "take_screenshot":
                 url = arguments.get("url")
