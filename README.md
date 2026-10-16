@@ -24,7 +24,7 @@ A production-grade, enterprise behavioral evasion, stealth automation, and deep 
   - [6. Multi-Engine Provider Architecture](#6-multi-engine-provider-architecture-bpproviders)
   - [7. Intelligent Proxy Pool & Session Management](#7-intelligent-proxy-pool--session-management-bpproxy)
   - [8. Enterprise Resilience & Circuit Breaker](#8-enterprise-resilience--circuit-breaker-bpresilience)
-  - [9. Asynchronous Recursive Crawler & Sitemap Parser](#9-asynchronous-recursive-crawler--sitemap-parser-bpcrawling)
+  - [9. 4-Tier Adaptive Crawler & Deep Site Exploration (`veil.crawling` / `bp.crawling`)](#9-4-tier-adaptive-crawler--deep-site-exploration-veilcrawling--bpcrawling)
   - [10. Quantitative SEC Point-in-Time & NASDAQ ITCH-5.0 Parser](#10-quantitative-sec-point-in-time--nasdaq-itch-50-parser-bpquant)
   - [11. Unified Multi-Format Storage & Exporters](#11-unified-multi-format-storage--exporters-bpstorage)
   - [12. Observability, Telemetry & QA Reporting](#12-observability-telemetry--qa-reporting-bpobservability)
@@ -167,7 +167,7 @@ If you are an AI assistant, autonomous agent, or MCP client interacting with thi
 | **Fetch raw JSON / REST data** | Asynchronous API Client | `bp.api.get()`, `post()` | *Internal Execution* | *Use Python API* | Direct socket request | In-memory TTL cache; threadpool urllib transport |
 | **Render dynamic JS webpage** | Browser Navigation | `bp.goto()`, `bp.web.navigate()` | `scrape_page` | `bp scrape <url>` | Direct HTTP API fetch | Requires Chromium / Patchright installed |
 | **Extract structured links/text** | Structured DOM Extractor | `bp.extract(target="links")` | `scrape_page` | `bp scrape <url> -o out.json` | Regex / outerHTML parse | Extracts semantic cards, links, headings |
-| **Recursive domain exploration** | Asynchronous Crawler | `bp.crawl(url, max_pages=N)` | `crawl_domain` | `bp crawl <url> -m 10` | Single page `goto()` | In-memory URL queue; depth-limited |
+| **Recursive domain exploration** | 4-Tier Adaptive Deep Crawler | `bp.crawl(url, max_pages=N)`, `DeepSiteCrawler` | `crawl_domain` | `bp crawl <url> -m 10` | Tier 1 ➔ Tier 4 Escalation | SQLite WAL persistent frontier, SimHash dedup, Thompson Sampling |
 | **Multimodal visual inspection** | Viewport Screenshot | `bp.screenshot()` | `take_screenshot` | *Use Python API* | Page DOM extraction | Returns Base64 PNG string in MCP |
 | **Resilient element interaction** | Multi-Tier Selector Engine | `bp.click()`, `bp.type()` | *Internal Execution* | *Use Python API* | L1 Exact ➔ L2 Semantic ➔ L3 Fuzzy | Confidence threshold >= 0.60 |
 | **Circumvent bot protection** | V15 Stealth Evasion | Built-in via `bp.goto()` | *Internal Execution* | *Built-in to CLI* | Provider switch (`patchright`) | 10 runtime patches + dynamic WebGL noise |
@@ -299,10 +299,53 @@ async with BP() as bp:
 
 ---
 
-### 9. Asynchronous Recursive Crawler & Sitemap Parser (`bp.crawling`)
-- **Depth-Limited Crawling**: Traverses internal domain links while respecting concurrency limits.
-- **Sitemap Parser**: Ingests `sitemap.xml` for systematic URL discovery.
-- **Politeness Rules**: Configurable request delays and domain blacklists.
+### 9. 4-Tier Adaptive Crawler & Deep Site Exploration (`veil.crawling` / `bp.crawling`)
+
+An enterprise-grade, paper-grounded web crawling engine designed for large-scale web scraping, anti-bot evasion, and LLM corpus preparation:
+
+- **4-Tier Escalation Hierarchy (`CrawlerTier`)**:
+  - `Tier 1: HTTP_FAST` — In-memory cached async HTTP transport with zero-browser overhead.
+  - `Tier 2: TLS_IMPERSONATE` — Full JA3/JA4 fingerprint spoofing via `curl_cffi`.
+  - `Tier 3: BROWSER_HEADLESS` — Chromium headless instance with CDP WeakMap shields.
+  - `Tier 4: BROWSER_STEALTH_KINEMATICS` — Full biometric kinematics with Saccadic Costello trajectories and subpixel tremor.
+  - *Automated Escalation*: Dynamically detects Cloudflare, DataDome, and Akamai challenges (403/429/503) and escalates tier-by-tier with full telemetry.
+- **SQLite WAL-Mode Persistent Frontier Queue (`PersistentFrontierQueue`)**:
+  - Crash-resilient state store allowing multi-day crawls to resume instantly without re-fetching visited URLs.
+  - Integrated with Online Page Importance Computation (OPIC) and BM25 priority scoring.
+- **Multi-Armed Bandit (MAB) Proxy Routing (`BanditProxyRotator`)**:
+  - Beta-Bernoulli Thompson Sampling and UCB1 to dynamically allocate requests to the highest-performing proxies while applying exponential cooldowns on rate limits.
+- **64-bit SimHash Near-Duplicate Detection (`dedup.py`)**:
+  - Identifies soft 404s, parked domains, and boilerplate duplicate pages without quadratic comparisons.
+- **Ostendorff Sample-Then-Deepen Budget Allocation (`host_budget.py`)**:
+  - Optimizes crawl budgets using Shrout & Fleiss ICC(1) random-effects ANOVA and Spearman-Brown reliability to discover "hidden-gem" high-quality domains.
+- **Lossless Structural HTML Compression & Block-Tree Pruner (`BlockTreePruner`)**:
+  - Flattens Shadow DOM & declarative iframes, pruning boilerplate with BM25+log-salience to slash LLM prefill FLOPs by up to 80%.
+
+```python
+import asyncio
+from veil import BP
+from veil.crawling.deep_crawler import DeepSiteCrawler, PersistentFrontierQueue
+from veil.crawling.models import CrawlRequest, CrawlerTier
+
+async def main():
+    # 1. High-level fluent crawling via facade:
+    async with BP() as bp:
+        # Crawl up to 25 pages with automatic 4-tier anti-bot escalation
+        results = await bp.crawl(
+            "https://example.com",
+            max_pages=25,
+            max_tier=CrawlerTier.BROWSER_STEALTH_KINEMATICS
+        )
+        print(f"Discovered and extracted {len(results)} pages")
+
+    # 2. Standalone crash-resilient deep crawler with SQLite WAL frontier:
+    frontier = PersistentFrontierQueue(db_path="deep_crawl_frontier.db")
+    crawler = DeepSiteCrawler(frontier=frontier, max_concurrency=5)
+    await crawler.crawl_site(start_url="https://example.com/docs", max_depth=3)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
 
 ---
 
