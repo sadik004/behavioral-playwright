@@ -407,6 +407,118 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "name": "human_interact",
+        "description": "Executes a human-mimetic biometric interaction (click, type, scroll, hover, pause) with natural physics, micro-jitter, and cognitive delays.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["click", "type", "scroll", "hover", "pause", "wait"], "default": "click", "description": "Interaction action to execute"},
+                "selector": {"type": "string", "description": "CSS selector to target"},
+                "text": {"type": "string", "description": "Text to type if action is 'type'"},
+                "x": {"type": "number", "description": "Optional X coordinate for click"},
+                "y": {"type": "number", "description": "Optional Y coordinate for click"},
+                "scroll_y": {"type": "integer", "description": "Vertical scroll distance if action is 'scroll'"},
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "stealth_fetch",
+        "description": "Fetches a URL using stealth browser automation with 31 evasion shields and returns page text, markdown, or HTML content.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Target HTTP/HTTPS URL to fetch"},
+                "target": {"type": "string", "enum": ["text", "markdown", "raw", "links"], "default": "text", "description": "Extraction target format"},
+                "provider": {"type": "string", "default": "patchright", "description": "Underlying engine provider (patchright, playwright, uc, curl_cffi)"},
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "generate_stealth_script",
+        "description": "Generates a complete, autonomous Python script using BP with full stealth evasion for a target scraping scenario.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Target URL to scrape"},
+                "provider": {"type": "string", "default": "patchright", "description": "Preferred browser/network provider"},
+                "headless": {"type": "boolean", "default": True, "description": "Run browser in headless mode"},
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "stealth_human_action",
+        "description": "Performs a human-like biometric action on an active session element using Bezier trajectories, Fitts's law, cognitive pause, or Newtonian inertial scrolling.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string", "description": "Active session ID returned by stealth_open_page."},
+                "action": {"type": "string", "enum": ["click", "type", "scroll", "hover", "pause"], "description": "Action to perform."},
+                "selector": {"type": "string", "description": "CSS selector or data-mcp-ref."},
+                "text": {"type": "string", "description": "Text to type if action is 'type'."},
+                "scroll_y": {"type": "integer", "description": "Vertical scroll target pixels if action is 'scroll'."},
+            },
+            "required": ["session_id", "action"],
+        },
+    },
+    {
+        "name": "stealth_extract_data",
+        "description": "Extracts structured text or table data from the active page while automatically filtering out honeypot trap elements.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string", "description": "Active session ID."},
+                "target_selector": {"type": "string", "default": "body", "description": "Parent selector or CSS container."},
+                "fields": {"type": "array", "items": {"type": "string"}, "description": "List of sub-selectors or field names."},
+            },
+            "required": ["session_id"],
+        },
+    },
+    {
+        "name": "stealth_close_session",
+        "description": "Closes a specific active browser session and releases associated memory.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string", "description": "Session ID to terminate."},
+            },
+            "required": ["session_id"],
+        },
+    },
+    {
+        "name": "module_persona_profile",
+        "description": "Inspects or retrieves the hardware persona matrix, WebGL parameters, audio latency, and DirectWrite font profiles.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "profile_id": {"type": "string", "default": "win11_nvidia_rtx4070", "description": "Profile identifier to inspect."},
+            },
+        },
+    },
+    {
+        "name": "module_kinematic_eval",
+        "description": "Evaluates and simulates biometric mouse saccade paths, Weibull keystroke plans, or Newtonian scroll physics.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "kinematic_type": {"type": "string", "enum": ["keystroke_plan", "inertial_scroll", "mouse_saccade"], "default": "keystroke_plan", "description": "Kinematic simulation type to evaluate."},
+                "text": {"type": "string", "description": "Sample text for keystroke planning."},
+                "scroll_distance": {"type": "number", "description": "Scroll distance in pixels."},
+            },
+            "required": ["kinematic_type"],
+        },
+    },
+    {
+        "name": "module_shield_status",
+        "description": "Inspects the real-time operational status, integrity, and readiness of all 31 stealth evasion shields.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
 ]
 
 
@@ -960,6 +1072,94 @@ class McpToolDispatcher:
                         "snapshot": {"title": title, "url": url},
                     }
                 return {"error": "No active browser page found"}
+
+            elif tool_name == "human_interact":
+                action = arguments.get("action", "click")
+                selector = arguments.get("selector")
+                text = arguments.get("text", "")
+                x = arguments.get("x")
+                y = arguments.get("y")
+                scroll_y = arguments.get("scroll_y", 400)
+
+                async with bp:
+                    if action == "click":
+                        if selector:
+                            await bp.click(selector, humanize=True)
+                        elif x is not None and y is not None:
+                            await bp.click(x, y=y, humanize=True)
+                        else:
+                            return {"error": "Missing selector or coordinates for click"}
+                        return {"status": "success", "action": "click", "target": selector or f"({x}, {y})"}
+                    elif action == "type":
+                        if not selector:
+                            return {"error": "Missing selector for type"}
+                        await bp.click(selector, humanize=True)
+                        await bp.type(text, humanize=True)
+                        return {"status": "success", "action": "type", "chars": len(text)}
+                    elif action == "scroll":
+                        await bp.scroll(y=scroll_y, humanize=True)
+                        return {"status": "success", "action": "scroll", "y": scroll_y}
+                    elif action == "hover":
+                        if hasattr(bp.page, "hover") and selector:
+                            await bp.page.hover(selector)
+                        return {"status": "success", "action": "hover", "selector": selector}
+                    elif action in ("pause", "wait"):
+                        await bp.wait(500)
+                        return {"status": "success", "action": "pause", "duration_ms": 500}
+                    return {"error": f"Unknown action: {action}"}
+
+            elif tool_name == "stealth_fetch":
+                url = arguments.get("url")
+                target = arguments.get("target", "text")
+                if not url:
+                    return {"error": "Missing required argument 'url'"}
+
+                async with bp:
+                    await bp.goto(url)
+                    if target == "links":
+                        records = await bp.extract(target="links")
+                        res = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
+                    elif target == "markdown":
+                        text = await bp.page.evaluate("() => document.body ? document.body.innerText : ''")
+                        title = await bp.page.title() if hasattr(bp.page, "title") else ""
+                        res = f"# {title}\n\n{text}"
+                    elif target == "raw":
+                        res = await bp.page.evaluate("() => document.documentElement.outerHTML")
+                    else:
+                        res = await bp.page.evaluate("() => document.body ? document.body.innerText : ''")
+                    return {"status": "success", "url": url, "result": res}
+
+            elif tool_name == "generate_stealth_script":
+                url = arguments.get("url", "https://example.com")
+                provider = arguments.get("provider", "patchright")
+                headless = arguments.get("headless", True)
+                script = f'''import asyncio
+from veil import BP, BrowserConfig
+
+async def main():
+    config = BrowserConfig(provider="{provider}", headless={headless})
+    async with BP(config=config) as bp:
+        await bp.goto("{url}")
+        title = await bp.page.title()
+        print(f"Loaded: {{title}}")
+        data = await bp.extract(target="articles")
+        print(f"Extracted {{len(data)}} records")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+'''
+                return {"status": "success", "script": script, "language": "python"}
+
+            elif tool_name in (
+                "stealth_human_action",
+                "stealth_extract_data",
+                "stealth_close_session",
+                "module_persona_profile",
+                "module_kinematic_eval",
+                "module_shield_status",
+            ):
+                from behavioral_evasion_suite.mcp_server import handle_tool_call as suite_handle
+                return await suite_handle(tool_name, arguments)
 
             return {"error": f"Unknown tool: {tool_name}"}
 
