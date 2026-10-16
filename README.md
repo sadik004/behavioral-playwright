@@ -1,7 +1,7 @@
-# 🛡️ Behavioral Playwright (AI-Native Enterprise Hardened Edition — v6.2.0 Quantum Edition)
+# 🛡️ Behavioral Playwright (AI-Native Enterprise Hardened Edition — v10.0.2 Quantum Architecture)
 
-[![Version](https://img.shields.io/badge/version-v6.2.0--quantum-blue?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
-[![Tests](https://img.shields.io/badge/Tests-267%2F267%20Passed%20(100%25)-success?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
+[![Version](https://img.shields.io/badge/version-v10.0.2-blue?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
+[![Tests](https://img.shields.io/badge/Tests-742%2F742%20Passed%20(100%25)-success?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![CreepJS Audit](https://img.shields.io/badge/CreepJS%20Audit-100%25%20Clean-success?style=for-the-badge)](https://creepjs.com)
 [![KS-Test](https://img.shields.io/badge/KS--Test-p%3D0.5285%20(Human)-brightgreen?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![MCP Server](https://img.shields.io/badge/MCP%20Server-20%20Tools%20Active-purple?style=for-the-badge)](https://modelcontextprotocol.io)
@@ -72,43 +72,30 @@ behavioral-playwright/
 │   ├── swarm_orchestrator.py              # Multi-tab concurrency coordinator
 │   └── persona_matrix.py                  # Sticky proxy & digital soul rotation
 ├── src/
-│   └── behavioral_playwright/
-│       ├── __init__.py                    # Global exports: BP, AutomationConfig, AuthConfig, ProxyPool
-│       ├── facade.py                      # Unified BP facade orchestrating all domain namespaces
-│       ├── api/                           # Direct asynchronous HTTP client with in-memory TTL caching
-│       ├── automation/                    # Biomechanical mouse curves, natural keyboard typing, scroll
-│       ├── browser/                       # Browser abstractions & session lifecycle
-│       ├── cli/                           # Command-line interface (`bp scrape`, `crawl`, `mcp-server`, etc.)
-│       ├── config/                        # AutomationConfig, AuthConfig, BrowserConfig, CircuitBreakerConfig
-│       ├── core/                          # Hardened V15 Evasion Core & verified ITCH-5.0 wire parser
-│       ├── crawling/                      # Async recursive crawler & sitemap generator
-│       ├── document/                      # OCR & document parsing pipelines
-│       ├── extraction/                    # DOM extraction & structured markdown simplification
-│       ├── fingerprint/                   # Dynamic hardware profiles & WebGL/Canvas noise generator
-│       ├── handoff/                       # Session state, cookie & context serialization
-│       ├── integrations/                  # Extension hooks, webhook triggers, alert dispatchers
-│       ├── mapping/                       # Structural site & DOM tree mapper
-│       ├── mcp/                           # Standard JSON-RPC 2.0 Stdio MCP Server & AI Tool Dispatcher
-│       ├── models/                        # Typed data contracts (DOMElement, ExtractionRecord, Quote)
-│       ├── observability/                 # SQLite event sink, performance tracing, QA metrics
-│       ├── page/                          # PageSession & context controllers
-│       ├── providers/                     # Multi-provider adapters (Playwright, Patchright, UC, curl-cffi, Browser-Use, Stagehand)
-│       ├── proxy/                         # Intelligent proxy pool, rotation, and sticky session manager
-│       ├── resilience/                    # Circuit breakers, retry policy, self-healing memory
-│       ├── search/                        # Visual & DOM query search engine
-│       ├── selectors/                     # Multi-tier selector resolver (CSS, Semantic, Fuzzy, Self-Healing)
-│       ├── storage/                       # Unified data storage & exporters (JSON, NDJSON, CSV, SQLite)
-│       └── verification/                  # Element verification & assertion sentinels
-└── tests/
-    ├── unit/                              # 113 unit tests (all modules & namespaces covered)
-    ├── integration/                       # 3 multi-component and live provider tests
-    ├── test_evasion_suite.py              # Multi-patch evasion integration tests
-    ├── test_ks_statistical.py             # Kolmogorov-Smirnov Weibull & CreepJS tests
-    ├── test_baseline_protection.py        # 13 core V15 baseline capability protection tests
-    ├── test_honesty_hardening.py          # 11 data contract & honesty hardening tests
-    ├── test_itch_binary.py                # 17 NASDAQ ITCH-5.0 wire parser verification tests
-    ├── test_providers.py                  # 18 multi-provider live & double verification tests
-    └── test_v23_quarantine.py             # 7 V23 quarantine pins
+│   ├── veil/                              # 3-Tier Clean Architecture Implementation (15 Cohesive Domains)
+│   │   ├── crawling/                      # 4-tier adaptive crawler, SQLite WAL, SimHash, OPIC frontier
+│   │   ├── resilience/                    # Circuit breaker, exponential backoff, retry, recovery
+│   │   ├── security/                      # GraphQL auditor, OOB listener, CSRF, security protocols
+│   │   ├── orchestration/                 # Declarative pipeline planner, executors, step conditions
+│   │   ├── mining/                        # PAA, AIO, Google Suggest, query cannibalization miners
+│   │   ├── mcp/                           # Fast JSON-RPC 2.0 MCP server with 20+ specialized tools
+│   │   ├── powerplay/                     # Hardened biomechanics, captcha solver, L4 network, schema guard
+│   │   ├── providers/                     # Multi-engine browser & HTTP provider factory and adapters
+│   │   ├── storage/                       # Async task queue, unified data stores, multi-format exporters
+│   │   ├── selectors/                     # Multi-tier selector resolver (CSS, Semantic, Fuzzy, Self-Healing)
+│   │   ├── automation/                    # Biomechanical mouse curves, natural keyboard typing, scroll
+│   │   ├── api/                           # Direct asynchronous HTTP client with connection pooling
+│   │   └── verification/                  # Live DOM auditor & rendering assertion sentinels
+│   └── behavioral_playwright/             # 100% Backward-Compatible Symbol Parity Facade Layer
+│       ├── facade.py                      # Unified `BP` entrypoint delegating to `veil` subsystems
+│       └── ...                            # Full alias surface maintaining zero-breakage legacy imports
+├── archive/
+│   └── deduplicated_legacy/               # Preserved legacy monolithic engines with backward-compatible shims
+└── tests/                                 # Complete Enterprise Quality Gates (742 Passed / 100% Clean)
+    ├── unit/                              # Unit test suite covering all domains, models, and controllers
+    ├── functional/                        # Phase 1-8 functional verification suites
+    ├── integration/                       # Real end-to-end multi-provider and live crawling suites
+    └── integrity/                         # Cryptographic locks, trust boundaries, mutations, external verifiers
 ```
 
 ---
