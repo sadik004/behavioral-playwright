@@ -32,9 +32,11 @@ class CognitiveKeystrokeEngine:
         'y': ['t', 'u', 'h', '6', '7'], 'z': ['a', 's', 'x']
     }
 
-    def __init__(self, base_wpm: float = 65.0, typo_probability: float = 0.05):
+    def __init__(self, base_wpm: float = 65.0, typo_probability: float = 0.05, seed: int | None = None):
         self.base_wpm = base_wpm
         self.typo_probability = typo_probability
+        self.seed = seed
+        self._rng = random.Random(seed)
 
     def _get_key_distance(self, k1: str, k2: str) -> float:
         p1 = self.QWERTY_MAP.get(k1.lower(), (1, 4))
@@ -46,30 +48,30 @@ class CognitiveKeystrokeEngine:
         last_key = 'a'
 
         for char in text:
-            if char in (' ', '.', ',', '\n') or random.random() < 0.08:
-                plan.append({'action': 'pause', 'duration': random.uniform(0.18, 0.45)})
+            if char in (' ', '.', ',', '\n') or self._rng.random() < 0.08:
+                plan.append({'action': 'pause', 'duration': self._rng.uniform(0.18, 0.45)})
 
-            if char.lower() in self.ADJACENT_KEYS and random.random() < self.typo_probability:
-                wrong_char = random.choice(self.ADJACENT_KEYS[char.lower()])
+            if char.lower() in self.ADJACENT_KEYS and self._rng.random() < self.typo_probability:
+                wrong_char = self._rng.choice(self.ADJACENT_KEYS[char.lower()])
                 plan.append({
                     'action': 'type',
                     'key': wrong_char,
                     'code': f"Key{wrong_char.upper()}" if wrong_char.isalpha() else "Digit1",
                     'keyCode': ord(wrong_char.upper()) if wrong_char.isalpha() else 49,
-                    'delay': random.weibullvariate(1.5, 2.0) * 0.04,
+                    'delay': self._rng.weibullvariate(1.5, 2.0) * 0.04,
                     'is_typo': True
                 })
-                plan.append({'action': 'pause', 'duration': random.uniform(0.12, 0.28)})
+                plan.append({'action': 'pause', 'duration': self._rng.uniform(0.12, 0.28)})
                 plan.append({
                     'action': 'backspace',
                     'key': 'Backspace',
                     'code': 'Backspace',
                     'keyCode': 8,
-                    'delay': random.uniform(0.06, 0.12)
+                    'delay': self._rng.uniform(0.06, 0.12)
                 })
 
             dist = self._get_key_distance(last_key, char)
-            flight_delay = max(0.025, (dist * 0.015) + random.weibullvariate(1.8, 2.2) * 0.03)
+            flight_delay = max(0.025, (dist * 0.015) + self._rng.weibullvariate(1.8, 2.2) * 0.03)
             plan.append({
                 'action': 'type',
                 'key': char,

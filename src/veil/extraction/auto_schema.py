@@ -361,3 +361,39 @@ class AdaptiveSchemaSynthesizer:
             val = node.attrs.get(attr_target, "").strip()
             return val if val else None
         return node.text.strip() if node.text.strip() else None
+
+
+class AutoSchemaExtractor:
+    """Offline structural content and entity extractor for raw HTML."""
+
+    def extract(self, html: str) -> List[Dict[str, Any]]:
+        parser = _FlatDOMParser()
+        parser.feed(html)
+        records: List[Dict[str, Any]] = []
+        current: Dict[str, Any] = {}
+        for node in parser.nodes:
+            if node.tag in ("h1", "h2", "h3", "h4", "h5", "h6", "title"):
+                if node.text.strip():
+                    if current:
+                        records.append(current)
+                        current = {}
+                    current["title"] = node.text.strip()
+            elif node.tag in ("p", "span", "div", "li"):
+                txt = node.text.strip()
+                if txt:
+                    if "$" in txt or "€" in txt or "£" in txt or any(c.isdigit() for c in txt):
+                        current.setdefault("price_or_data", txt)
+                    else:
+                        current.setdefault("description", txt)
+            elif node.tag == "a":
+                href = node.attrs.get("href")
+                if href:
+                    current.setdefault("link", href)
+        if current:
+            records.append(current)
+        if not records and parser.nodes:
+            texts = [n.text.strip() for n in parser.nodes if n.text.strip()]
+            if texts:
+                records.append({"content": " ".join(texts)})
+        return records
+

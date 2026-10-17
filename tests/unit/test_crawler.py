@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 
 from unittest.mock import AsyncMock, MagicMock
@@ -168,3 +169,154 @@ async def test_top_level_bp_crawl_recursive_delegation(mock_bp):
     visited = await bp.crawl_recursive("https://delegate.com", max_depth=2, db_path=db_path)
     assert "https://delegate.com" in visited
     assert "https://delegate.com/sub" in visited
+
+
+@pytest.mark.asyncio
+async def test_tiered_crawler_service_fetch_with_escalation_clean():
+    """Verify TieredCrawlerService.fetch_with_escalation returns real HTML on success."""
+    from veil.crawling.service import TieredCrawlerService
+
+    async def mock_tier1(req):
+        return 200, {"content-type": "text/html"}, "<html><body><h1>Real Tier 1 Content</h1></body></html>"
+
+    crawler = TieredCrawlerService(tier1_fetcher=mock_tier1)
+    res = await crawler.fetch_with_escalation("https://clean-site.org")
+
+    assert res["status"] == "success"
+    assert res["tier"] == 1
+    assert res["status_code"] == 200
+    assert "Real Tier 1 Content" in res["html"]
+    assert res["response"].resolved_tier.value == "HTTP_FAST"
+
+
+@pytest.mark.asyncio
+async def test_tiered_crawler_service_fetch_with_escalation_escalates():
+    """Verify TieredCrawlerService.fetch_with_escalation escalates upon challenge."""
+    from veil.crawling.service import TieredCrawlerService
+
+    async def mock_tier1(req):
+        # Return Cloudflare challenge on Tier 1
+        return 403, {"cf-mitigated": "challenge"}, "<html><body>Attention Required! cf-turnstile</body></html>"
+
+    async def mock_tier2(req):
+        # Tier 2 succeeds
+        return 200, {"content-type": "text/html"}, "<html><body><h1>Real Tier 2 Unblocked Content</h1></body></html>"
+
+    crawler = TieredCrawlerService(tier1_fetcher=mock_tier1, tier2_fetcher=mock_tier2)
+    res = await crawler.fetch_with_escalation("https://challenged-site.org")
+
+    assert res["status"] == "success"
+    assert res["tier"] == 2
+    assert res["status_code"] == 200
+    assert "Real Tier 2 Unblocked Content" in res["html"]
+    assert len(res["response"].escalation_history) == 1
+    assert res["response"].escalation_history[0].status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_crawling_service_escalate_and_fetch_delegation():
+    """Verify CrawlingService.escalate_and_fetch delegates to TieredCrawlerService and updates Thompson router."""
+    from veil.crawling.service import CrawlingService, TieredCrawlerService
+
+    mock_tiered = MagicMock(spec=TieredCrawlerService)
+    mock_tiered.fetch_with_escalation = AsyncMock(return_value={
+        "html": "<html><body><h1>Real Delegated Content</h1></body></html>",
+        "tier": 2,
+        "status": "success",
+        "status_code": 200,
+        "response": MagicMock(is_success=True),
+    })
+
+    service = CrawlingService(tiered_crawler=mock_tiered)
+    res = await service.escalate_and_fetch("https://delegated-site.org")
+
+    assert res["status"] == "success"
+    assert res["tier"] == 2
+    assert "Real Delegated Content" in res["html"]
+    mock_tiered.fetch_with_escalation.assert_awaited_once()
+
+    # Verify Thompson router recorded the outcome
+    stats = service.router._get_tier_stats("delegated-site.org", 2)
+    assert stats["alpha"] > 1.0
+    assert stats["count"] >= 1.0
+
+
+def test_no_fake_tier_content_or_broken_human_imports():
+    """Anti-Gaming Integrity Test: Ensure zero fake dummy HTML strings or broken imports exist in service.py."""
+    import inspect
+    from veil.crawling import service
+
+    source = inspect.getsource(service)
+    assert "Tier 2 Content for" not in source, "Fake hardcoded Tier 2 HTML found in service.py"
+    assert "Tier 3 Biometric Content for" not in source, "Fake hardcoded Tier 3 HTML found in service.py"
+    assert "Tier 4 Handoff Content for" not in source, "Fake hardcoded Tier 4 HTML found in service.py"
+    assert "behavioral_playwright.human" not in source, "Broken import 'behavioral_playwright.human' found in service.py"
+
+
+def test_check_and_rotate_context_sync_environment():
+    """Verify check_and_rotate_context runs without RuntimeError when called synchronously without an event loop."""
+    from veil.crawling.service import TieredCrawlerService
+
+    called = []
+
+    class MockRotator:
+        async def get_healthy_context(self):
+            called.append(True)
+            return "new_context"
+
+    rotator = MockRotator()
+    crawler = TieredCrawlerService(
+        max_pages_per_context=2,
+        context_rotator=rotator,
+    )
+
+    # First call - below threshold
+    res1 = crawler.check_and_rotate_context()
+    assert res1["rotated"] is False
+    assert len(called) == 0
+
+    # Second call - reaches max_pages_per_context threshold
+    res2 = crawler.check_and_rotate_context()
+    assert res2["rotated"] is True
+    assert len(called) == 1
+    assert len(crawler.background_tasks) == 0
+
+
+@pytest.mark.asyncio
+async def test_check_and_rotate_context_async_strong_reference_and_discard():
+    """Verify check_and_rotate_context strongly references background tasks and discards on completion."""
+    from veil.crawling.service import TieredCrawlerService
+
+    completed = []
+
+    class MockAsyncRotator:
+        async def get_healthy_context(self):
+            await asyncio.sleep(0.05)
+            completed.append(True)
+            return "async_context"
+
+    rotator = MockAsyncRotator()
+    crawler = TieredCrawlerService(
+        max_pages_per_context=1,
+        context_rotator=rotator,
+    )
+
+    # Rotate in running asyncio loop
+    res = crawler.check_and_rotate_context()
+    assert res["rotated"] is True
+
+    # Task must be held in background_tasks set to prevent GC collection (Heisenbug fix)
+    assert len(crawler.background_tasks) == 1
+    task = next(iter(crawler.background_tasks))
+    assert isinstance(task, asyncio.Task)
+
+    # Wait for task completion
+    await task
+    assert len(completed) == 1
+    # After done callback fires, task must be discarded from set
+    assert len(crawler.background_tasks) == 0
+
+    # Test context manager cleanup
+    async with crawler:
+        assert len(crawler.background_tasks) == 0
+

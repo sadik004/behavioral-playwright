@@ -15,6 +15,7 @@ from .base import (
     detect_provider,
 )
 from .browser import (
+    BaseBrowserProvider,
     BrowserSession,
     PatchrightProvider,
     PlaywrightProvider,
@@ -37,6 +38,7 @@ __all__ = [
     "ProviderUnavailableError",
     "UnknownProviderError",
     "detect_provider",
+    "BaseBrowserProvider",
     "BrowserSession",
     "PlaywrightProvider",
     "PatchrightProvider",

@@ -152,17 +152,19 @@ class WebNamespace:
     # --- ADVANCED CRAWLING ENGINE (CATEGORY 6 & 15 REDIRECTION GUARD) ---
     def init_crawl_session(self, db_path: str = "crawl_state.db") -> None:
         conn = self._concurrency_safe_db(db_path)
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS crawl_urls (
-                url TEXT PRIMARY KEY,
-                depth INTEGER DEFAULT 0,
-                status TEXT DEFAULT 'pending',
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        conn.commit()
-        conn.close()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS crawl_urls (
+                    url TEXT PRIMARY KEY,
+                    depth INTEGER DEFAULT 0,
+                    status TEXT DEFAULT 'pending',
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+        finally:
+            conn.close()
 
     def extract_links(self, base_url: str, html_content: Optional[str] = None, result: Optional[Any] = None) -> List[str]:
         """Extracts and resolves absolute URLs from page HTML and/or acquisition result."""
@@ -299,21 +301,25 @@ class WebNamespace:
 
     def save_crawl_state(self, db_path: str, url: str, status: str = "completed", depth: int = 0) -> None:
         conn = self._concurrency_safe_db(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO crawl_urls (url, depth, status) VALUES (?, ?, ?)",
-            (url, depth, status)
-        )
-        conn.commit()
-        conn.close()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO crawl_urls (url, depth, status) VALUES (?, ?, ?)",
+                (url, depth, status)
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
     def recover_crawl_session(self, db_path: str) -> List[str]:
         conn = self._concurrency_safe_db(db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT url FROM crawl_urls WHERE status != 'completed'")
-        rows = cursor.fetchall()
-        conn.close()
-        return [r[0] for r in rows]
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT url FROM crawl_urls WHERE status != 'completed'")
+            rows = cursor.fetchall()
+            return [r[0] for r in rows]
+        finally:
+            conn.close()
 
     def filter_crawl_links(self, base_url: str, links: List[str]) -> List[str]:
         from urllib.parse import urlparse, urldefrag
@@ -374,10 +380,12 @@ class WebNamespace:
 
     def generate_crawl_report(self, db_path: str) -> Dict[str, Any]:
         conn = self._concurrency_safe_db(db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT status, count(*) FROM crawl_urls GROUP BY status")
-        rows = cursor.fetchall()
-        conn.close()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT status, count(*) FROM crawl_urls GROUP BY status")
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
         report = {"total_urls": 0, "status_breakdown": {}}
         for status, count in rows:
             report["status_breakdown"][status] = count
@@ -571,9 +579,13 @@ class InfrastructureNamespace:
     def _concurrency_safe_db(self, db_path: str) -> sqlite3.Connection:
         """Feature 13: SQLite pooled-safe optimization using WAL journal & synchronity locks."""
         conn = sqlite3.connect(db_path, timeout=15.0)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA synchronous=NORMAL;")
-        return conn
+        try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+            return conn
+        except Exception:
+            conn.close()
+            raise
 
     def _encrypt_payload(self, text: str) -> bytes:
         """Feature 14: Encrypt cache payloads using basic lightweight SHA256-XOR to prevent PII exposure."""
@@ -589,10 +601,9 @@ class InfrastructureNamespace:
 
     async def execute_transaction_with_backoff(self, db_path: str, action_func, max_retries: int = 5) -> Any:
         for attempt in range(max_retries):
+            conn = self._concurrency_safe_db(db_path)
             try:
-                conn = self._concurrency_safe_db(db_path)
                 res = action_func(conn)
-                conn.close()
                 return res
             except sqlite3.OperationalError as e:
                 if "locked" in str(e).lower() and attempt < max_retries - 1:
@@ -600,6 +611,8 @@ class InfrastructureNamespace:
                     await asyncio.sleep(sleep_time)
                 else:
                     raise
+            finally:
+                conn.close()
 
     def init_queue(self, db_path: str = "bp_tasks.db") -> None:
         def _action(conn):
@@ -1423,9 +1436,11 @@ Always prefer:
         sqlite_ok = False
         try:
             conn = self._bp.infrastructure._concurrency_safe_db(db_path)
-            conn.execute("SELECT 1;")
-            conn.close()
-            sqlite_ok = True
+            try:
+                conn.execute("SELECT 1;")
+                sqlite_ok = True
+            finally:
+                conn.close()
         except Exception:
             sqlite_ok = False
 

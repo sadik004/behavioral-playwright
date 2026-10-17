@@ -161,3 +161,26 @@ def test_dynamic_import_all_packages():
 
     assert imported_count > 300, f"Expected >300 imported modules, got {imported_count}"
 
+
+def test_root_providers_parity_with_veil_providers():
+    """Validates root providers/ package sync with veil.providers (afetch, BaseBrowserProvider, identity)."""
+    import providers
+    import veil.providers
+    from providers.network import CurlCffiProvider as RootCurlCffiProvider
+    from veil.providers.network import CurlCffiProvider as VeilCurlCffiProvider
+
+    # 1. BaseBrowserProvider in __all__ and exported
+    assert "BaseBrowserProvider" in providers.__all__
+    assert providers.BaseBrowserProvider is veil.providers.BaseBrowserProvider
+
+    # 2. CurlCffiProvider identity and afetch availability
+    assert RootCurlCffiProvider is VeilCurlCffiProvider
+    assert hasattr(RootCurlCffiProvider, "afetch")
+    assert callable(getattr(RootCurlCffiProvider, "afetch"))
+
+    # 3. All symbols in veil.providers.__all__ are in providers.__all__
+    for sym in veil.providers.__all__:
+        assert sym in providers.__all__, f"Symbol {sym} missing from root providers.__all__"
+        assert getattr(providers, sym) is getattr(veil.providers, sym), f"Symbol {sym} identity mismatch"
+
+

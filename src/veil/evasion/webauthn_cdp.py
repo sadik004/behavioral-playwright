@@ -83,7 +83,7 @@ class VirtualTPMWebAuthnRelay:
                         }));
 
                         return {
-                            id: 'powerhand_p256_credential_1337',
+                            id: btoa(targetOrigin).replace(/=/g, '').slice(0, 22),
                             rawId: new Uint8Array([1, 3, 3, 7]).buffer,
                             response: {
                                 clientDataJSON: clientDataJSON.buffer,

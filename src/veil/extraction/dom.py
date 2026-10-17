@@ -25,10 +25,11 @@ logger = get_logger("extraction.dom")
 
 def _get_raw_page(page: Any) -> Any:
     """Unwraps PageSession or custom wrappers to obtain the underlying evaluatable page."""
-    if hasattr(page, "__class__") and "Mock" in page.__class__.__name__:
-        return page
-    if hasattr(page, "raw_page") and getattr(page, "raw_page", None) is not None:
-        return getattr(page, "raw_page")
+    page_dict = getattr(page, "__dict__", None)
+    if isinstance(page_dict, dict) and "raw_page" in page_dict:
+        raw = page_dict["raw_page"]
+        if raw is not None and hasattr(raw, "evaluate"):
+            return raw
     return page
 
 

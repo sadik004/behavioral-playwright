@@ -69,11 +69,20 @@ class OSNetworkStackSpoofer:
 
     @staticmethod
     def get_network_identity_report() -> Dict[str, Any]:
-        """Returns active network stack emulation parameters."""
+        """Returns active network stack emulation parameters with live socket TTL inspection."""
+        observed_ttl = None
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                observed_ttl = int(s.getsockopt(socket.IPPROTO_IP, socket.IP_TTL))
+        except Exception:
+            observed_ttl = None
         return {
             "target_os": "Windows 11 Enterprise (DirectX / Winsock)",
+            "host_platform": sys.platform,
+            "observed_socket_ttl": observed_ttl,
             "ip_ttl": 128,
             "tcp_window": 65535,
             "tcp_mss": 1460,
-            "passive_p0f_signature": "s:64:1:df:id+:win11"
+            "execution_mode": "LIVE_ALIGNED" if observed_ttl == 128 else "USER_SPACE_SOCKET_TUNING",
+            "passive_p0f_signature": "s:64:1:df:id+:win11",
         }

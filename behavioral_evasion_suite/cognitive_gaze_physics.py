@@ -34,8 +34,10 @@ class CognitiveGazePhysics:
     viscous drag, and foveal gaze fixation pauses.
     """
 
-    def __init__(self, config: Optional[GazePhysicsConfig] = None):
+    def __init__(self, config: Optional[GazePhysicsConfig] = None, seed: Optional[int] = None):
         self.config = config or GazePhysicsConfig()
+        self.seed = seed
+        self._rng = random.Random(seed)
 
     def generate_inertial_scroll_steps(
         self,
@@ -59,12 +61,12 @@ class CognitiveGazePhysics:
 
         elapsed_ms = 0.0
         while remaining > 2.0:
-            step_dt = random.uniform(self.config.min_step_delay_ms, self.config.max_step_delay_ms)
+            step_dt = self._rng.uniform(self.config.min_step_delay_ms, self.config.max_step_delay_ms)
             # Velocity decay with drag
             v *= math.exp(-gamma * (step_dt / 16.67))
 
             # Micro-tremor perturbation (hand tremor on wheel)
-            jitter = random.gauss(1.0, 0.08)
+            jitter = self._rng.gauss(1.0, 0.08)
             displacement = max(1.0, v * (step_dt / 16.67) * jitter)
 
             if displacement > remaining:

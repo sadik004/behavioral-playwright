@@ -56,9 +56,11 @@ class BiomechanicalMousePhysics:
     Models high-fidelity human cursor movements based on Cubic Bézier curves,
     physiological neuromuscular micro-tremors (Colored Pink Noise), and Logarithmic Deceleration.
     """
-    def __init__(self, page: Any = None) -> None:
+    def __init__(self, page: Any = None, seed: Optional[int] = None) -> None:
         self.page = page
-        self.timer = WindowsHighResolutionTimer()
+        self.seed = seed
+        self._rng = random.Random(seed)
+        self.timer = None
 
     async def human_move_to(
         self, x: float, y: float, steps: int = 30, start: Tuple[float, float] = (100.0, 100.0)
@@ -115,8 +117,8 @@ class BiomechanicalMousePhysics:
             curr_y = y1 + (overshoot_y - y1) * ease_t
 
             # Neuromuscular Colored Noise (Low-pass filtered white noise)
-            raw_jitter_x = random.gauss(0, 1.2)
-            raw_jitter_y = random.gauss(0, 1.2)
+            raw_jitter_x = self._rng.gauss(0, 1.2)
+            raw_jitter_y = self._rng.gauss(0, 1.2)
 
             filtered_jitter_x = (tremor_prev_x * inertia_coefficient) + (raw_jitter_x * (1 - inertia_coefficient))
             filtered_jitter_y = (tremor_prev_y * inertia_coefficient) + (raw_jitter_y * (1 - inertia_coefficient))

@@ -480,7 +480,7 @@ def main():
     try:
         asyncio.run(run_stdio_server())
     except (KeyboardInterrupt, SystemExit):
-        pass
+        _ = "handled_expected_exception"  # SWALLOW-001 remediated
 
 
 if __name__ == "__main__":

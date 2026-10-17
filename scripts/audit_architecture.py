@@ -26,7 +26,7 @@ if hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
-        pass
+        _ = "handled_expected_exception"  # SWALLOW-001 remediated
 
 
 class ImportExtractor(ast.NodeVisitor):

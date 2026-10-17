@@ -5,6 +5,7 @@ domain namespaces: web, infrastructure, observability, network, integrations.
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import sqlite3
@@ -102,38 +103,29 @@ class WebNamespace:
         return getattr(self, "_bp", None)
 
     def init_crawl_session(self, db_path: str = "crawl_state.db") -> None:
-        conn = sqlite3.connect(db_path)
-        try:
+        with contextlib.closing(sqlite3.connect(db_path)) as conn:
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS crawl_state ("
                 " url TEXT PRIMARY KEY, status TEXT, depth INTEGER, "
                 " updated_at TEXT)"
             )
             conn.commit()
-        finally:
-            conn.close()
 
     def save_crawl_state(self, db_path: str, url: str,
                          status: str = "completed", depth: int = 0) -> None:
-        conn = sqlite3.connect(db_path)
-        try:
+        with contextlib.closing(sqlite3.connect(db_path)) as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO crawl_state VALUES (?, ?, ?, ?)",
                 (url, status, depth, time.strftime("%Y-%m-%dT%H:%M:%S")),
             )
             conn.commit()
-        finally:
-            conn.close()
 
     def recover_crawl_session(self, db_path: str) -> List[str]:
-        conn = sqlite3.connect(db_path)
-        try:
+        with contextlib.closing(sqlite3.connect(db_path)) as conn:
             rows = conn.execute(
                 "SELECT url FROM crawl_state WHERE status='pending'"
             ).fetchall()
             return [r[0] for r in rows]
-        finally:
-            conn.close()
 
     def set_rate_limit(self, rpm: int) -> None:
         self.rate_limit_rpm = max(1, rpm)
@@ -182,17 +174,15 @@ class ObservabilityNamespace:
                     db_path: str = "bp_metrics.db") -> None:
         self._metrics.start_trace(trace_id)
         self._ensure_legacy_db(db_path)
-        conn = sqlite3.connect(db_path)
         try:
-            conn.execute(
-                "INSERT OR REPLACE INTO traces VALUES (?, ?, ?, NULL)",
-                (trace_id, target, time.strftime("%Y-%m-%dT%H:%M:%S")),
-            )
-            conn.commit()
+            with contextlib.closing(sqlite3.connect(db_path)) as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO traces VALUES (?, ?, ?, NULL)",
+                    (trace_id, target, time.strftime("%Y-%m-%dT%H:%M:%S")),
+                )
+                conn.commit()
         except sqlite3.OperationalError as exc:
             logger.debug(f"Traces table insert skipped (schema not initialized): {exc}")
-        finally:
-            conn.close()
 
     def end_trace(self, trace_id: str, target: str = "",
                   db_path: str = "bp_metrics.db", url: str = "",
@@ -201,15 +191,13 @@ class ObservabilityNamespace:
         duration = self._metrics.end_trace(trace_id, url=target or "trace_log",
                                            db_path=db_path)
         self._ensure_legacy_db(db_path)
-        conn = sqlite3.connect(db_path)
         try:
-            conn.execute("UPDATE traces SET ended_at=?, target=? WHERE trace_id=?",
-                         (time.strftime("%Y-%m-%dT%H:%M:%S"), target, trace_id))
-            conn.commit()
+            with contextlib.closing(sqlite3.connect(db_path)) as conn:
+                conn.execute("UPDATE traces SET ended_at=?, target=? WHERE trace_id=?",
+                             (time.strftime("%Y-%m-%dT%H:%M:%S"), target, trace_id))
+                conn.commit()
         except sqlite3.OperationalError as exc:
             logger.debug(f"Traces table update skipped: {exc}")
-        finally:
-            conn.close()
         return duration
 
     def log_execution(self, url_or_db: str, operation_or_trace: str,
@@ -237,17 +225,15 @@ class ObservabilityNamespace:
                                         duration_ms, real_status,
                                         db_path=target_db)
             self._ensure_legacy_db(target_db)
-            conn = sqlite3.connect(target_db)
             try:
-                conn.execute(
-                    "INSERT INTO executions VALUES (NULL, ?, ?, ?, ?, ?, ?)",
-                    (trace_id, target, real_action, duration_ms, real_status,
-                     time.strftime("%Y-%m-%dT%H:%M:%S")))
-                conn.commit()
+                with contextlib.closing(sqlite3.connect(target_db)) as conn:
+                    conn.execute(
+                        "INSERT INTO executions VALUES (NULL, ?, ?, ?, ?, ?, ?)",
+                        (trace_id, target, real_action, duration_ms, real_status,
+                         time.strftime("%Y-%m-%dT%H:%M:%S")))
+                    conn.commit()
             except sqlite3.OperationalError as exc:
                 logger.debug(f"Executions table insert skipped: {exc}")
-            finally:
-                conn.close()
             return None
 
         if isinstance(status, int) and not isinstance(status, bool):
@@ -260,17 +246,15 @@ class ObservabilityNamespace:
                                         duration_ms, real_status,
                                         db_path=target_db)
             self._ensure_legacy_db(target_db)
-            conn = sqlite3.connect(target_db)
             try:
-                conn.execute(
-                    "INSERT INTO executions VALUES (NULL, ?, ?, ?, ?, ?, ?)",
-                    (trace_id, target, action, duration_ms, real_status,
-                     time.strftime("%Y-%m-%dT%H:%M:%S")))
-                conn.commit()
+                with contextlib.closing(sqlite3.connect(target_db)) as conn:
+                    conn.execute(
+                        "INSERT INTO executions VALUES (NULL, ?, ?, ?, ?, ?, ?)",
+                        (trace_id, target, action, duration_ms, real_status,
+                         time.strftime("%Y-%m-%dT%H:%M:%S")))
+                    conn.commit()
             except sqlite3.OperationalError as exc:
                 logger.debug(f"Executions table insert skipped: {exc}")
-            finally:
-                conn.close()
             return None
         # Legacy form
         real_db = db_path if isinstance(db_path, str) else "bp_metrics.db"
@@ -280,19 +264,18 @@ class ObservabilityNamespace:
 
     def _ensure_legacy_db(self, db_path: str) -> None:
         try:
-            conn = sqlite3.connect(db_path)
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS traces ("
-                " trace_id TEXT PRIMARY KEY, target TEXT, "
-                " started_at TEXT NOT NULL, ended_at TEXT)")
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS executions ("
-                " id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                " trace_id TEXT NOT NULL, target TEXT NOT NULL, "
-                " action TEXT NOT NULL, duration_ms INTEGER NOT NULL, "
-                " status TEXT NOT NULL, logged_at TEXT NOT NULL)")
-            conn.commit()
-            conn.close()
+            with contextlib.closing(sqlite3.connect(db_path)) as conn:
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS traces ("
+                    " trace_id TEXT PRIMARY KEY, target TEXT, "
+                    " started_at TEXT NOT NULL, ended_at TEXT)")
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS executions ("
+                    " id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    " trace_id TEXT NOT NULL, target TEXT NOT NULL, "
+                    " action TEXT NOT NULL, duration_ms INTEGER NOT NULL, "
+                    " status TEXT NOT NULL, logged_at TEXT NOT NULL)")
+                conn.commit()
         except sqlite3.OperationalError as exc:
             logger.debug(f"Legacy DB table creation skipped/failed: {exc}")
 
@@ -306,17 +289,18 @@ class ObservabilityNamespace:
                     return dict_report
             except sqlite3.OperationalError as exc:
                 logger.debug(f"QA report query fallback: {exc}")
-            conn = sqlite3.connect(db_path)
             try:
-                total, ok = conn.execute(
-                    "SELECT COUNT(*), SUM(status='success') FROM executions"
-                ).fetchone()
-                avg_ms = conn.execute(
-                    "SELECT AVG(duration_ms) FROM executions").fetchone()[0]
+                with contextlib.closing(sqlite3.connect(db_path)) as conn:
+                    total, ok = conn.execute(
+                        "SELECT COUNT(*), SUM(status='success') FROM executions"
+                    ).fetchone()
+                    avg_ms = conn.execute(
+                        "SELECT AVG(duration_ms) FROM executions").fetchone()[0]
             except sqlite3.OperationalError:
-                return self._metrics.generate_qa_report(db_path=db_path)
-            finally:
-                conn.close()
+                try:
+                    return self._metrics.generate_qa_report(db_path=db_path)
+                except sqlite3.OperationalError:
+                    return {"total_executed_ops": 0, "compliance_violations_count": 0, "status": "risk"}
             rate = (ok / total * 100.0) if total else 0.0
             return (f"Executions: {total} | Success rate: {rate:.1f}% | "
                     f"Avg latency: {(avg_ms or 0):.1f} ms")
@@ -544,7 +528,11 @@ class AINamespace:
     async def extract(self, url_or_html: str, schema: Any = None, options: Optional[Dict[str, Any]] = None) -> Any:
         if self._bp and hasattr(self._bp, "web"):
             return await self._bp.web.scrape(url_or_html, schema=schema, options=options)
-        return {"url": url_or_html, "schema": schema}
+        if "<" in url_or_html and ">" in url_or_html:
+            from veil.extraction.auto_schema import AutoSchemaExtractor
+            records = AutoSchemaExtractor().extract(url_or_html)
+            return {"records": records, "schema": schema, "status": "extracted_offline"}
+        return {"url": url_or_html, "schema": schema, "status": "unbooted_passthrough"}
 
     async def heal(self, selector: str) -> Any:
         if self._bp and getattr(self._bp, "page", None):
@@ -1467,5 +1455,6 @@ class BP:
 
 # Canonical Rename (Milestone 2)
 Veil = BP
+VeilClient = BP
 
-__all__ = ["BP", "Veil", "WebNamespace", "ObservabilityNamespace", "IntelligenceNamespace"]
+__all__ = ["BP", "Veil", "VeilClient", "WebNamespace", "ObservabilityNamespace", "IntelligenceNamespace"]

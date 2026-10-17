@@ -67,12 +67,12 @@ class StrictContextManager:
                     pc.createOffer = async function() {
                         return {
                             type: 'offer',
-                            sdp: 'v=0\no=- 12345 12345 IN IP4 127.0.0.1\ns=MockSession\nt=0 0\na=group:BUNDLE sdp-group\n'
+                            sdp: 'v=0\no=- 4611731400430051336 2 IN IP4 0.0.0.0\ns=-\nt=0 0\na=group:BUNDLE sdp-group\n'
                         };
                     };
 
                     Object.defineProperty(pc, 'localDescription', {
-                        get: () => ({ type: 'offer', sdp: 'v=0\no=- 12345 12345 IN IP4 127.0.0.1\ns=MockSession\nt=0 0\na=group:BUNDLE sdp-group\n' }),
+                        get: () => ({ type: 'offer', sdp: 'v=0\no=- 4611731400430051336 2 IN IP4 0.0.0.0\ns=-\nt=0 0\na=group:BUNDLE sdp-group\n' }),
                         configurable: true
                     });
 

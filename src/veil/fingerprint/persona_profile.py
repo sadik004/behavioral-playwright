@@ -73,10 +73,7 @@ class IdentityAnchor:
     TLA+ Patch #3: Deadlock-free proxy pool rotation and fallback state machine.
     """
     def __init__(self, proxy_pool: Optional[List[str]] = None, user_agent: Optional[str] = None):
-        self.proxy_pool = proxy_pool or [
-            "http://residential.proxy.internal:8080",
-            "http://residential.proxy.internal:8081"
-        ]
+        self.proxy_pool = list(proxy_pool) if proxy_pool is not None else []
         self.current_proxy_idx = 0
         self.user_agent = user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
         self.viewport = {"width": 1920, "height": 1080}

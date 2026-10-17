@@ -125,12 +125,12 @@ class IntegrationExtensions:
     @staticmethod
     def integrations_health_check(db_path: str = "bp_tasks.db"
                                   ) -> Dict[str, Any]:
+        import contextlib
         import sqlite3
         healthy = True
         try:
-            conn = sqlite3.connect(db_path)
-            conn.execute("SELECT 1")
-            conn.close()
+            with contextlib.closing(sqlite3.connect(db_path)) as conn:
+                conn.execute("SELECT 1")
         except sqlite3.Error:
             healthy = False
         return {"mcp_manifest_available": True,

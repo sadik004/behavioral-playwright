@@ -4,7 +4,7 @@
 [![Tests](https://img.shields.io/badge/Tests-742%2F742%20Passed%20(100%25)-success?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![CreepJS Audit](https://img.shields.io/badge/CreepJS%20Audit-100%25%20Clean-success?style=for-the-badge)](https://creepjs.com)
 [![KS-Test](https://img.shields.io/badge/KS--Test-p%3D0.5285%20(Human)-brightgreen?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
-[![MCP Server](https://img.shields.io/badge/MCP%20Server-20%20Tools%20Active-purple?style=for-the-badge)](https://modelcontextprotocol.io)
+[![MCP Server](https://img.shields.io/badge/MCP%20Server-47%20Tools%20Active-purple?style=for-the-badge)](https://modelcontextprotocol.io)
 [![Security Engine](https://img.shields.io/badge/Security-SAML%20%7C%20OAuth%20%7C%20GraphQL%20%7C%20IDOR-red?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -242,20 +242,18 @@ async with BP() as bp:
 
 ### 5. Model Context Protocol (MCP) Stdio Server (`bp.mcp`)
 - **JSON-RPC 2.0 Compliance**: Operates over Stdio conforming to MCP Specification `2024-11-05`.
-- **16 Production AI Tools**:
-  1. `scrape_page`: Self-healing DOM extraction and markdown generator.
-  2. `crawl_domain`: Multi-page recursive crawler.
-  3. `take_screenshot`: Base64 PNG viewport capture for multimodal vision LLMs.
-  4. `quant_pit_align`: SEC EDGAR Point-in-Time metadata validator.
-  5. `get_provider_matrix`: Live host engine and network driver status inspector.
-  6. `stealth_click`: Undetectable humanized coordinate or selector click with Costello saccades.
-  7. `stealth_type`: Humanized typing using physical QWERTY distance latencies.
-  8. `stealth_navigate`: Multi-state CAPTCHA loop protection and content entropy audit.
-  9. `audit_biometrics`: Two-sample KS-test and Wasserstein distance biometric validator.
-  10. `memory_pid_health`: Closed-loop Chromium memory PID controller status.
-  11. `extract_metadata`: Next.js `__NEXT_DATA__`, Nuxt state, JSON-LD schemas, and OpenGraph tags.
-  12. `sniff_api_responses`: Intercepts background XHR/Fetch JSON responses matching URL patterns.
-  13. `audit_csr_drift`: CSR vs SSR rendering drift auditor and indexation risk evaluator.
+- **47 Production AI Tools (JSON-RPC 2.0 Dispatcher)**:
+  - **Core Scraping, Crawling & Vision (8 Tools)**: `scrape_page`, `crawl_domain`, `crawl`, `search`, `map_site`, `take_screenshot`, `stealth_open_page`, `stealth_get_snapshot`, `ocr_image`.
+  - **Stealth Kinematics & Biometrics (5 Tools)**: `stealth_click`, `stealth_type`, `stealth_navigate`, `audit_biometrics`, `memory_pid_health`.
+  - **DOM Verification & API Intelligence (3 Tools)**: `audit_csr_drift`, `sniff_api_responses`, `extract_metadata`.
+  - **Social Media & B2B Intelligence (7 Tools)**: `linkedin_check_auth`, `linkedin_get_profile`, `linkedin_update_headline`, `linkedin_update_about`, `reddit_mine_jobs`, `reddit_analyze_lead`, `reddit_check_auth`.
+  - **Agentic Workflow Orchestration (7 Tools)**: `execute_workflow`, `inspect_state`, `workflow_navigate`, `workflow_resolve`, `workflow_extract`, `workflow_search`, `workflow_verify`.
+  - **Deep Security Auditing (2 Tools)**: `run_graphql_security_audit`, `run_security_audit_on_page`.
+  - **Financial Precision & Host Diagnostics (2 Tools)**: `quant_pit_align`, `get_provider_matrix`.
+  - **Quantum Evasion Diagnostics (6 Tools)**: `module_shield_status`, `module_persona_profile`, `module_kinematic_eval`, `stealth_human_action`, `stealth_extract_data`, `stealth_close_session`.
+  - **RAG Chunking & Webhook Delivery (2 Tools)**: `rag_chunk`, `trigger_webhook`.
+  - **Compatibility & Standalone Aliases (5 Tools)**: `human_interact`, `stealth_fetch`, `generate_stealth_script`, `scrape`, `crawl`.
+  > *See [`docs/usage/mcp.md`](docs/usage/mcp.md) for the exhaustive JSON-RPC schema and argument specifications for all 47 tools.*
 
 ---
 
@@ -734,7 +732,7 @@ bp audit-drift "https://example.com" -o drift.json
 | **`patchright`** | Browser | ✔ Available | **`VERIFIED-LIVE`** | Hardened stealth Chromium with native C++ patch bindings. |
 | **`playwright`** | Browser | ✔ Available | **`VERIFIED-LIVE`** | Standard high-speed Playwright Chromium/Firefox/WebKit. |
 | **`uc`** | Browser | ✔ Available | **`PROVIDER-GATED-LIVE`** | Undetected-Chromedriver (Opt-in via `SQ_LIVE_UC=1`). |
-| **`curl_cffi`** | Network | ✘ Optional | **`PROVIDER-GATED`** | TLS fingerprint spoofing (Raises `ProviderUnavailableError` if absent). |
+| **`curl_cffi`** | Network | ✔ Available | **`VERIFIED-LIVE`** | TLS fingerprint spoofing (JA3/JA4) with high-concurrency `AsyncSession` connection pooling. |
 | **`browser_use`**| AI Agent | ✘ Optional | **`PROVIDER-GATED`** | LangChain/LLM browser agent (Requires LLM API key). |
 | **`stagehand`** | AI Agent | ✘ Optional | **`PROVIDER-GATED`** | TypeScript AI agent bridge (Requires Model + Key). |
 
@@ -767,11 +765,12 @@ Return 0.0ms        Execute Request           Verified-Live       Standard Chrom
 
 ## ⚠️ Known Limitations & Engineering Honesty
 
-1. **Connection Pooling**: `AsyncApiClient` uses Python's standard library `urllib.request` running in an asynchronous threadpool. High-concurrency connection pooling using `curl_cffi` is optional roadmap work.
-2. **Cache Storage**: `ApiRequestCache` is an in-memory TTL dictionary. Multi-session SQLite disk persistence and HTTP ETag validation are future enhancements.
-3. **MCP Server Scope**: The MCP server focuses on tool execution (`tools/list`, `tools/call`). Resource/prompt listing methods return standard `-32601` error codes.
-4. **Third-Party AI Agent Providers**: `Browser-Use` and `Stagehand` require active external LLM API credentials and dependencies.
-5. **PowerPlay Simulation vs Kernel Execution**: PowerPlay's OS-level display and input components (`VirtualDisplayManager`, `OSLevelInputBridge`) provide structured diagnostic simulation reports; they do not perform raw kernel interrupt injection or launch OS-level Xvfb display servers. Network socket tuning (`TCPTTLMTUAligner`) outputs standard parameter recommendations without altering OS network tables.
+1. **Third-Party AI Agent Providers**: `Browser-Use` and `Stagehand` require active external LLM API credentials and environment-specific packages.
+2. **PowerPlay Simulation vs Kernel Execution**: PowerPlay's OS-level display and input components (`VirtualDisplayManager`, `OSLevelInputBridge`) provide structured diagnostic simulation reports; they do not perform raw kernel interrupt injection or launch OS-level Xvfb display servers. Network socket tuning (`TCPTTLMTUAligner`) outputs standard parameter recommendations without altering OS network tables.
+3. **MCP Server Scope**: The MCP server focuses on tool discovery and execution (`tools/list`, `tools/call`). Resource/prompt listing methods return standard `-32601` error codes conforming to the MCP specification.
+4. **Verified Completed Capabilities (Wave 1 & Wave 2 Upgrades)**:
+   - *High-Concurrency Connection Pooling*: Implemented via `CurlCffiProvider` with session reuse and `curl_cffi.requests.AsyncSession` connection pooling (verified live in `tests/integration/test_all_features_real.py` and `TieredCrawlerService` Tier 2).
+   - *Multi-Session SQLite Disk Persistence & HTTP ETag Storage*: Implemented via `DeltaCrawlStore` with SQLite WAL mode, conditional HTTP headers (`If-None-Match`, `If-Modified-Since`), and 64-bit SimHash hamming distance change detection.
 
 ---
 

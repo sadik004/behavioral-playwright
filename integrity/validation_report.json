@@ -82,7 +82,7 @@
         "has_worker_patch_code": false,
         "has_hw_concurrency_patch_code": false,
         "has_webdriver_patch_code": true,
-        "total_stealth_script_bytes": 21063
+        "total_stealth_script_bytes": 21080
       },
       "hardware_claims": {
         "dma_bridge_is_connected": false,
@@ -96,8 +96,8 @@
     "total_p0": 0,
     "confirmed_p0": 0,
     "unconfirmed_p0": 0,
-    "total_p1": 10,
-    "confirmed_p1": 10,
+    "total_p1": 3,
+    "confirmed_p1": 3,
     "unconfirmed_p1": 0
   },
   "harness_false_positives": [

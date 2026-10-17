@@ -9,6 +9,7 @@ or a caller-provided async ``scrape`` callable.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import inspect
 import math
@@ -294,27 +295,29 @@ class AutoRuleSchemaExtractor:
 class CrawlingService:
     """4-Tier Adaptive Crawler with WAL frontier, OPIC+BM25 scoring, and Thompson Sampling."""
 
-    def __init__(self) -> None:
+    def __init__(self, tiered_crawler: Optional[Any] = None) -> None:
         self.rate_limit_rpm: int = 60
         self.limiter = TokenBucketRateLimiter(rpm=self.rate_limit_rpm)
         self.simhash_detector = SimHashDetector(threshold=3)
         self.router = ThompsonSamplingDomainRouter()
         self.schema_extractor = AutoRuleSchemaExtractor()
+        self._tiered_crawler = tiered_crawler
 
     # -- session state & WAL connection -------------------------------------
     def _get_wal_connection(self, db_path: str) -> sqlite3.Connection:
         conn = sqlite3.connect(db_path, timeout=30.0)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA synchronous=NORMAL;")
-        return conn
+        try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+            return conn
+        except Exception:
+            conn.close()
+            raise
 
     def init_crawl_session(self, db_path: str = "crawl_state.db") -> None:
-        conn = self._get_wal_connection(db_path)
-        try:
+        with contextlib.closing(self._get_wal_connection(db_path)) as conn:
             conn.executescript(_CRAWL_SCHEMA)
             conn.commit()
-        finally:
-            conn.close()
 
     def save_crawl_state(
         self,
@@ -326,26 +329,20 @@ class CrawlingService:
         opic_cash: float = 1.0,
         simhash: int = 0,
     ) -> None:
-        conn = self._get_wal_connection(db_path)
-        try:
+        with contextlib.closing(self._get_wal_connection(db_path)) as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO crawl_urls (url, depth, status, priority, opic_cash, simhash, timestamp)"
                 " VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
                 (url, depth, status, priority, opic_cash, _to_signed_64(simhash)),
             )
             conn.commit()
-        finally:
-            conn.close()
 
     def recover_crawl_session(self, db_path: str) -> List[str]:
-        conn = self._get_wal_connection(db_path)
-        try:
+        with contextlib.closing(self._get_wal_connection(db_path)) as conn:
             rows = conn.execute(
                 "SELECT url FROM crawl_urls WHERE status='pending' ORDER BY priority DESC, depth ASC"
             ).fetchall()
             return [r[0] for r in rows]
-        finally:
-            conn.close()
 
     # -- link utilities -----------------------------------------------------
     def extract_links(
@@ -453,67 +450,40 @@ class CrawlingService:
         url: str,
         options: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Executes 4-tier escalation fetch:
-        Tier 1 (CurlCffiProvider.afetch TLS/JA4 fast path) ->
-        Tier 2 (PatchrightProvider / BrowserPoolManager stealth context) ->
-        Tier 3 (Playwright + BiometricOrchestrator saccadic mouse & Weibull typing) ->
-        Tier 4 (SessionHandoff human-in-the-loop).
+        """Executes 4-tier adaptive escalation fetch by delegating to TieredCrawlerService.
+
+        Hierarchy:
+          Tier 1: HTTP_FAST (urllib fast socket path)
+          Tier 2: TLS_IMPERSONATE (CurlCffiProvider)
+          Tier 3: BROWSER_HEADLESS (Playwright headless)
+          Tier 4: BROWSER_STEALTH_KINEMATICS (Patchright / Playwright + BiometricMouseController)
         """
         domain = urlparse(url).netloc
         chosen_tier = self.router.select_tier(domain)
         logger.debug(f"[VeilEngine] Routing {url} to Tier {chosen_tier}")
 
-        # Tier 1: Fast TLS/JA4 HTTP
-        try:
-            from behavioral_playwright.providers.network import CurlCffiProvider
-            p1 = CurlCffiProvider()
-            if p1.is_available:
-                t0 = time.monotonic()
-                resp = await p1.afetch(url)
-                if getattr(resp, "status_code", 0) == 200 and getattr(resp, "text", ""):
-                    html = resp.text
-                    # Check for bot challenge keywords
-                    if not any(kw in html.lower() for kw in ["cf-chl-bypass", "challenge-running", "turnstile", "interstitial"]):
-                        self.router.record_outcome(domain, 1, True, time.monotonic() - t0)
-                        return {"html": html, "tier": 1, "status": "success"}
-        except Exception as exc:
-            logger.debug(f"[VeilEngine Tier 1] CurlCffi failed for {url}: {exc}")
-            self.router.record_outcome(domain, 1, False)
+        opts = dict(options or {})
+        crawler = opts.get("tiered_crawler") or self._tiered_crawler
+        if crawler is None:
+            crawler = TieredCrawlerService(
+                tier1_fetcher=opts.get("tier1_fetcher"),
+                tier2_fetcher=opts.get("tier2_fetcher"),
+                tier3_fetcher=opts.get("tier3_fetcher"),
+                tier4_fetcher=opts.get("tier4_fetcher"),
+                rate_limit_rpm=self.rate_limit_rpm,
+            )
+            if not any(k in opts for k in ("tier1_fetcher", "tier2_fetcher", "tier3_fetcher", "tier4_fetcher")):
+                self._tiered_crawler = crawler
 
-        # Tier 2: Patchright / BrowserPoolManager Stealth Context
-        try:
-            from behavioral_playwright.providers.browser import PatchrightProvider
-            p2 = PatchrightProvider()
-            if p2.is_available:
-                t0 = time.monotonic()
-                # Run stealth browser fetch
-                self.router.record_outcome(domain, 2, True, time.monotonic() - t0)
-                return {"html": f"<html><body>Tier 2 Content for {url}</body></html>", "tier": 2, "status": "success"}
-        except Exception as exc:
-            logger.debug(f"[VeilEngine Tier 2] Patchright failed for {url}: {exc}")
-            self.router.record_outcome(domain, 2, False)
+        t0 = time.monotonic()
+        res = await crawler.fetch_with_escalation(url, opts)
+        latency = time.monotonic() - t0
 
-        # Tier 3: Playwright + BiometricOrchestrator
-        try:
-            from behavioral_playwright.facade import Veil
-            t0 = time.monotonic()
-            self.router.record_outcome(domain, 3, True, time.monotonic() - t0)
-            return {"html": f"<html><body>Tier 3 Biometric Content for {url}</body></html>", "tier": 3, "status": "success"}
-        except Exception as exc:
-            logger.debug(f"[VeilEngine Tier 3] Biometric Playwright failed for {url}: {exc}")
-            self.router.record_outcome(domain, 3, False)
+        resolved_tier = res.get("tier", 1)
+        is_success = res.get("status") == "success"
+        self.router.record_outcome(domain, resolved_tier, is_success, latency)
 
-        # Tier 4: SessionHandoff (Human-in-the-loop fallback)
-        try:
-            from behavioral_playwright.human.handoff import SessionHandoff
-            handoff = SessionHandoff()
-            self.router.record_outcome(domain, 4, True)
-            return {"html": f"<html><body>Tier 4 Handoff Content for {url}</body></html>", "tier": 4, "status": "handoff"}
-        except Exception as exc:
-            logger.debug(f"[VeilEngine Tier 4] SessionHandoff failed for {url}: {exc}")
-            self.router.record_outcome(domain, 4, False)
-
-        return {"html": "", "tier": 0, "status": "exhausted"}
+        return res
 
     # -- recursive crawl ----------------------------------------------------
     async def crawl_recursive(
@@ -679,6 +649,7 @@ class TieredCrawlerService:
         self.memory_threshold_mb = memory_threshold_mb
         self.context_rotator = context_rotator
         self._pages_in_current_context = 0
+        self._bg_tasks: Set[asyncio.Task] = set()
 
         if memory_pid_controller is not None:
             self.memory_pid_controller = memory_pid_controller
@@ -724,11 +695,28 @@ class TieredCrawlerService:
             self._pages_in_current_context = 0
 
         if rotated and self.context_rotator is not None:
-            try:
-                if hasattr(self.context_rotator, "get_healthy_context"):
-                    asyncio.create_task(self.context_rotator.get_healthy_context())
-            except Exception as exc:
-                logger.debug(f"Context rotator notification skipped/failed: {exc}")
+            if hasattr(self.context_rotator, "get_healthy_context"):
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = None
+
+                if loop is not None and loop.is_running():
+                    try:
+                        res = self.context_rotator.get_healthy_context()
+                        if inspect.isawaitable(res):
+                            task = loop.create_task(res)
+                            self._bg_tasks.add(task)
+                            task.add_done_callback(self._bg_tasks.discard)
+                    except Exception as exc:
+                        logger.debug(f"Context rotator async task scheduling failed: {exc}")
+                else:
+                    try:
+                        res = self.context_rotator.get_healthy_context()
+                        if inspect.isawaitable(res):
+                            asyncio.run(res)
+                    except Exception as exc:
+                        logger.debug(f"Context rotator synchronous execution failed: {exc}")
 
         return {
             "rotated": rotated,
@@ -1033,6 +1021,82 @@ class TieredCrawlerService:
             for req in requests
         ]
         return list(await asyncio.gather(*tasks))
+
+    async def fetch_with_escalation(
+        self,
+        url: str,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Executes full 4-tier adaptive crawl and returns a standardized response dictionary.
+
+        Maps 4 tiers:
+          Tier 1: HTTP_FAST (urllib fast socket path)
+          Tier 2: TLS_IMPERSONATE (CurlCffiProvider)
+          Tier 3: BROWSER_HEADLESS (Playwright headless)
+          Tier 4: BROWSER_STEALTH_KINEMATICS (Patchright / Playwright + BiometricMouseController)
+        """
+        from veil.crawling.models import CrawlerTier, CrawlRequest
+
+        opts = options or {}
+        req = CrawlRequest(
+            url=url,
+            headers=opts.get("headers"),
+            timeout_s=float(opts.get("timeout", 30.0)),
+            anti_bot_detection=bool(opts.get("anti_bot_detection", True)),
+            initial_tier=opts.get("initial_tier", CrawlerTier.HTTP_FAST),
+            max_tier=opts.get("max_tier", CrawlerTier.BROWSER_STEALTH_KINEMATICS),
+        )
+        resp = await self.crawl(req)
+
+        tier_map = {
+            CrawlerTier.HTTP_FAST: 1,
+            CrawlerTier.TLS_IMPERSONATE: 2,
+            CrawlerTier.BROWSER_HEADLESS: 3,
+            CrawlerTier.BROWSER_STEALTH_KINEMATICS: 4,
+        }
+        resolved_num = tier_map.get(resp.resolved_tier, 1)
+
+        return {
+            "html": resp.body,
+            "tier": resolved_num,
+            "status": "success" if resp.is_success else "exhausted",
+            "status_code": resp.status_code,
+            "response": resp,
+        }
+
+    @property
+    def background_tasks(self) -> Set[asyncio.Task]:
+        """Returns the set of active background context rotation tasks."""
+        return self._bg_tasks
+
+    async def aclose(self) -> None:
+        """Cancels and awaits all active background tasks."""
+        if self._bg_tasks:
+            tasks = list(self._bg_tasks)
+            for t in tasks:
+                t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            self._bg_tasks.clear()
+
+    def close(self) -> None:
+        """Synchronously cancels any pending background tasks."""
+        if self._bg_tasks:
+            for t in list(self._bg_tasks):
+                t.cancel()
+            self._bg_tasks.clear()
+
+    def __enter__(self) -> "TieredCrawlerService":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
+    async def __aenter__(self) -> "TieredCrawlerService":
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        await self.aclose()
+
 
 
 # Canonical aliases

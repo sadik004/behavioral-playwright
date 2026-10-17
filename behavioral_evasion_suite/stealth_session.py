@@ -37,7 +37,7 @@ class MockStealthPage:
         return None
 
     async def title(self) -> str:
-        return "Houston Youth Sports Directory"
+        return "SimulatedFallbackPage (Browser Binary Unavailable)"
 
     async def wait_for_timeout(self, ms: int):
         await asyncio.sleep(ms / 1000.0)
@@ -119,6 +119,7 @@ class StealthSession:
         except Exception as e:
             logger.warning(f"Playwright binary fallback triggered ({e}). Running in resilient simulated stealth context.")
             self.page = MockStealthPage()
+            self.is_simulated_fallback = True
             return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

@@ -172,6 +172,13 @@ class PersistentFrontierQueue:
     def close(self) -> None:
         self._conn.close()
 
+    def __enter__(self) -> "PersistentFrontierQueue":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
+
 
 class DeepSiteCrawler:
     """Multi-worker concurrent deep crawler integrating Craw4LLM priority scheduling,
@@ -379,3 +386,10 @@ class DeepSiteCrawler:
     def close(self) -> None:
         self.checkpoint.close()
         self.engine.close()
+
+    def __enter__(self) -> "DeepSiteCrawler":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+

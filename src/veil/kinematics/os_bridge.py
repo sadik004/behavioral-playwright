@@ -6,6 +6,7 @@ Provides virtual display management and OS-level virtual hardware driver simulat
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 from typing import Any, Dict
 
@@ -20,13 +21,15 @@ class VirtualDisplayManager:
 
     def initialize_virtual_framebuffer(self) -> Dict[str, Any]:
         """Configures virtual display environment if headless."""
+        xvfb_bin = shutil.which("Xvfb")
         if not os.environ.get("DISPLAY"):
             os.environ["DISPLAY"] = ":99"
-        execution_mode = "LIVE_OS" if (sys.platform.startswith("linux") or sys.platform == "win32") else "SIMULATION_FALLBACK"
+        execution_mode = "LIVE_OS" if xvfb_bin else "SIMULATION_FALLBACK"
 
         return {
             "status": "ready",
             "execution_mode": execution_mode,
+            "xvfb_binary_detected": bool(xvfb_bin),
             "display": os.environ.get("DISPLAY") or ":99",
             "resolution": f"{self.width}x{self.height}x{self.color_depth}",
             "hardware_acceleration_enabled": True,

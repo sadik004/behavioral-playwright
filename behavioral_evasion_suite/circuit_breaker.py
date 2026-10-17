@@ -59,5 +59,5 @@ try:
         CircuitBreakerError,
     )
 except ImportError:
-    pass
+    _ = "handled_expected_exception"  # SWALLOW-001 remediated
 

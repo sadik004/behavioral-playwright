@@ -28,7 +28,7 @@ except ImportError:
 
             if "blocked" in url or "secure-waf-site" in url:
                 return MockResponse("blocked by Cloudflare WAF", 403)
-            return MockResponse("<html>Static Output</html>", 200)
+            raise RuntimeError("curl_cffi is not installed; refusing to return fake Static Output HTML")
 
 
 class TLSJA4Spoofer:
