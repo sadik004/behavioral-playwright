@@ -1,0 +1,114 @@
+{
+  "repository_root": "E:\\Scraping\\behavioral-playwright-main\\behavioral-playwright-main",
+  "detected_layout": {
+    "mode": "HYBRID_VEIL_AND_LEGACY_BP",
+    "has_veil": true,
+    "has_behavioral_playwright": true,
+    "has_behavioral_evasion_suite": true,
+    "has_lock_json": true
+  },
+  "summary": {
+    "total_layers": 12,
+    "passed": 12,
+    "warned": 0,
+    "failed": 0
+  },
+  "layers": [
+    {
+      "layer_id": 1,
+      "name": "Cryptographic Lock & Tamper Integrity",
+      "status": "PASS",
+      "duration_ms": 86.8,
+      "details": "[PASS] All 32 protected harness/oracle files in E:\\Scraping\\behavioral-playwright-main\\behavioral-playwright-main verified intact.",
+      "command_or_target": "python lock_and_guard_harness.py --verify"
+    },
+    {
+      "layer_id": 2,
+      "name": "AST Anti-Gaming & Zero-Silent-Swallow Audit",
+      "status": "PASS",
+      "duration_ms": 894.2,
+      "details": "0 SWALLOW-001 silent except:pass and 0 mocks in *_real.py tests.",
+      "command_or_target": "python scripts/ast_anti_gaming.py"
+    },
+    {
+      "layer_id": 3,
+      "name": "Clean Architecture & Strict DAG Audit",
+      "status": "PASS",
+      "duration_ms": 312.0,
+      "details": "[PASS] Architecture Compliance Passed! 100% DAG Clean Architecture verified with 0 violations.",
+      "command_or_target": "python scripts/audit_architecture.py --target src/veil"
+    },
+    {
+      "layer_id": 4,
+      "name": "Honesty & Static Findings Registry Validation",
+      "status": "PASS",
+      "duration_ms": 2516.9,
+      "details": "[OK] Validation report saved to E:\\Scraping\\behavioral-playwright-main\\behavioral-playwright-main\\integrity\\validation_report.json",
+      "command_or_target": "python scripts/validate_findings.py"
+    },
+    {
+      "layer_id": 5,
+      "name": "Biomechanical & Mathematical Physics Oracles",
+      "status": "PASS",
+      "duration_ms": 818.7,
+      "details": "Verified mathematical & biomechanical physics oracles: SigmaLognormalMotor, BiomechanicalMousePhysics, LinguisticKeystrokeDynamicsEngine, ShroutFleissICC1Oracle",
+      "command_or_target": "SigmaLognormalMotor + BiomechanicalMousePhysics + Keystrokes"
+    },
+    {
+      "layer_id": 6,
+      "name": "DOM Extraction, Normalizer & Pruner Contracts",
+      "status": "PASS",
+      "duration_ms": 6.5,
+      "details": "Verified extraction & normalizer contracts: normalizer(clean_text, parse_price), dom(extract_open_graph, extract_json_ld), AutoSchemaExtractor, BlockTreePruner",
+      "command_or_target": "extraction.normalizer + extraction.dom + BlockTreePruner"
+    },
+    {
+      "layer_id": 7,
+      "name": "SQLite WAL Persistence & Windows Handle Hygiene",
+      "status": "PASS",
+      "duration_ms": 57.6,
+      "details": "SQLite WAL persistence & immediate NTFS unlink passed (CheckpointStore, DeltaCrawlStore, SQLiteWALUnlinkAcidTest).",
+      "command_or_target": "CheckpointStore + DeltaCrawlStore + NTFS Unlink Acid Test"
+    },
+    {
+      "layer_id": 8,
+      "name": "Live Local HTTP Server E2E Acquisition",
+      "status": "PASS",
+      "duration_ms": 614.6,
+      "details": "Live loopback server (http://127.0.0.1:64005/live) verified via TieredCrawlerService -> 200 OK with real HTML.",
+      "command_or_target": "TieredCrawlerService / DeepSiteCrawler against 127.0.0.1"
+    },
+    {
+      "layer_id": 9,
+      "name": "CLI, MCP & Pipeline Schema Contracts",
+      "status": "PASS",
+      "duration_ms": 7.3,
+      "details": "Verified interface & pipeline contracts: mcp.tools(McpToolDispatcher/handle_tool_call), cli.main(build_parser/main), WorldClassCrawlerEngine, HierarchicalRAGChunker",
+      "command_or_target": "cli.main + mcp.tools + WorldClassCrawlerEngine"
+    },
+    {
+      "layer_id": 10,
+      "name": "Full Feature Real-Execution Runner",
+      "status": "PASS",
+      "duration_ms": 9854.7,
+      "details": "Blueprints & Biomechanics: biomechanics                 |    620.6ms |  [PASS] ",
+      "command_or_target": "python scripts/verify_all_features_real.py"
+    },
+    {
+      "layer_id": 11,
+      "name": "Adversarial Fuzz & Property-Based Edge-Case Suite",
+      "status": "PASS",
+      "duration_ms": 4729.7,
+      "details": "Fuzz tests (Unicode/Null-bytes/100-deep DOM/extreme coords): ============================== 5 passed in 8.69s ==============================",
+      "command_or_target": "tests/integration/test_fuzz_and_concurrency_stress_real.py (Layer 11)"
+    },
+    {
+      "layer_id": 12,
+      "name": "50-Worker Async/SQLite Concurrency & Memory Leak Stress",
+      "status": "PASS",
+      "duration_ms": 4729.7,
+      "details": "Concurrency & tracemalloc leak ceiling (<35MB): ============================== 5 passed in 8.69s ==============================",
+      "command_or_target": "tests/integration/test_fuzz_and_concurrency_stress_real.py (Layer 12)"
+    }
+  ]
+}

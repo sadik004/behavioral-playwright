@@ -62,3 +62,9 @@ class CrawlResponse:
     @property
     def escalations_count(self) -> int:
         return len(self.escalation_history)
+
+    @property
+    def html(self) -> str:
+        """Parity alias mapping .html to .body."""
+        return self.body
+
