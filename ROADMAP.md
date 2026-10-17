@@ -382,5 +382,24 @@
 | **Gate 6** | `py scripts/verify_all_features_real.py` | **24/24 features passed with 100% real execution** | **[PASS] Code 0** |
 | **Gate 7** | `py -m pytest -q` | **732 passed, 2 skipped in 145.36s (2m 25s)** | **[PASS] Code 0** |
 
+### 3. Master 12-Layer Verification & Stress Suite (`run_full_project_12_layer_tests.py`)
+| Layer # | Testing Layer | Scope / Verification Target | Result | Status |
+| :---: | :--- | :--- | :---: | :---: |
+| **Layer 01** | Cryptographic Lock | 32/32 sealed harness and oracle files intact | 83.4 ms | **[PASS]** |
+| **Layer 02** | AST Anti-Gaming | Zero `SWALLOW-001`, zero mock imports in `*_real.py` | 865.7 ms | **[PASS]** |
+| **Layer 03** | Clean Architecture & DAG | 0 cyclic dependencies in target `src/veil` | 276.4 ms | **[PASS]** |
+| **Layer 04** | Honesty & Static Findings | Static findings report verified with 0 false claims | 2355.2 ms | **[PASS]** |
+| **Layer 05** | Biomechanical Physics | `SigmaLognormalMotor`, `BiomechanicalMousePhysics`, `LinguisticKeystrokeDynamicsEngine` | 818.7 ms | **[PASS]** |
+| **Layer 06** | DOM Extraction & Normalizers | `clean_text`, `parse_price`, `AutoSchemaExtractor`, `BlockTreePruner` | 6.5 ms | **[PASS]** |
+| **Layer 07** | SQLite Persistence & NTFS | WAL persistence, transaction commits & immediate file unlinking | 57.6 ms | **[PASS]** |
+| **Layer 08** | Live Local HTTP Server E2E | `TieredCrawlerService` live 200 OK acquisition & `CrawlResponse.html` parity | 614.6 ms | **[PASS]** |
+| **Layer 09** | CLI & MCP Tool Contracts | `cli.main`, `mcp.tools` dispatcher & pipeline contracts | 7.3 ms | **[PASS]** |
+| **Layer 10** | Real Feature Runner | 24/24 core subsystem integration features verified live | 8421.5 ms | **[PASS]** |
+| **Layer 11** | Adversarial Fuzzing | Unicode, null bytes, 100-level DOM recursion, boundary coords (5/5 passed) | 4393.1 ms | **[PASS]** |
+| **Layer 12** | 50-Worker Concurrency & Leaks | 50 concurrent async workers, tracemalloc ceiling <35MB (5/5 passed) | 4393.1 ms | **[PASS]** |
+
+**Final Verdict**: **12 / 12 Layers PASSED (0 Warn, 0 Fail)**. Comprehensive JSON audit report persisted at [`FULL_PROJECT_12_LAYER_TEST_REPORT.json`](file:///e:/Scraping/behavioral-playwright-main/behavioral-playwright-main/FULL_PROJECT_12_LAYER_TEST_REPORT.json).
+
+
 
 

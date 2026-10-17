@@ -1,6 +1,6 @@
 # REAL FEATURE VERIFICATION REPORT (100% Zero-Mock)
 
-**Date**: 2026-10-17 16:29:27
+**Date**: 2026-10-17 16:38:16
 **Execution Mode**: Genuine Local HTTP Server (`127.0.0.1`), Real Sockets, Real File I/O, Zero Mocks
 **Verification Rule**: Strict mathematical & physical assertions without any mock bypass
 
@@ -18,20 +18,20 @@
 | 3. Layer-4 Network & OS Bridge | `veil.kinematics.tracking.StatefulEvasionTracker` | record_request(), record_memory(480MB), register_captcha() | reputation_score=0.7500, captcha_count=1 | 0.0 | **PASS** |
 | 3. Layer-4 Network & OS Bridge | `veil.kinematics.validator.BiometricDistributionValidator` | 8 synthetic sample intervals, calibrated against 200 empirical human samples | Hypothesis evaluated, decision=SYNTHETIC_ANOMALY, p_value=0.0000 | 1.0 | **PASS** |
 | 3. Layer-4 Network & OS Bridge | `veil.kinematics.vision_guard.UltimateVisionLanguageActionGuard` | box_intended=(100,100,200,200), box_scanned=(110,105,210,205) | status=HEALED, coords=(160, 155), score=0.958 | 0.0 | **PASS** |
-| 3. Layer-4 Network & OS Bridge | `veil.kinematics.captcha.ResolvedCAPTCHAInfiniteLoopDetector` | record_navigation('http://127.0.0.1:64009/html', is_challenge=False) | state=CLOSED, action=PROCEED, trust=1.00 | 0.0 | **PASS** |
+| 3. Layer-4 Network & OS Bridge | `veil.kinematics.captcha.ResolvedCAPTCHAInfiniteLoopDetector` | record_navigation('http://127.0.0.1:58212/html', is_challenge=False) | state=CLOSED, action=PROCEED, trust=1.00 | 0.0 | **PASS** |
 | 3. Layer-4 Network & OS Bridge | `veil.kinematics.orchestrator.Bpp` | Master orchestrator initialization encapsulating all 10 mathematical shields | Initialized tracker, os_bridge, biomechanics, keystrokes, tcp_tuner, vision_guard, schema_guard, memory_pid, validator | 0.3 | **PASS** |
 | 4. Stealth & Evasion | `veil.evasion.canvas_shield.CanvasWebGLShaderSpoofer` | get_canvas_shader_spoofer_script() | Generated 2033 chars of valid JS noise injection with Mulberry32 PRNG | 0.0 | **PASS** |
 | 4. Stealth & Evasion | `veil.fingerprint.generator.FingerprintGenerator` | platform=WINDOWS, locale='en-US', seed=1337 | Profile vendor='Google Inc. (Intel)', evasion_script=1712 chars | 0.0 | **PASS** |
 | 4. Stealth & Evasion | `veil.kinematics.dom_telemetry.DOMTelemetryCollector` | 2 genuine DOM records (click on 'button', keydown on 'input') | Audited 2 events, status='PASSED', anomalies=0 | 0.0 | **PASS** |
-| 5. Extraction & Binary Protocol | `veil.extraction (DOM & Normalizers)` | Live GET http://127.0.0.1:64009/html (OpenGraph + JSON-LD + Price Normalization) | OG Title='Quantum Store Hardware', Product='Quantum GPU Matrix X1', Price=2499.00 | 62.5 | **PASS** |
+| 5. Extraction & Binary Protocol | `veil.extraction (DOM & Normalizers)` | Live GET http://127.0.0.1:58212/html (OpenGraph + JSON-LD + Price Normalization) | OG Title='Quantum Store Hardware', Product='Quantum GPU Matrix X1', Price=2499.00 | 75.3 | **PASS** |
 | 5. Extraction & Binary Protocol | `veil.core.itch_binary.ItchBinaryParser` | NASDAQ TotalView-ITCH 5.0 'A' Add Order packet (AAPL, 500 shares, $185.50) | Parsed 1 message: stock=AAPL, shares=500, ref=1001 | 0.0 | **PASS** |
-| 6. Resilience & Orchestration | `veil.resilience.retry.RetryPolicy` | Live GET http://127.0.0.1:64009/flaky (fails twice with 503, succeeds on 3rd) | Recovered on attempt 3: status='recovered', total retries=2 | 49.7 | **PASS** |
+| 6. Resilience & Orchestration | `veil.resilience.retry.RetryPolicy` | Live GET http://127.0.0.1:58212/flaky (fails twice with 503, succeeds on 3rd) | Recovered on attempt 3: status='recovered', total retries=2 | 61.9 | **PASS** |
 | 6. Resilience & Orchestration | `veil.orchestration (Conditions & State Machine)` | WorkflowState PENDING->RUNNING->COMPLETED transitions + ConditionEvaluator | condition=True, status='COMPLETED', audit_history_len=2 | 0.0 | **PASS** |
-| 7. Storage & Session Vault | `veil.storage & SessionStateVault` | Export to JSON, NDJSON, CSV, SQLite + POST /login session cookie save/reload | JSON=2 recs, SQLite=2 rows, Authenticated Session=valid | 19.3 | **PASS** |
-| 8. Network & Intelligence | `veil.facade.BP (Network, Intel & ProxyPool)` | HEAD http://127.0.0.1:64009/html, bot shield inspection, proxy add/get/report | RTT=0.68ms, shields=['cloudflare'], evasion_score=0.50 | 10.9 | **PASS** |
-| 9. Provider Architecture | `veil.providers (Matrix, CurlCffi, Playwright)` | Probe matrix & live request to http://127.0.0.1:64009/html via CurlCffiProvider (installed=True) | Matrix=6 providers, curl_status=200, Playwright installed=True | 6.3 | **PASS** |
-| 10. Crawler, MCP & CLI | `veil.crawling, veil.mcp.tools (12 Tools) & veil.cli.main` | Crawl http://127.0.0.1:64009/html & http://127.0.0.1:64009/cf-challenge, invoke 12 MCP tools, run 3 CLI subcommands | clean_status=200, cf_escalations=4, 12 MCP tools OK, CLI exit=0 | 7187.2 | **PASS** |
-| 11. Blueprints & Biomechanics | `veil.blueprints (5 Blueprints) & veil.kinematics.biomechanics` | 5 Blueprints + SQLite Checkpointing + Batch Crawl + Pre-Click Stream + Newton Wheel Scroll | teleport_ratio=0.0, scroll_var=1007838.0, 5 blueprints OK, batch=2/2, checkpoint=OK | 620.6 | **PASS** |
+| 7. Storage & Session Vault | `veil.storage & SessionStateVault` | Export to JSON, NDJSON, CSV, SQLite + POST /login session cookie save/reload | JSON=2 recs, SQLite=2 rows, Authenticated Session=valid | 17.7 | **PASS** |
+| 8. Network & Intelligence | `veil.facade.BP (Network, Intel & ProxyPool)` | HEAD http://127.0.0.1:58212/html, bot shield inspection, proxy add/get/report | RTT=0.78ms, shields=['cloudflare'], evasion_score=0.50 | 10.1 | **PASS** |
+| 9. Provider Architecture | `veil.providers (Matrix, CurlCffi, Playwright)` | Probe matrix & live request to http://127.0.0.1:58212/html via CurlCffiProvider (installed=True) | Matrix=6 providers, curl_status=200, Playwright installed=True | 5.3 | **PASS** |
+| 10. Crawler, MCP & CLI | `veil.crawling, veil.mcp.tools (12 Tools) & veil.cli.main` | Crawl http://127.0.0.1:58212/html & http://127.0.0.1:58212/cf-challenge, invoke 12 MCP tools, run 3 CLI subcommands | clean_status=200, cf_escalations=4, 12 MCP tools OK, CLI exit=0 | 6079.1 | **PASS** |
+| 11. Blueprints & Biomechanics | `veil.blueprints (5 Blueprints) & veil.kinematics.biomechanics` | 5 Blueprints + SQLite Checkpointing + Batch Crawl + Pre-Click Stream + Newton Wheel Scroll | teleport_ratio=0.0, scroll_var=1007838.0, 5 blueprints OK, batch=2/2, checkpoint=OK | 467.6 | **PASS** |
 
 **Final Verdict**: 24 / 24 Subsystems Verified with Zero Failures.
 
