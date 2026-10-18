@@ -1271,15 +1271,47 @@ class BP:
         return await self.page.keyboard.type(selector_or_text, delay_ms=delay_ms, humanize=humanize)
 
     async def open(self, url: str, *args: Any, **kwargs: Any) -> Any:
-        """Navigates to the specified URL."""
+        """Navigates to the specified URL with optional autonomous challenge resolution."""
         if not self.page:
             await self.boot()
         if self.page:
-            return await self.page.goto(url, *args, **kwargs)
+            auto_resolve = kwargs.pop("auto_resolve_challenge", False)
+            resp = await self.page.goto(url, *args, **kwargs)
+            if auto_resolve:
+                try:
+                    from veil.browser.challenge import ChallengeInterceptor
+                    interceptor = ChallengeInterceptor()
+                    await interceptor.resolve(self.page, mouse=self.mouse)
+                except Exception:
+                    pass
+            return resp
 
     async def goto(self, url: str, *args: Any, **kwargs: Any) -> Any:
         """Alias for open()."""
         return await self.open(url, *args, **kwargs)
+
+    async def press_and_hold(
+        self,
+        selector_or_x: Any,
+        y: Optional[float] = None,
+        min_hold_sec: float = 7.0,
+        max_hold_sec: float = 15.0,
+        resolve_predicate: Optional[Any] = None,
+        frame: Optional[Any] = None,
+        humanize: bool = True,
+    ) -> bool:
+        """Presses and holds on an element or coordinate with biomechanical tremor injection."""
+        if not self.page:
+            raise RuntimeError("BP is not booted. Call bp.boot() first.")
+        return await self.page.mouse.press_and_hold(
+            selector_or_x,
+            y=y,
+            min_hold_sec=min_hold_sec,
+            max_hold_sec=max_hold_sec,
+            resolve_predicate=resolve_predicate,
+            frame=frame,
+            humanize=humanize,
+        )
 
     async def scrape(self, url_or_html: str, schema: Any = None,
                      options: Optional[Dict[str, Any]] = None) -> Any:
@@ -1563,13 +1595,19 @@ class BP:
         self,
         start_urls: Any,
         query: Optional[str] = None,
-        max_pages: int = 25,
+        max_pages: int = 5,
         max_depth: int = 3,
         concurrency: int = 4,
         same_domain_only: bool = True,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
-        """Deep, multi-worker priority crawl powered by DeepSiteCrawler."""
+    ) -> Any:
+        """Deep, multi-worker priority crawl powered by DeepSiteCrawler or Crawler."""
+        active_page = self.page or getattr(self, "_active_page_session", None)
+        if isinstance(start_urls, str) and active_page is not None:
+            from behavioral_playwright.crawling.crawler import Crawler
+            crawler = Crawler(active_page)
+            return await crawler.crawl(start_urls, max_pages)
+
         from veil.crawling.deep_crawler import DeepSiteCrawler
         crawler = DeepSiteCrawler()
         return await crawler.crawl_site(
@@ -1587,8 +1625,14 @@ class BP:
         base_url: str,
         search_query: Optional[str] = None,
         max_urls: int = 5000,
-    ) -> List[Any]:
+    ) -> Any:
         """Fast site topology and sitemap discovery engine."""
+        active_page = self.page or getattr(self, "_active_page_session", None)
+        if active_page is not None:
+            from behavioral_playwright.mapping.mapper import SiteMapper
+            mapper = SiteMapper(active_page)
+            return await mapper.map(base_url)
+
         from veil.crawling.world_class_engine import WorldClassCrawlerEngine
         engine = WorldClassCrawlerEngine()
         try:
@@ -1613,8 +1657,8 @@ class BP:
             engine = SearchEngine(self.page)
             return await engine.search(
                 query,
-                search_input_selector=search_input_selector,
-                submit_selector=submit_selector,
+                search_input_selector,
+                submit_selector,
             )
         return []
 

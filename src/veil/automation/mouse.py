@@ -139,3 +139,105 @@ class MouseController:
         """Releases mouse button up."""
         if hasattr(self.page, "mouse") and hasattr(self.page.mouse, "up"):
             await self.page.mouse.up()
+
+    async def press_and_hold(
+        self,
+        selector_or_x: Any,
+        y: Optional[float] = None,
+        min_hold_sec: float = 7.0,
+        max_hold_sec: float = 15.0,
+        resolve_predicate: Optional[Any] = None,
+        frame: Optional[Any] = None,
+        humanize: bool = True,
+    ) -> bool:
+        """Presses and holds on an element or coordinate with biomechanical tremor injection.
+
+        Designed for time-gated verification challenges (PerimeterX, Arkose Labs, GeeTest, Cloudflare).
+
+        Args:
+            selector_or_x: CSS selector string, coordinate x (float), or Locator/ElementHandle.
+            y: Coordinate y if selector_or_x is float.
+            min_hold_sec: Minimum seconds to hold down.
+            max_hold_sec: Maximum timeout before releasing.
+            resolve_predicate: Optional async or sync callable returning bool when challenge is passed.
+            frame: Optional frame if target is within an iframe.
+            humanize: Whether to apply Costello saccadic trajectories and Harris-Wolpert tremor.
+
+        Returns:
+            bool: True if verified/resolved, False if timeout.
+        """
+        import time
+
+        target_x: float = 0.0
+        target_y: float = 0.0
+
+        if y is not None:
+            target_x = float(selector_or_x)
+            target_y = float(y)
+        else:
+            target_obj = frame or self.page
+            box = None
+            if hasattr(selector_or_x, "bounding_box"):
+                box = await selector_or_x.bounding_box()
+            elif isinstance(selector_or_x, str) and hasattr(target_obj, "locator"):
+                loc = target_obj.locator(selector_or_x).first
+                box = await loc.bounding_box()
+            elif isinstance(selector_or_x, str) and hasattr(target_obj, "query_selector"):
+                el = await target_obj.query_selector(selector_or_x)
+                box = await el.bounding_box() if el else None
+
+            if box:
+                target_x = float(box["x"] + box["width"] / 2.0)
+                target_y = float(box["y"] + box["height"] / 2.0)
+            else:
+                target_x = self.current_x
+                target_y = self.current_y
+
+        # Move to target
+        await self.move(target_x, target_y, humanize=humanize)
+        await asyncio.sleep(0.05)
+
+        # Press down
+        await self.down()
+        start = time.time()
+        resolved = False
+
+        try:
+            while (time.time() - start) < max_hold_sec:
+                elapsed = time.time() - start
+
+                # Apply micro-tremor
+                if humanize and hasattr(self.page, "mouse") and hasattr(self.page.mouse, "move"):
+                    jx, jy = self.biomechanics.compute_human_noise(speed=0.15, elapsed_time=elapsed)
+                    await self.page.mouse.move(target_x + jx * 0.3, target_y + jy * 0.3)
+
+                # Check predicate if provided
+                if resolve_predicate is not None:
+                    try:
+                        res = resolve_predicate()
+                        if asyncio.iscoroutine(res):
+                            res = await res
+                        if res and elapsed >= min_hold_sec:
+                            resolved = True
+                            break
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        check_target = frame or self.page
+                        if hasattr(check_target, "evaluate"):
+                            has_draw = await check_target.evaluate(
+                                "() => !!document.querySelector('#checkmark.draw, .draw, [aria-label*=\"completed\"]')"
+                            )
+                            if has_draw and elapsed >= min_hold_sec:
+                                resolved = True
+                                break
+                    except Exception:
+                        pass
+
+                await asyncio.sleep(0.12)
+        finally:
+            await self.up()
+            await asyncio.sleep(0.05)
+
+        return resolved

@@ -57,8 +57,13 @@ class PlaywrightProvider(BrowserProvider):
                     "--no-first-run",
                     "--no-default-browser-check",
                 ])
+            if self.config.headless and "--headless=new" not in args:
+                args.append("--headless=new")
             if "--disable-blink-features=AutomationControlled" not in args:
                 args.append("--disable-blink-features=AutomationControlled")
+
+            default_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+            user_agent = getattr(self.config, "user_agent", None) or default_ua
 
             self._context = await self._playwright.chromium.launch_persistent_context(
                 user_data_dir=user_data_dir,
@@ -66,6 +71,7 @@ class PlaywrightProvider(BrowserProvider):
                 no_viewport=True if self.config.headless is False else False,
                 viewport={"width": self.config.width, "height": self.config.height} if self.config.headless else None,
                 args=args,
+                user_agent=user_agent,
                 slow_mo=self.config.slow_mo,
             )
 
