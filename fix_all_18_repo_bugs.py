@@ -674,7 +674,7 @@ def main() -> int:
     print(f"[{mode}] 18-Bug Auto-Remediation Summary ({len(fixes_log)} file updates, {len(locked_set)} locked files untouched)")
     print("=" * 72)
     for entry in fixes_log:
-        print(f"  ✔ {entry}")
+        print(f"  [OK] {entry}")
     if not args.apply:
         print("\nRun with `--apply` to write all fixes to disk:")
         print("  python fix_all_18_repo_bugs.py --repo-root . --apply")

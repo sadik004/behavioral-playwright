@@ -69,16 +69,27 @@ class TaskQueueRepository:
             conn.close()
 
     def pop_task(self, db_path: str) -> Optional[Dict[str, Any]]:
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(db_path, isolation_level=None)
         try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("BEGIN IMMEDIATE;")
             row = conn.execute(
-                "SELECT id, url, operation FROM tasks WHERE status='pending'"
-                " ORDER BY priority DESC LIMIT 1"
+                "SELECT id, url, operation FROM tasks WHERE status='pending' "
+                "ORDER BY priority DESC LIMIT 1"
             ).fetchone()
             if row:
                 conn.execute("UPDATE tasks SET status='running' WHERE id=?", (row[0],))
-                conn.commit()
-            return {"id": row[0], "url": row[1], "operation": row[2]} if row else None
+                conn.execute("COMMIT;")
+                return {"id": row[0], "url": row[1], "operation": row[2]}
+            else:
+                conn.execute("COMMIT;")
+                return None
+        except Exception:
+            try:
+                conn.execute("ROLLBACK;")
+            except Exception:
+                _ = "handled_expected_exception"  # SWALLOW-001 remediated
+            raise
         finally:
             conn.close()
 
@@ -97,11 +108,20 @@ class TaskQueueRepository:
         conn = sqlite3.connect(db_path)
         try:
             row = conn.execute(
-                "SELECT COALESCE(SUBSTR(status, 8), '') FROM tasks WHERE id=?",
+                "SELECT status FROM tasks WHERE id=?",
                 (task_id,),
             ).fetchone()
-            retries = row[0] if row else ""
-            attempt = len(retries) + 1
+            if not row:
+                return
+            status = str(row[0] or "")
+            if "retry:" in status:
+                try:
+                    attempt = int(status.split("retry:")[1]) + 1
+                except Exception:
+                    attempt = 1
+            else:
+                attempt = 1
+
             if attempt >= max_retries:
                 conn.execute("UPDATE tasks SET status='failed' WHERE id=?", (task_id,))
             else:

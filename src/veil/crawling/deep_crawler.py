@@ -270,7 +270,7 @@ class DeepSiteCrawler:
 
                 proxy_arm = self.proxy_rotator.select_proxy(policy="ucb1")
                 t0 = time.perf_counter()
-                res = await self.engine.scrape_url(item.url, query=query)
+                res = await self.engine.scrape_url(item.url, query=query, proxy=proxy_arm.proxy_url)
                 rtt_ms = (time.perf_counter() - t0) * 1000.0
                 self.proxy_rotator.record_outcome(proxy_arm.proxy_url, int(res["status"]), rtt_ms)
 
@@ -292,9 +292,8 @@ class DeepSiteCrawler:
                 )
                 self.host_allocator.record_page_quality(item.url, q_score)
 
-                # Block-tree prune & hierarchical RAG chunking
-                raw_html_resp = await self.engine._raw_http_fetch(item.url)
-                raw_html = str(raw_html_resp.get("body", ""))
+                # Block-tree prune & hierarchical RAG chunking (reuses raw_html from scrape_url)
+                raw_html = str(res.get("raw_html") or res.get("fit_markdown") or "")
                 pruned_tree = self.block_pruner.prune(raw_html, query=query, max_tokens=200)
                 rag_chunks = self.rag_chunker.chunk_markdown(
                     item.url,
@@ -381,6 +380,7 @@ class DeepSiteCrawler:
             "skipped_host_budget": skipped_host_budget,
             "host_metrics": self.host_allocator.compute_corpus_icc1_and_reliability(),
             "pages": crawled_pages,
+            "crawled_pages": crawled_pages,
         }
 
     def close(self) -> None:

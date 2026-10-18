@@ -77,11 +77,34 @@ def build_parser() -> argparse.ArgumentParser:
     drift_p.add_argument("url", help="Target URL to audit")
     drift_p.add_argument("--output", "-o", help="Output file path")
 
-    # 12. Doctor command
+    # 12. Mine PAA command
+    paa_p = subparsers.add_parser("mine-paa", help="Mine People Also Ask questions")
+    paa_p.add_argument("query", help="Search query")
+    paa_p.add_argument("--depth", "-d", type=int, default=2, help="Max depth")
+    paa_p.add_argument("--output", "-o", help="Output file path")
+
+    # 13. Check Overlap command
+    co_p = subparsers.add_parser("check-overlap", help="Check search intent overlap")
+    co_p.add_argument("query_a", help="First query")
+    co_p.add_argument("query_b", help="Second query")
+    co_p.add_argument("--threshold", "-t", type=float, default=0.40, help="Overlap threshold")
+    co_p.add_argument("--urls-a", nargs="*", default=None, help="URLs for query A")
+    co_p.add_argument("--urls-b", nargs="*", default=None, help="URLs for query B")
+    co_p.add_argument("--output", "-o", help="Output file path")
+
+    # 14. Mine Suggest command
+    sug_p = subparsers.add_parser("mine-suggest", help="Mine Google suggestions")
+    sug_p.add_argument("query", help="Search query")
+    sug_p.add_argument("--alphabet", action="store_true", help="Expand alphabet queries")
+    sug_p.add_argument("--lang", default="en", help="Language")
+    sug_p.add_argument("--country", default="us", help="Country")
+    sug_p.add_argument("--output", "-o", help="Output file path")
+
+    # 15. Doctor command
     doc_p = subparsers.add_parser("doctor", help="Run system diagnostics and environment health check")
     doc_p.add_argument("--verbose", "-v", action="store_true", help="Verbose diagnostics output")
 
-    # 13. Audit command
+    # 16. Audit command
     audit_p = subparsers.add_parser("audit", help="Run architecture and environment audit")
     audit_p.add_argument("--target", default="src/veil", help="Target directory or URL to audit")
 
@@ -116,11 +139,26 @@ def _safe_export(records: Sequence[Dict[str, Any]], output_path: str, entity_lab
         return 1
 
 
+def _rec_to_dict(r: Any) -> Any:
+    if hasattr(r, "model_dump") and callable(r.model_dump):
+        return r.model_dump()
+    if hasattr(r, "to_dict") and callable(r.to_dict):
+        return r.to_dict()
+    if hasattr(r, "__dataclass_fields__"):
+        from dataclasses import asdict
+        return asdict(r)
+    if hasattr(r, "__dict__"):
+        return vars(r)
+    return r
+
+
 async def run_scrape(url: str, output: Optional[str] = None, target: str = "links", config: Optional[Any] = None) -> int:
     async with BP(config=config) as bp:
         await bp.goto(url)
         records = await bp.extract(target=target)
-        raw = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
+        if not isinstance(records, (list, tuple)):
+            records = [records]
+        raw = [_rec_to_dict(r) for r in records]
         
         if output:
             ret = _safe_export(raw, output, entity_label="records")
@@ -133,8 +171,16 @@ async def run_scrape(url: str, output: Optional[str] = None, target: str = "link
 
 async def run_crawl(url: str, max_pages: int = 5, depth: int = 2, output: Optional[str] = None, config: Optional[Any] = None) -> int:
     async with BP(config=config) as bp:
-        records = await bp.crawl(url, max_pages=max_pages)
-        raw = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
+        res = await bp.crawl(url, max_pages=max_pages, max_depth=depth)
+        if isinstance(res, dict) and "crawled_pages" in res:
+            records = res["crawled_pages"]
+        elif isinstance(res, list):
+            records = res
+        elif isinstance(res, dict):
+            records = [res]
+        else:
+            records = [res]
+        raw = [_rec_to_dict(r) for r in records]
         
         if output:
             ret = _safe_export(raw, output, entity_label="crawled records")
@@ -245,10 +291,70 @@ async def run_audit_drift(url: str, output: Optional[str] = None, config: Option
 
     auditor = CSRRenderingDriftAuditor()
     report = await auditor.audit_url_drift(url=url)
-    raw = report.model_dump() if hasattr(report, "model_dump") else vars(report)
+    raw = _rec_to_dict(report)
 
     if output:
         ret = _safe_export([raw], output, entity_label="CSR drift report")
+        if ret != 0:
+            return ret
+    else:
+        print(json.dumps(raw, indent=2, default=str))
+    return 0
+
+
+async def run_mine_paa(query: str, depth: int = 2, output: Optional[str] = None, config: Optional[Any] = None) -> int:
+    bp = BP(config=config)
+    nodes = await bp.mining.mine_paa(query=query, max_depth=depth)
+    raw = [_rec_to_dict(n) for n in nodes]
+    if output:
+        ret = _safe_export(raw, output, entity_label="PAA questions")
+        if ret != 0:
+            return ret
+    else:
+        print(json.dumps(raw, indent=2, default=str))
+    return 0
+
+
+async def run_check_overlap(
+    query_a: str,
+    query_b: str,
+    threshold: float = 0.40,
+    urls_a: Optional[List[str]] = None,
+    urls_b: Optional[List[str]] = None,
+    output: Optional[str] = None,
+    config: Optional[Any] = None,
+) -> int:
+    bp = BP(config=config)
+    report = await bp.mining.check_overlap(
+        query_a=query_a,
+        query_b=query_b,
+        urls_a=urls_a,
+        urls_b=urls_b,
+        threshold=threshold,
+    )
+    raw = _rec_to_dict(report)
+    if output:
+        ret = _safe_export([raw], output, entity_label="cannibalization report")
+        if ret != 0:
+            return ret
+    else:
+        print(json.dumps(raw, indent=2, default=str))
+    return 0
+
+
+async def run_mine_suggest(
+    query: str,
+    alphabet: bool = False,
+    lang: str = "en",
+    country: str = "us",
+    output: Optional[str] = None,
+    config: Optional[Any] = None,
+) -> int:
+    bp = BP(config=config)
+    result = await bp.mining.mine_suggest(query=query, alphabet=alphabet, lang=lang, country=country)
+    raw = _rec_to_dict(result)
+    if output:
+        ret = _safe_export([raw], output, entity_label="suggestions")
         if ret != 0:
             return ret
     else:
@@ -285,6 +391,31 @@ def main(args: Optional[List[str]] = None) -> int:
         return asyncio.run(run_extract_meta(parsed.url, parsed.output, config=config))
     elif parsed.command == "audit-drift":
         return asyncio.run(run_audit_drift(parsed.url, parsed.output, config=config))
+    elif parsed.command == "mine-paa":
+        return asyncio.run(run_mine_paa(parsed.query, parsed.depth, parsed.output, config=config))
+    elif parsed.command == "check-overlap":
+        return asyncio.run(
+            run_check_overlap(
+                parsed.query_a,
+                parsed.query_b,
+                threshold=parsed.threshold,
+                urls_a=parsed.urls_a,
+                urls_b=parsed.urls_b,
+                output=parsed.output,
+                config=config,
+            )
+        )
+    elif parsed.command == "mine-suggest":
+        return asyncio.run(
+            run_mine_suggest(
+                parsed.query,
+                alphabet=parsed.alphabet,
+                lang=parsed.lang,
+                country=parsed.country,
+                output=parsed.output,
+                config=config,
+            )
+        )
     elif parsed.command == "doctor":
         return run_doctor(verbose=getattr(parsed, "verbose", False))
     elif parsed.command == "audit":

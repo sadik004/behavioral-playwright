@@ -106,11 +106,15 @@ class WorldClassCrawlerEngine:
         template_id: Optional[str] = None,
         required_fields: Optional[List[str]] = None,
         positive_numeric_fields: Optional[List[str]] = None,
+        proxy: Optional[str] = None,
     ) -> Dict[str, Any]:
         cond_headers = self.delta_store.get_conditional_headers(url)
+        async def _fetcher(u: str, hdrs: Optional[Dict[str, str]] = None, px: Optional[str] = None, **kw: Any) -> Dict[str, Any]:
+            return await self._raw_http_fetch(u, headers=hdrs, proxy=px or proxy)
+
         resp = await self.clearance_bridge.fetch_with_promotion(
             url=url,
-            http_fetcher=self._raw_http_fetch,
+            http_fetcher=_fetcher,
             browser_clearance_solver=self._browser_solver,
             extra_headers=cond_headers,
         )
@@ -153,6 +157,7 @@ class WorldClassCrawlerEngine:
         return {
             "url": canonicalize_url(url),
             "status": status,
+            "raw_html": html,
             "execution_tier": resp.get("execution_tier"),
             "clearance_reused": resp.get("clearance_reused", False),
             "hydration": hydration,

@@ -7,6 +7,20 @@ import os
 from typing import Any, Dict, List, Optional
 from behavioral_playwright.config.settings import AutomationConfig
 
+
+def _rec_to_dict(r: Any) -> Any:
+    if hasattr(r, "model_dump") and callable(r.model_dump):
+        return r.model_dump()
+    if hasattr(r, "to_dict") and callable(r.to_dict):
+        return r.to_dict()
+    if hasattr(r, "__dataclass_fields__"):
+        from dataclasses import asdict
+        return asdict(r)
+    if hasattr(r, "__dict__"):
+        return vars(r)
+    return r
+
+
 MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
     {
         "name": "scrape_page",
@@ -644,13 +658,14 @@ class McpToolDispatcher:
                 url = arguments.get("url")
                 max_pages = arguments.get("max_pages", 5)
                 depth = arguments.get("depth", 2)
+                query = arguments.get("query")
                 if not url:
                     return {"error": "Missing required argument 'url'"}
 
-                async with bp:
-                    records = await bp.crawl(url, max_pages=max_pages)
-                    res = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
-                    return {"status": "success", "result": res, "pages_crawled": len(res)}
+                from veil.crawling.deep_crawler import DeepSiteCrawler
+                crawler = DeepSiteCrawler()
+                crawl_res = await crawler.crawl_site(url, query=query, max_pages=max_pages, max_depth=depth)
+                return {"status": "success", "result": crawl_res, "pages_crawled": len(crawl_res.get("crawled_pages", []))}
 
             elif tool_name == "take_screenshot":
                 url = arguments.get("url")
@@ -1129,7 +1144,7 @@ class McpToolDispatcher:
                     await bp.goto(url)
                     if target == "links":
                         records = await bp.extract(target="links")
-                        res = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
+                        res = [_rec_to_dict(r) for r in records]
                     elif target == "markdown":
                         text = await bp.page.evaluate("() => document.body ? document.body.innerText : ''")
                         title = await bp.page.title() if hasattr(bp.page, "title") else ""
@@ -1182,21 +1197,24 @@ if __name__ == "__main__":
                 async with bp:
                     if url:
                         await bp.goto(url)
-                    from behavioral_playwright.search.engine import SearchEngine
+                    from veil.search.engine import SearchEngine
                     engine = SearchEngine(bp.page)
                     records = await engine.search(query, search_input_selector=search_input, submit_selector=submit_sel)
-                    res = [r.to_dict() if hasattr(r, "to_dict") else vars(r) for r in records]
+                    res = [_rec_to_dict(r) for r in records]
                     return {"status": "success", "result": res}
 
             elif tool_name in ("map_site", "map"):
                 url = arguments.get("url")
                 if not url:
                     return {"error": "Missing required argument 'url'"}
-                async with bp:
-                    from behavioral_playwright.mapping.mapper import SiteMapper
-                    mapper = SiteMapper(bp.page)
-                    res = await mapper.map(url)
+                from veil.crawling.world_class_engine import WorldClassCrawlerEngine
+                engine = WorldClassCrawlerEngine()
+                try:
+                    mapped = await engine.map_site(url)
+                    res = [_rec_to_dict(r) for r in mapped]
                     return {"status": "success", "result": res}
+                finally:
+                    engine.close()
 
             elif tool_name == "ocr_image":
                 file_path = arguments.get("file_path")
@@ -1207,7 +1225,6 @@ if __name__ == "__main__":
                 res = await doc.ocr_image_with_autocorrect(file_path)
                 return {"status": "success", "result": res}
 
-
             elif tool_name == "rag_chunk":
                 markdown = arguments.get("markdown")
                 if not markdown:
@@ -1216,10 +1233,9 @@ if __name__ == "__main__":
                 max_tokens = arguments.get("max_tokens", 120)
                 overlap_tokens = arguments.get("overlap_tokens", 20)
                 from behavioral_playwright.extraction.rag_chunker_exporter import HierarchicalRAGChunker
-                from dataclasses import asdict
                 chunker = HierarchicalRAGChunker(max_tokens=max_tokens, overlap_tokens=overlap_tokens)
                 chunks = chunker.chunk_markdown(url, markdown)
-                return {"status": "success", "chunks": [asdict(c) if hasattr(c, "__dataclass_fields__") else vars(c) for c in chunks]}
+                return {"status": "success", "chunks": [_rec_to_dict(c) for c in chunks]}
 
             elif tool_name == "trigger_webhook":
                 webhook_url = arguments.get("webhook_url")

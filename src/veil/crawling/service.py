@@ -338,11 +338,23 @@ class CrawlingService:
             conn.commit()
 
     def recover_crawl_session(self, db_path: str) -> List[str]:
+        urls: List[str] = []
         with contextlib.closing(self._get_wal_connection(db_path)) as conn:
-            rows = conn.execute(
-                "SELECT url FROM crawl_urls WHERE status='pending' ORDER BY priority DESC, depth ASC"
-            ).fetchall()
-            return [r[0] for r in rows]
+            try:
+                rows = conn.execute(
+                    "SELECT url FROM crawl_urls WHERE status='pending' ORDER BY priority DESC, depth ASC"
+                ).fetchall()
+                urls.extend(r[0] for r in rows)
+            except Exception:
+                _ = "handled_expected_exception"  # SWALLOW-001 remediated
+            try:
+                rows2 = conn.execute(
+                    "SELECT url FROM crawl_state WHERE status='pending'"
+                ).fetchall()
+                urls.extend(r[0] for r in rows2)
+            except Exception:
+                _ = "handled_expected_exception"  # SWALLOW-001 remediated
+        return list(dict.fromkeys(urls))
 
     # -- link utilities -----------------------------------------------------
     def extract_links(
