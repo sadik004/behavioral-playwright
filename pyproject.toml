@@ -51,6 +51,14 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 pythonpath = ["src", "."]
+filterwarnings = [
+    "ignore::curl_cffi.aio.CurlCffiWarning",
+    "ignore:.*I/O operation on closed pipe.*:pytest.PytestUnraisableExceptionWarning",
+    "ignore:.*BaseSubprocessTransport.*:pytest.PytestUnraisableExceptionWarning",
+    "ignore:.*_ProactorBasePipeTransport.*:pytest.PytestUnraisableExceptionWarning",
+    "ignore:unclosed transport.*:ResourceWarning",
+]
+
 
 [tool.mypy]
 python_version = "3.10"

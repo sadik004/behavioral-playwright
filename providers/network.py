@@ -1,13 +1,20 @@
-"""CurlCffiProvider: TLS/JA3-impersonating HTTP client (provider-gated).
+"""Backward-compatibility forwarding module for providers.network.
 
-Backward-compatibility forwarding module ensuring strict class identity with
-veil.providers.network.CurlCffiProvider.
+Exposes CurlCffiProvider forwarded from veil.providers.network to guarantee
+strict module and class identity parity across root and facade packages.
 """
-
 from __future__ import annotations
 
-from veil.providers.network import CurlCffiProvider
+from veil.providers.network import (
+    CurlCffiProvider,
+    ProviderInfo,
+    ProviderUnavailableError,
+    detect_provider,
+)
 
 __all__ = [
     "CurlCffiProvider",
+    "ProviderInfo",
+    "ProviderUnavailableError",
+    "detect_provider",
 ]

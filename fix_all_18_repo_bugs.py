@@ -260,17 +260,35 @@ def patch_crawling_service(repo_root: Path, locked_set: Set[str], apply: bool, f
 # Fix 3 & 15: `providers/network.py`, `providers/__init__.py`, `providers/base.py`
 # ---------------------------------------------------------------------------
 def patch_providers(repo_root: Path, locked_set: Set[str], apply: bool, fixes_log: List[str]) -> None:
-    src_net = repo_root / "src" / "veil" / "providers" / "network.py"
     root_net = repo_root / "providers" / "network.py"
-    if src_net.exists() and root_net.exists():
+    if root_net.exists():
+        network_shim = (
+            '"""Backward-compatibility forwarding module for providers.network.\n\n'
+            'Exposes CurlCffiProvider forwarded from veil.providers.network to guarantee\n'
+            'strict module and class identity parity across root and facade packages.\n'
+            '"""\n'
+            'from __future__ import annotations\n\n'
+            'from veil.providers.network import (\n'
+            '    CurlCffiProvider,\n'
+            '    ProviderInfo,\n'
+            '    ProviderUnavailableError,\n'
+            '    detect_provider,\n'
+            ')\n\n'
+            '__all__ = [\n'
+            '    "CurlCffiProvider",\n'
+            '    "ProviderInfo",\n'
+            '    "ProviderUnavailableError",\n'
+            '    "detect_provider",\n'
+            ']\n'
+        )
         write_if_unlocked(
             repo_root,
             root_net,
-            src_net.read_text(encoding="utf-8"),
+            network_shim,
             locked_set,
             apply,
             fixes_log,
-            "BUG-03 (providers/network.py sync)",
+            "BUG-03 (providers/network.py parity shim)",
         )
     src_init = repo_root / "src" / "veil" / "providers" / "__init__.py"
     root_init = repo_root / "providers" / "__init__.py"
