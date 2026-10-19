@@ -33,9 +33,30 @@ class SiteMapper:
 
     def __init__(
         self,
-        fetcher: Callable[[str], Awaitable[Tuple[int, bytes, Dict[str, str]]]],
+        fetcher: Optional[Callable[[str], Awaitable[Tuple[int, bytes, Dict[str, str]]]]] = None,
     ) -> None:
-        self._fetcher = fetcher
+        self._fetcher = fetcher or self._default_fetcher
+
+    @staticmethod
+    async def _default_fetcher(url: str) -> Tuple[int, bytes, Dict[str, str]]:
+        import asyncio
+        import urllib.error
+        import urllib.request
+
+        def _sync_get() -> Tuple[int, bytes, Dict[str, str]]:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) VeilMapper/10.0"},
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=8.0) as resp:
+                    return resp.status, resp.read(), {k: v for k, v in resp.headers.items()}
+            except urllib.error.HTTPError as exc:
+                return exc.code, (exc.read() if exc.fp else b""), (dict(exc.headers.items()) if exc.headers else {})
+            except Exception:
+                return 0, b"", {}
+
+        return await asyncio.to_thread(_sync_get)
 
     async def map_site(
         self,

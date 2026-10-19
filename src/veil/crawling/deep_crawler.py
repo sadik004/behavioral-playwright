@@ -12,18 +12,24 @@ Grounded in:
   * `UITraceTelemetryVerifier` computes exact behavioral ratios (`click_top_frac`,
     `link_click_ratio`, `scroll_to_click_ratio`, `teleport_click_ratio`, `screen_frame_ms`)
     to guarantee zero robotic UI trace signatures.
+
+Production Windows & Multi-Worker Safe:
+- `PersistentFrontierQueue` uses scoped atomic SQLite sessions (`_session()`) for file-backed
+  databases so OS file locks (`WinError 32`) are never held open during concurrent network I/O.
+- Both `PersistentFrontierQueue` and `DeepSiteCrawler` support `with` / `async with` and `.close()`.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import math
 import re
 import sqlite3
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, Iterator, List, Optional, Sequence
 from urllib.parse import urlparse
 
 from ..extraction.block_tree_pruner import BlockTreePruner
@@ -77,7 +83,6 @@ class UITraceTelemetryVerifier:
         top_clicks = sum(1 for c in clicks if float(c.get("y", 500.0)) < top_threshold)
         link_clicks = sum(1 for c in clicks if c.get("has_href", False))
 
-        # Check if each click had at least one preceding mousemove within 500ms
         teleports = 0
         for c in clicks:
             c_ts = float(c.get("timestamp_ms", 0.0))
@@ -109,15 +114,43 @@ class UITraceTelemetryVerifier:
 
 
 class PersistentFrontierQueue:
-    """SQLite WAL crash-resumable URL state tracker (`PENDING`, `COMPLETED`, `FAILED`)."""
+    """SQLite WAL crash-resumable URL state tracker (`PENDING`, `COMPLETED`, `FAILED`).
+
+    Uses scoped auto-closing connections for disk databases so Windows NTFS never locks
+    the `.sqlite` file across async network operations.
+    """
 
     def __init__(self, db_path: str | Path = ":memory:") -> None:
         self.db_path = str(db_path)
-        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        with self._conn:
-            self._conn.execute("PRAGMA journal_mode=WAL;")
-            self._conn.execute(
+        self._is_memory = self.db_path == ":memory:" or self.db_path.startswith("file::memory:")
+        self._mem_conn: Optional[sqlite3.Connection] = None
+        if self._is_memory:
+            self._mem_conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self._mem_conn.row_factory = sqlite3.Row
+        self._init_schema()
+
+    @contextlib.contextmanager
+    def _session(self) -> Iterator[sqlite3.Connection]:
+        if self._is_memory:
+            if self._mem_conn is None:
+                self._mem_conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                self._mem_conn.row_factory = sqlite3.Row
+            yield self._mem_conn
+            return
+
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
+    def _init_schema(self) -> None:
+        with self._session() as conn:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+            conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS crawl_frontier_checkpoint (
                     url TEXT PRIMARY KEY,
@@ -132,14 +165,14 @@ class PersistentFrontierQueue:
 
     def enqueue_if_new(self, url: str, depth: int, priority_score: float, parent_score: float = 1.0) -> bool:
         canon = canonicalize_url(url)
-        row = self._conn.execute(
-            "SELECT status FROM crawl_frontier_checkpoint WHERE url = ?",
-            (canon,),
-        ).fetchone()
-        if row is not None and row["status"] == "COMPLETED":
-            return False
-        with self._conn:
-            self._conn.execute(
+        with self._session() as conn:
+            row = conn.execute(
+                "SELECT status FROM crawl_frontier_checkpoint WHERE url = ?",
+                (canon,),
+            ).fetchone()
+            if row is not None and row["status"] == "COMPLETED":
+                return False
+            conn.execute(
                 """
                 INSERT OR REPLACE INTO crawl_frontier_checkpoint
                 (url, depth, priority_score, parent_score, status, updated_at)
@@ -151,33 +184,36 @@ class PersistentFrontierQueue:
 
     def mark_status(self, url: str, status: str) -> None:
         canon = canonicalize_url(url)
-        with self._conn:
-            self._conn.execute(
+        with self._session() as conn:
+            conn.execute(
                 "UPDATE crawl_frontier_checkpoint SET status = ?, updated_at = ? WHERE url = ?",
                 (status, time.time(), canon),
             )
 
     def get_pending_items(self) -> List[Dict[str, Any]]:
-        rows = self._conn.execute(
-            "SELECT url, depth, priority_score, parent_score FROM crawl_frontier_checkpoint WHERE status = 'PENDING' ORDER BY priority_score DESC"
-        ).fetchall()
-        return [dict(r) for r in rows]
+        with self._session() as conn:
+            rows = conn.execute(
+                "SELECT url, depth, priority_score, parent_score FROM crawl_frontier_checkpoint WHERE status = 'PENDING' ORDER BY priority_score DESC"
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     def get_completed_urls(self) -> List[str]:
-        rows = self._conn.execute(
-            "SELECT url FROM crawl_frontier_checkpoint WHERE status = 'COMPLETED'"
-        ).fetchall()
-        return [r["url"] for r in rows]
+        with self._session() as conn:
+            rows = conn.execute(
+                "SELECT url FROM crawl_frontier_checkpoint WHERE status = 'COMPLETED'"
+            ).fetchall()
+            return [r["url"] for r in rows]
 
     def close(self) -> None:
-        self._conn.close()
+        if self._mem_conn is not None:
+            self._mem_conn.close()
+            self._mem_conn = None
 
     def __enter__(self) -> "PersistentFrontierQueue":
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         self.close()
-
 
 
 class DeepSiteCrawler:
@@ -260,7 +296,7 @@ class DeepSiteCrawler:
         skipped_duplicates = 0
         skipped_host_budget = 0
 
-        async def _process_item(item) -> None:
+        async def _process_item(item: Any) -> None:
             nonlocal skipped_duplicates, skipped_host_budget
             async with sem:
                 if not self.host_allocator.can_fetch_more(item.url):
@@ -284,7 +320,6 @@ class DeepSiteCrawler:
                     self.checkpoint.mark_status(item.url, "DUPLICATE")
                     return
 
-                # Score page quality & update Host-Aware SampleThenDeepenAllocator (arXiv:2610.13321v1)
                 q_score = self.compute_page_quality_score(
                     res["fit_markdown"],
                     res["token_reduction_pct"],
@@ -292,8 +327,7 @@ class DeepSiteCrawler:
                 )
                 self.host_allocator.record_page_quality(item.url, q_score)
 
-                # Block-tree prune & hierarchical RAG chunking (reuses raw_html from scrape_url)
-                raw_html = str(res.get("raw_html") or res.get("fit_markdown") or "")
+                raw_html = str(res.get("raw_html") or "")
                 pruned_tree = self.block_pruner.prune(raw_html, query=query, max_tokens=200)
                 rag_chunks = self.rag_chunker.chunk_markdown(
                     item.url,
@@ -322,7 +356,6 @@ class DeepSiteCrawler:
                 if exporter is not None:
                     exporter.append_record(record)
 
-                # Discover & enqueue outgoing links (Craw4LLM parent-influence propagation)
                 if item.depth < max_depth:
                     for m_a in _ANCHOR_RE.finditer(raw_html):
                         href, anchor_raw = m_a.group(1).strip(), m_a.group(2)
@@ -348,14 +381,12 @@ class DeepSiteCrawler:
                                 parent_url=item.url,
                             )
 
-                    # Also enqueue pagination next_url if discovered
                     if res["pagination"].next_url:
                         next_u = canonicalize_url(res["pagination"].next_url, base_url=item.url)
                         prio = frontier.score_url(next_u, anchor_text="next page", depth=item.depth + 1, parent_score=q_score)
                         if self.checkpoint.enqueue_if_new(next_u, item.depth + 1, prio, q_score):
                             frontier.push(next_u, anchor_text="next page", depth=item.depth + 1, parent_score=q_score, parent_url=item.url)
 
-        # Execute wave-by-wave concurrent batch pops until max_pages or empty frontier
         while len(crawled_pages) < max_pages and len(frontier) > 0:
             batch = []
             remaining = max_pages - len(crawled_pages)
@@ -367,7 +398,6 @@ class DeepSiteCrawler:
                 break
             await asyncio.gather(*(_process_item(it) for it in batch))
 
-        # Compute DataMan Eq. (5) corpus sampling probabilities across all crawled pages
         scores = [p["quality_score"] for p in crawled_pages]
         domains = [(urlparse(p["url"]).hostname or "") for p in crawled_pages]
         dataman_probs = dataman_sampling_probabilities(scores, domains=domains, temperature=0.4)
@@ -380,7 +410,6 @@ class DeepSiteCrawler:
             "skipped_host_budget": skipped_host_budget,
             "host_metrics": self.host_allocator.compute_corpus_icc1_and_reliability(),
             "pages": crawled_pages,
-            "crawled_pages": crawled_pages,
         }
 
     def close(self) -> None:
@@ -390,6 +419,11 @@ class DeepSiteCrawler:
     def __enter__(self) -> "DeepSiteCrawler":
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         self.close()
 
+    async def __aenter__(self) -> "DeepSiteCrawler":
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        self.close()

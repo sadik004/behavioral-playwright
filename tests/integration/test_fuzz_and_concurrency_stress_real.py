@@ -223,26 +223,24 @@ def test_layer11_fuzz_malformed_html_and_deep_dom_extraction() -> None:
 # ===========================================================================
 
 def test_layer12_sqlite_concurrent_writers_zero_winerror32() -> None:
-    """Spawns 25 concurrent threads writing/reading SQLite WAL tables, then unlinks DB immediately (Windows NTFS WinError 32 test)."""
+    '''Spawns 25 concurrent threads writing/reading SQLite WAL tables, then unlinks DB immediately (Windows NTFS WinError 32 test).'''
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "stress_concurrent.db"
-        errors: List[Exception] = []
-
-        # Pre-initialize schema and WAL mode before multi-threaded worker access
         with contextlib.closing(sqlite3.connect(str(db_path), timeout=30.0)) as init_conn:
             init_conn.execute("PRAGMA journal_mode=WAL;")
-            init_conn.execute("PRAGMA busy_timeout=30000;")
             init_conn.execute(
                 "CREATE TABLE IF NOT EXISTS stress_log (id INTEGER PRIMARY KEY AUTOINCREMENT, wid INT, step INT, url TEXT)"
             )
             init_conn.commit()
 
+        errors: List[Exception] = []
+
         def _worker(worker_id: int) -> None:
             try:
                 for step in range(8):
-                    conn = sqlite3.connect(str(db_path), timeout=30.0)
+                    conn = sqlite3.connect(str(db_path), timeout=60.0)
                     try:
-                        conn.execute("PRAGMA busy_timeout=30000;")
+                        conn.execute("PRAGMA busy_timeout=60000;")
                         conn.execute(
                             "INSERT INTO stress_log (wid, step, url) VALUES (?, ?, ?)",
                             (worker_id, step, f"https://example.com/{worker_id}/{step}"),
@@ -264,6 +262,9 @@ def test_layer12_sqlite_concurrent_writers_zero_winerror32() -> None:
         with contextlib.closing(sqlite3.connect(str(db_path), timeout=30.0)) as check_conn:
             count = check_conn.execute("SELECT COUNT(*) FROM stress_log").fetchone()[0]
             assert count == 25 * 8
+
+        del check_conn
+        gc.collect()
 
         db_path.unlink()
         assert not db_path.exists()

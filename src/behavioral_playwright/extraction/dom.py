@@ -1,4 +1,4 @@
-"""Backward-compatible module alias forwarding to `veil.extraction.dom`."""
+"""Backward-compatible alias."""
 import importlib as _importlib
 import sys as _sys
 

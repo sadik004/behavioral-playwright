@@ -5,31 +5,34 @@ from __future__ import annotations
 import base64
 import os
 from typing import Any, Dict, List, Optional
-from behavioral_playwright.config.settings import AutomationConfig
+try:
+    from veil.config.settings import AutomationConfig
+except Exception:
+    try:
+        from behavioral_playwright.config.settings import AutomationConfig
+    except Exception:
+        AutomationConfig = Any  # type: ignore[misc,assignment]
 
-
-def _rec_to_dict(r: Any) -> Any:
+def _mcp_rec_to_dict(r: Any) -> Dict[str, Any]:
+    if isinstance(r, dict):
+        return r
     if hasattr(r, "model_dump") and callable(r.model_dump):
         return r.model_dump()
     if hasattr(r, "to_dict") and callable(r.to_dict):
         return r.to_dict()
-    if hasattr(r, "__dataclass_fields__"):
-        from dataclasses import asdict
-        return asdict(r)
     if hasattr(r, "__dict__"):
-        return vars(r)
-    return r
-
+        return dict(vars(r))
+    return {"url": str(r)}
 
 MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
     {
         "name": "scrape_page",
-        "description": "Scrapes a webpage using self-healing browser automation and returns markdown, links, articles, tables, or clean text.",
+        "description": "Scrapes a webpage using self-healing browser automation and returns markdown/content.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "url": {"type": "string", "description": "The URL to scrape"},
-                "target": {"type": "string", "enum": ["links", "articles", "markdown", "table", "text", "raw"], "default": "links", "description": "Extraction target format"},
+                "target": {"type": "string", "enum": ["links", "articles", "raw"], "default": "links"},
             },
             "required": ["url"],
         },
@@ -49,13 +52,13 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
     },
     {
         "name": "crawl",
-        "description": "Recursively crawls a website or domain with 4-tier adaptive anti-bot escalation and extracts structured data.",
+        "description": "Recursively crawls URLs within a domain up to a maximum page count.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "url": {"type": "string", "description": "Starting URL for crawl"},
-                "max_pages": {"type": "integer", "default": 5, "description": "Maximum number of pages to crawl"},
-                "depth": {"type": "integer", "default": 2, "description": "Maximum recursion depth"},
+                "max_pages": {"type": "integer", "default": 5},
+                "depth": {"type": "integer", "default": 2},
             },
             "required": ["url"],
         },
@@ -173,6 +176,20 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "mine_google_suggest",
+        "description": "Runs Google autocomplete suggestion mining and recursive A-Z alphabet drilldown.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search keyword or query template (e.g. 'fastapi vs')"},
+                "alphabet": {"type": "boolean", "default": False, "description": "Whether to run A-Z alphabet drilldown expansion"},
+                "lang": {"type": "string", "default": "en", "description": "Language code (default 'en')"},
+                "country": {"type": "string", "default": "us", "description": "Country code (default 'us')"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
         "name": "audit_csr_drift",
         "description": "Audits Client-Side Rendering (CSR) vs Static HTML rendering drift, detecting hydration mismatches and missing SEO elements.",
         "inputSchema": {
@@ -182,6 +199,33 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
                 "raw_html": {"type": "string", "description": "Static/SSR HTML content string (optional)"},
                 "rendered_html": {"type": "string", "description": "Hydrated/rendered DOM HTML content string (optional)"},
             },
+        },
+    },
+    {
+        "name": "mine_paa",
+        "description": "Recursively mines People Also Ask (PAA) question tree from Google search SERP or provided HTML.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Seed search query to mine PAA for"},
+                "depth": {"type": "integer", "default": 2, "description": "Recursion depth (1 to 5)"},
+                "html": {"type": "string", "description": "Optional static SERP HTML to parse directly"},
+            },
+        },
+    },
+    {
+        "name": "check_cannibalization",
+        "description": "Calculates Jaccard overlap similarity between two search queries to detect keyword cannibalization and advise MERGE vs SPLIT.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query_a": {"type": "string", "description": "First comparison search query"},
+                "query_b": {"type": "string", "description": "Second comparison search query"},
+                "urls_a": {"type": "array", "items": {"type": "string"}, "description": "Optional explicit URLs for query A"},
+                "urls_b": {"type": "array", "items": {"type": "string"}, "description": "Optional explicit URLs for query B"},
+                "threshold": {"type": "number", "default": 0.40, "description": "Jaccard merge threshold (default 0.40)"},
+            },
+            "required": ["query_a", "query_b"],
         },
     },
     {
@@ -394,175 +438,14 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
         },
     },
     {
-        "name": "human_interact",
-        "description": "Executes a human-mimetic biometric interaction (click, type, scroll, hover, pause) with natural physics, micro-jitter, and cognitive delays.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "action": {"type": "string", "enum": ["click", "type", "scroll", "hover", "pause", "wait"], "default": "click", "description": "Interaction action to execute"},
-                "selector": {"type": "string", "description": "CSS selector to target"},
-                "text": {"type": "string", "description": "Text to type if action is 'type'"},
-                "x": {"type": "number", "description": "Optional X coordinate for click"},
-                "y": {"type": "number", "description": "Optional Y coordinate for click"},
-                "scroll_y": {"type": "integer", "description": "Vertical scroll distance if action is 'scroll'"},
-            },
-            "required": ["action"],
-        },
-    },
-    {
-        "name": "stealth_fetch",
-        "description": "Fetches a URL using stealth browser automation with 31 evasion shields and returns page text, markdown, or HTML content.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "url": {"type": "string", "description": "Target HTTP/HTTPS URL to fetch"},
-                "target": {"type": "string", "enum": ["text", "markdown", "raw", "links"], "default": "text", "description": "Extraction target format"},
-                "provider": {"type": "string", "default": "patchright", "description": "Underlying engine provider (patchright, playwright, uc, curl_cffi)"},
-            },
-            "required": ["url"],
-        },
-    },
-    {
-        "name": "generate_stealth_script",
-        "description": "Generates a complete, autonomous Python script using BP with full stealth evasion for a target scraping scenario.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "url": {"type": "string", "description": "Target URL to scrape"},
-                "provider": {"type": "string", "default": "patchright", "description": "Preferred browser/network provider"},
-                "headless": {"type": "boolean", "default": True, "description": "Run browser in headless mode"},
-            },
-            "required": ["url"],
-        },
-    },
-    {
-        "name": "stealth_human_action",
-        "description": "Performs a human-like biometric action on an active session element using Bezier trajectories, Fitts's law, cognitive pause, or Newtonian inertial scrolling.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "session_id": {"type": "string", "description": "Active session ID returned by stealth_open_page."},
-                "action": {"type": "string", "enum": ["click", "type", "scroll", "hover", "pause"], "description": "Action to perform."},
-                "selector": {"type": "string", "description": "CSS selector or data-mcp-ref."},
-                "text": {"type": "string", "description": "Text to type if action is 'type'."},
-                "scroll_y": {"type": "integer", "description": "Vertical scroll target pixels if action is 'scroll'."},
-            },
-            "required": ["session_id", "action"],
-        },
-    },
-    {
-        "name": "stealth_extract_data",
-        "description": "Extracts structured text or table data from the active page while automatically filtering out honeypot trap elements.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "session_id": {"type": "string", "description": "Active session ID."},
-                "target_selector": {"type": "string", "default": "body", "description": "Parent selector or CSS container."},
-                "fields": {"type": "array", "items": {"type": "string"}, "description": "List of sub-selectors or field names."},
-            },
-            "required": ["session_id"],
-        },
-    },
-    {
-        "name": "stealth_close_session",
-        "description": "Closes a specific active browser session and releases associated memory.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "session_id": {"type": "string", "description": "Session ID to terminate."},
-            },
-            "required": ["session_id"],
-        },
-    },
-    {
-        "name": "module_persona_profile",
-        "description": "Inspects or retrieves the hardware persona matrix, WebGL parameters, audio latency, and DirectWrite font profiles.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "profile_id": {"type": "string", "default": "win11_nvidia_rtx4070", "description": "Profile identifier to inspect."},
-            },
-        },
-    },
-    {
-        "name": "module_kinematic_eval",
-        "description": "Evaluates and simulates biometric mouse saccade paths, Weibull keystroke plans, or Newtonian scroll physics.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "kinematic_type": {"type": "string", "enum": ["keystroke_plan", "inertial_scroll", "mouse_saccade"], "default": "keystroke_plan", "description": "Kinematic simulation type to evaluate."},
-                "text": {"type": "string", "description": "Sample text for keystroke planning."},
-                "scroll_distance": {"type": "number", "description": "Scroll distance in pixels."},
-            },
-            "required": ["kinematic_type"],
-        },
-    },
-    {
-        "name": "module_shield_status",
-        "description": "Inspects the real-time operational status, integrity, and readiness of all 31 stealth evasion shields.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {},
-        },
-    },
-    {
-        "name": "scrape",
-        "description": "Scrapes a webpage using self-healing browser automation and returns markdown, links, articles, tables, or clean text.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "url": {"type": "string", "description": "The URL to scrape"},
-                "target": {"type": "string", "enum": ["links", "articles", "markdown", "table", "text", "raw"], "default": "links", "description": "Extraction target format"},
-            },
-            "required": ["url"],
-        },
-    },
-    {
-        "name": "search",
-        "description": "Submits a search query with human-mimetic typing and extracts structured search results.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search query text"},
-                "url": {"type": "string", "description": "Optional search engine or starting URL"},
-                "search_input_selector": {"type": "string", "description": "CSS selector for search input", "default": "input[type='search'], input[name='q']"},
-                "submit_selector": {"type": "string", "description": "CSS selector for submit button", "default": "button[type='submit']"},
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "map_site",
-        "description": "Maps out structural links, articles, and hierarchical page graph of a target website.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "url": {"type": "string", "description": "Target website URL to map"},
-            },
-            "required": ["url"],
-        },
-    },
-    {
-        "name": "ocr_image",
-        "description": "Performs contrast-boosted OCR text extraction and watermark removal on an image file.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "file_path": {"type": "string", "description": "Absolute or relative file path to the image"},
-            },
-            "required": ["file_path"],
-        },
-    },
-    {
         "name": "rag_chunk",
-        "description": "Splits markdown content into token-budgeted chunks with H1>H2>H3 breadcrumbs and lexical cohesion boundaries.",
+        "description": "Splits markdown into token-budgeted chunks with H1>H2>H3 breadcrumbs and lexical cohesion boundaries.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "markdown": {"type": "string", "description": "Markdown text to chunk"},
-                "url": {"type": "string", "description": "Document source URL", "default": "https://document.local"},
-                "max_tokens": {"type": "integer", "description": "Maximum tokens per chunk", "default": 120},
-                "overlap_tokens": {"type": "integer", "description": "Overlap tokens between chunks", "default": 20},
+                "url": {"type": "string", "description": "Optional source URL", "default": "https://source.local"},
+                "max_tokens": {"type": "integer", "description": "Maximum tokens per chunk", "default": 512},
             },
             "required": ["markdown"],
         },
@@ -573,11 +456,111 @@ MCP_TOOL_DEFINITIONS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "webhook_url": {"type": "string", "description": "HTTP/HTTPS webhook URL"},
-                "payload": {"type": "object", "description": "JSON payload dictionary to dispatch"},
-                "timeout": {"type": "number", "description": "Request timeout in seconds", "default": 10.0},
+                "webhook_url": {"type": "string", "description": "Destination webhook URL"},
+                "payload": {"type": "object", "description": "Payload dictionary to send"},
+                "timeout": {"type": "number", "description": "Timeout in seconds", "default": 10.0},
             },
             "required": ["webhook_url", "payload"],
+        },
+    },
+    {
+        "name": "scrape",
+        "description": "Scrapes a webpage using self-healing browser automation and returns markdown/content.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "The URL to scrape"},
+                "target": {"type": "string", "enum": ["links", "articles", "raw"], "default": "links"},
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "search",
+        "description": "Executes search query across web engines and parses results.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query text"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "map_site",
+        "description": "Maps the structure, sitemaps, and topology of a domain.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Target domain or root URL"},
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "module_shield_status",
+        "description": "Returns live verification diagnostic report for all 31 shields.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "module_persona_profile",
+        "description": "Inspects or retrieves the hardware persona matrix, WebGL parameters, audio latency, and DirectWrite font profiles.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "profile_id": {"type": "string", "description": "Profile identifier to inspect."},
+            },
+        },
+    },
+    {
+        "name": "module_kinematic_eval",
+        "description": "Evaluates and simulates biometric mouse saccade paths, Weibull keystroke plans, or Newtonian scroll physics.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "kinematic_type": {"type": "string", "enum": ["mouse_saccade", "keystroke_plan", "inertial_scroll"]},
+                "text": {"type": "string", "description": "Text for keystroke plan calculation"},
+                "scroll_distance": {"type": "number", "description": "Distance in px for inertial scroll"},
+            },
+            "required": ["kinematic_type"],
+        },
+    },
+    {
+        "name": "stealth_human_action",
+        "description": "Performs human biometric actions (click, type, scroll, hover, pause) on active session elements.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string", "description": "Session ID"},
+                "action": {"type": "string", "enum": ["click", "type", "scroll", "hover", "pause"]},
+                "selector": {"type": "string", "description": "Selector target"},
+                "text": {"type": "string", "description": "Text to type"},
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "stealth_extract_data",
+        "description": "Extracts structured text or table data while automatically filtering out honeypot trap elements.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string", "description": "Session ID"},
+                "extract_type": {"type": "string", "enum": ["text", "tables", "articles"]},
+            },
+        },
+    },
+    {
+        "name": "stealth_close_session",
+        "description": "Closes a specific active browser session and releases associated memory.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string", "description": "Session ID to terminate."},
+            },
         },
     },
 ]
@@ -632,40 +615,34 @@ class McpToolDispatcher:
         res: Any = None
 
         try:
-            if tool_name in ("scrape_page", "scrape"):
+            if tool_name == "scrape_page":
                 url = arguments.get("url")
                 target = arguments.get("target", "links")
-                query = arguments.get("query")
                 if not url:
                     return {"error": "Missing required argument 'url'"}
 
                 async with bp:
                     await bp.goto(url)
-                    if target in ("links", "articles", "table", "text", "images", "cards", "json_ld", "open_graph"):
+                    if target in ("links", "articles"):
                         records = await bp.extract(target=target)
-                        res = [r.to_dict() if hasattr(r, "to_dict") else (vars(r) if hasattr(r, "__dict__") else r) for r in records]
-                    elif target == "markdown":
-                        html = await bp.page.evaluate("() => document.documentElement.outerHTML")
-                        from behavioral_playwright.extraction.markdown import html_to_fit_markdown
-                        from dataclasses import asdict
-                        distilled = html_to_fit_markdown(html, query=query)
-                        res = asdict(distilled)
+                        res = [_mcp_rec_to_dict(r) for r in records]
                     else:
                         res = await bp.page.evaluate("() => document.documentElement.outerHTML")
                     return {"status": "success", "result": res}
 
             elif tool_name in ("crawl_domain", "crawl"):
                 url = arguments.get("url")
-                max_pages = arguments.get("max_pages", 5)
-                depth = arguments.get("depth", 2)
-                query = arguments.get("query")
+                max_pages = int(arguments.get("max_pages", 5))
+                depth = int(arguments.get("depth", 2))
                 if not url:
                     return {"error": "Missing required argument 'url'"}
 
-                from veil.crawling.deep_crawler import DeepSiteCrawler
-                crawler = DeepSiteCrawler()
-                crawl_res = await crawler.crawl_site(url, query=query, max_pages=max_pages, max_depth=depth)
-                return {"status": "success", "result": crawl_res, "pages_crawled": len(crawl_res.get("crawled_pages", []))}
+                try:
+                    records = await bp.crawl(url, max_pages=max_pages, max_depth=depth)
+                except TypeError:
+                    records = await bp.crawl(url, max_pages=max_pages)
+                res = [_mcp_rec_to_dict(r) for r in records]
+                return {"status": "success", "result": res}
 
             elif tool_name == "take_screenshot":
                 url = arguments.get("url")
@@ -775,10 +752,10 @@ class McpToolDispatcher:
                         await bp.goto(url)
                     elif not bp.page:
                         await bp.boot()
-                    next_data = await bp.metadata.extract_next_data()
-                    nuxt_data = await bp.metadata.extract_nuxt_data()
-                    json_ld = await bp.metadata.extract_json_ld()
-                    open_graph = await bp.metadata.extract_open_graph()
+                    next_data = await bp.mining.extract_next_data()
+                    nuxt_data = await bp.mining.extract_nuxt_data()
+                    json_ld = await bp.mining.extract_json_ld()
+                    open_graph = await bp.mining.extract_open_graph()
                     return {
                         "status": "success",
                         "url": url or getattr(bp.page, "url", ""),
@@ -810,13 +787,58 @@ class McpToolDispatcher:
                         "payloads": payloads,
                     }
 
+            elif tool_name == "mine_google_suggest":
+                query = arguments.get("query")
+                if not query:
+                    return {"error": "Missing required argument 'query'"}
+                alphabet = bool(arguments.get("alphabet", False))
+                lang = arguments.get("lang", "en")
+                country = arguments.get("country", "us")
+                res = await bp.mining.mine_suggest(query=query, alphabet=alphabet, lang=lang, country=country)
+                return {
+                    "status": "success",
+                    "result": res.model_dump() if hasattr(res, "model_dump") else res,
+                }
+
             elif tool_name == "audit_csr_drift":
                 url = arguments.get("url")
                 raw_html = arguments.get("raw_html")
                 rendered_html = arguments.get("rendered_html")
                 if not url and (raw_html is None or rendered_html is None):
                     return {"error": "Must provide either 'url' or both 'raw_html' and 'rendered_html'"}
-                report = await bp.metadata.audit_csr_drift(url=url, raw_html=raw_html, rendered_html=rendered_html)
+                report = await bp.mining.audit_csr_drift(url=url, raw_html=raw_html, rendered_html=rendered_html)
+                return {
+                    "status": "success",
+                    "result": report.model_dump() if hasattr(report, "model_dump") else report,
+                }
+
+            elif tool_name == "mine_paa":
+                query = arguments.get("query")
+                html_body = arguments.get("html")
+                depth = int(arguments.get("depth", 2))
+                if not query and not html_body:
+                    return {"error": "Must provide either 'query' or 'html'"}
+                async with bp:
+                    nodes = await bp.mining.mine_paa(page_or_html=html_body, query=query, max_depth=depth)
+                    raw_nodes = [n.model_dump() if hasattr(n, "model_dump") else n for n in nodes]
+                    return {
+                        "status": "success",
+                        "query": query,
+                        "count": len(raw_nodes),
+                        "nodes": raw_nodes,
+                    }
+
+            elif tool_name == "check_cannibalization":
+                query_a = arguments.get("query_a")
+                query_b = arguments.get("query_b")
+                if not query_a or not query_b:
+                    return {"error": "Missing required arguments 'query_a' and 'query_b'"}
+                urls_a = arguments.get("urls_a")
+                urls_b = arguments.get("urls_b")
+                threshold = float(arguments.get("threshold", 0.40))
+                report = await bp.mining.check_overlap(
+                    query_a=query_a, query_b=query_b, urls_a=urls_a, urls_b=urls_b, threshold=threshold
+                )
                 return {
                     "status": "success",
                     "result": report.model_dump() if hasattr(report, "model_dump") else report,
@@ -1098,154 +1120,79 @@ class McpToolDispatcher:
                     }
                 return {"error": "No active browser page found"}
 
-            elif tool_name == "human_interact":
-                action = arguments.get("action", "click")
-                selector = arguments.get("selector")
-                text = arguments.get("text", "")
-                x = arguments.get("x")
-                y = arguments.get("y")
-                scroll_y = arguments.get("scroll_y", 400)
+            elif tool_name == "rag_chunk":
+                from dataclasses import asdict
+                try:
+                    from veil.extraction.rag_chunker_exporter import HierarchicalRAGChunker
+                except ImportError:
+                    from behavioral_playwright.extraction.rag_chunker_exporter import HierarchicalRAGChunker
+                md = arguments.get("markdown", "")
+                url = arguments.get("url", "https://source.local")
+                max_tokens = int(arguments.get("max_tokens", 512))
+                chunker = HierarchicalRAGChunker(max_tokens=max_tokens)
+                chunks = chunker.chunk_markdown(url=url, markdown=md)
+                return {
+                    "status": "success",
+                    "url": url,
+                    "chunks": [asdict(c) for c in chunks],
+                    "count": len(chunks),
+                }
 
-                async with bp:
-                    if action == "click":
-                        if selector:
-                            await bp.click(selector, humanize=True)
-                        elif x is not None and y is not None:
-                            await bp.click(x, y=y, humanize=True)
-                        else:
-                            return {"error": "Missing selector or coordinates for click"}
-                        return {"status": "success", "action": "click", "target": selector or f"({x}, {y})"}
-                    elif action == "type":
-                        if not selector:
-                            return {"error": "Missing selector for type"}
-                        await bp.click(selector, humanize=True)
-                        await bp.type(text, humanize=True)
-                        return {"status": "success", "action": "type", "chars": len(text)}
-                    elif action == "scroll":
-                        await bp.scroll(y=scroll_y, humanize=True)
-                        return {"status": "success", "action": "scroll", "y": scroll_y}
-                    elif action == "hover":
-                        if hasattr(bp.page, "hover") and selector:
-                            await bp.page.hover(selector)
-                        return {"status": "success", "action": "hover", "selector": selector}
-                    elif action in ("pause", "wait"):
-                        import asyncio
-                        await asyncio.sleep(0.5)
-                        return {"status": "success", "action": "pause", "duration_ms": 500}
-                    return {"error": f"Unknown action: {action}"}
+            elif tool_name == "trigger_webhook":
+                webhook_url = arguments.get("webhook_url")
+                payload = arguments.get("payload", {})
+                timeout = float(arguments.get("timeout", 10.0))
+                if not webhook_url:
+                    return {"error": "Missing required argument 'webhook_url'"}
+                import asyncio
+                loop = asyncio.get_running_loop()
+                delivered = await loop.run_in_executor(
+                    None, lambda: bp.integrations.notify_webhook(webhook_url, payload, timeout)
+                )
+                return {
+                    "status": "success" if delivered else "failed",
+                    "delivered": delivered,
+                }
 
-            elif tool_name == "stealth_fetch":
+            elif tool_name == "scrape":
                 url = arguments.get("url")
-                target = arguments.get("target", "text")
+                target = arguments.get("target", "links")
                 if not url:
                     return {"error": "Missing required argument 'url'"}
-
                 async with bp:
                     await bp.goto(url)
-                    if target == "links":
-                        records = await bp.extract(target="links")
-                        res = [_rec_to_dict(r) for r in records]
-                    elif target == "markdown":
-                        text = await bp.page.evaluate("() => document.body ? document.body.innerText : ''")
-                        title = await bp.page.title() if hasattr(bp.page, "title") else ""
-                        res = f"# {title}\n\n{text}"
-                    elif target == "raw":
-                        res = await bp.page.evaluate("() => document.documentElement.outerHTML")
+                    if target in ("links", "articles"):
+                        records = await bp.extract(target=target)
+                        res = [_mcp_rec_to_dict(r) for r in records]
                     else:
-                        res = await bp.page.evaluate("() => document.body ? document.body.innerText : ''")
-                    return {"status": "success", "url": url, "result": res}
-
-            elif tool_name == "generate_stealth_script":
-                url = arguments.get("url", "https://example.com")
-                provider = arguments.get("provider", "patchright")
-                headless = arguments.get("headless", True)
-                script = f'''import asyncio
-from veil import BP, BrowserConfig
-
-async def main():
-    config = BrowserConfig(provider="{provider}", headless={headless})
-    async with BP(config=config) as bp:
-        await bp.goto("{url}")
-        title = await bp.page.title()
-        print(f"Loaded: {{title}}")
-        data = await bp.extract(target="articles")
-        print(f"Extracted {{len(data)}} records")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-'''
-                return {"status": "success", "script": script, "language": "python"}
-
-            elif tool_name in (
-                "stealth_human_action",
-                "stealth_extract_data",
-                "stealth_close_session",
-                "module_persona_profile",
-                "module_kinematic_eval",
-                "module_shield_status",
-            ):
-                from behavioral_evasion_suite.mcp_server import handle_tool_call as suite_handle
-                return await suite_handle(tool_name, arguments)
+                        res = await bp.page.evaluate("() => document.documentElement.outerHTML")
+                    return {"status": "success", "result": res}
 
             elif tool_name == "search":
-                query = arguments.get("query")
-                if not query:
-                    return {"error": "Missing required argument 'query'"}
-                url = arguments.get("url")
-                search_input = arguments.get("search_input_selector", "input[type='search'], input[name='q']")
-                submit_sel = arguments.get("submit_selector", "button[type='submit']")
-                async with bp:
-                    if url:
-                        await bp.goto(url)
-                    from veil.search.engine import SearchEngine
-                    engine = SearchEngine(bp.page)
-                    records = await engine.search(query, search_input_selector=search_input, submit_selector=submit_sel)
-                    res = [_rec_to_dict(r) for r in records]
-                    return {"status": "success", "result": res}
+                query = arguments.get("query", "")
+                records = await bp.search(query=query)
+                return {"status": "success", "results": [_mcp_rec_to_dict(r) for r in records]}
 
             elif tool_name in ("map_site", "map"):
                 url = arguments.get("url")
                 if not url:
                     return {"error": "Missing required argument 'url'"}
-                from veil.crawling.world_class_engine import WorldClassCrawlerEngine
-                engine = WorldClassCrawlerEngine()
+                mapped = await bp.map(url)
+                return {"status": "success", "map": mapped}
+
+            elif tool_name in (
+                "module_shield_status",
+                "module_persona_profile",
+                "module_kinematic_eval",
+                "stealth_human_action",
+                "stealth_extract_data",
+                "stealth_close_session",
+            ):
                 try:
-                    mapped = await engine.map_site(url)
-                    res = [_rec_to_dict(r) for r in mapped]
-                    return {"status": "success", "result": res}
-                finally:
-                    engine.close()
-
-            elif tool_name == "ocr_image":
-                file_path = arguments.get("file_path")
-                if not file_path:
-                    return {"error": "Missing required argument 'file_path'"}
-                from behavioral_playwright.document.ocr import DocumentNamespace
-                doc = DocumentNamespace()
-                res = await doc.ocr_image_with_autocorrect(file_path)
-                return {"status": "success", "result": res}
-
-            elif tool_name == "rag_chunk":
-                markdown = arguments.get("markdown")
-                if not markdown:
-                    return {"error": "Missing required argument 'markdown'"}
-                url = arguments.get("url", "https://document.local")
-                max_tokens = arguments.get("max_tokens", 120)
-                overlap_tokens = arguments.get("overlap_tokens", 20)
-                from behavioral_playwright.extraction.rag_chunker_exporter import HierarchicalRAGChunker
-                chunker = HierarchicalRAGChunker(max_tokens=max_tokens, overlap_tokens=overlap_tokens)
-                chunks = chunker.chunk_markdown(url, markdown)
-                return {"status": "success", "chunks": [_rec_to_dict(c) for c in chunks]}
-
-            elif tool_name == "trigger_webhook":
-                webhook_url = arguments.get("webhook_url")
-                payload = arguments.get("payload")
-                timeout = arguments.get("timeout", 10.0)
-                if not webhook_url or payload is None:
-                    return {"error": "Missing required arguments 'webhook_url' and 'payload'"}
-                from behavioral_playwright.integrations.extensions import IntegrationExtensions
-                ok = IntegrationExtensions._dispatch_webhook(webhook_url, payload, timeout=timeout)
-                return {"status": "success", "delivered": ok}
+                    from behavioral_evasion_suite.mcp_server import handle_tool_call as _bes_handle
+                    return await _bes_handle(tool_name, arguments)
+                except Exception as e:
+                    return {"status": "failed", "error": str(e)}
 
             return {"error": f"Unknown tool: {tool_name}"}
 

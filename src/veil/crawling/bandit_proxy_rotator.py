@@ -53,22 +53,23 @@ class BanditProxyRotator:
 
     def __init__(
         self,
-        proxies: Sequence[str] | List[str],
+        proxies: Optional[Sequence[str] | List[str]] = None,
         exploration_c: float = 0.7,
         rtt_penalty_weight: float = 0.15,
         base_cooldown_sec: float = 15.0,
         max_cooldown_sec: float = 600.0,
         seed: Optional[int] = 42,
     ) -> None:
-        if not proxies:
+        if proxies is not None and len(proxies) == 0:
             raise ValueError("BanditProxyRotator requires at least one proxy URL.")
+        resolved_proxies = list(proxies) if proxies is not None else ["direct://local"]
         self.exploration_c = exploration_c
         self.rtt_penalty_weight = rtt_penalty_weight
         self.base_cooldown_sec = base_cooldown_sec
         self.max_cooldown_sec = max_cooldown_sec
         self._rng = random.Random(seed)
         self._arms: Dict[str, ProxyArmState] = {
-            p: ProxyArmState(proxy_url=p) for p in proxies
+            p: ProxyArmState(proxy_url=p) for p in resolved_proxies
         }
         self._total_pulls = 0
 
@@ -116,7 +117,7 @@ class BanditProxyRotator:
     ) -> ProxyArmState:
         """Updates Beta(alpha, beta), EWMA RTT, and exponential cooldown state."""
         cur = time.time() if now is None else now
-        arm = self._arms[proxy_url]
+        arm = self._arms.setdefault(proxy_url, ProxyArmState(proxy_url=proxy_url))
         self._total_pulls += 1
         arm.pulls += 1
         arm.ewma_rtt_ms = round((0.7 * arm.ewma_rtt_ms) + (0.3 * max(1.0, rtt_ms)), 2)
@@ -138,6 +139,30 @@ class BanditProxyRotator:
                 arm.cooldown_until = cur + cooldown
 
         return arm
+
+
+
+    def add_proxy(self, host: str, port: int, protocol: str = "http", **kwargs: object) -> ProxyArmState:
+        url = f"{protocol}://{host}:{port}"
+        return self.add_proxy_url(url)
+
+    def add_proxy_url(self, url: str) -> ProxyArmState:
+        arm = self._arms.setdefault(url, ProxyArmState(proxy_url=url))
+        return arm
+
+    def get_proxy(self, session_id: Optional[str] = None, policy: str = "ucb1", **kwargs: object) -> ProxyArmState:
+        _ = session_id
+        return self.select_proxy(policy=policy)
+
+    def report_success(self, node: object, latency_ms: float = 50.0) -> None:
+        key = getattr(node, "proxy_url", None) or str(node)
+        self.record_outcome(key, status_code=200, rtt_ms=latency_ms)
+
+    def report_failure(self, node: object, quarantine_seconds: Optional[float] = None) -> None:
+        key = getattr(node, "proxy_url", None) or str(node)
+        arm = self.record_outcome(key, status_code=429, rtt_ms=1000.0)
+        if quarantine_seconds is not None:
+            arm.cooldown_until = time.time() + float(quarantine_seconds)
 
 
 class BandwidthResourceBlocker:

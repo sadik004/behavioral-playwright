@@ -13,6 +13,7 @@ Binds all 8 Pillars into a single cohesive API:
 
 from __future__ import annotations
 
+import asyncio
 import time
 import urllib.error
 import urllib.request
@@ -63,33 +64,40 @@ class WorldClassCrawlerEngine:
         headers: Optional[Dict[str, str]] = None,
         proxy: Optional[str] = None,
     ) -> Dict[str, Any]:
-        req = urllib.request.Request(url, headers=headers or {})
-        t0 = time.perf_counter()
-        try:
-            with urllib.request.urlopen(req, timeout=10.0) as resp:
-                raw_bytes = resp.read()
+        def _sync_open() -> Dict[str, Any]:
+            req = urllib.request.Request(url, headers=headers or {})
+            handlers: List[urllib.request.BaseHandler] = []
+            if proxy and proxy.startswith(("http://", "https://")) and "local" not in proxy:
+                handlers.append(urllib.request.ProxyHandler({"http": proxy, "https": proxy}))
+            opener = urllib.request.build_opener(*handlers)
+            t0 = time.perf_counter()
+            try:
+                with opener.open(req, timeout=10.0) as resp:
+                    raw_bytes = resp.read()
+                    rtt_ms = (time.perf_counter() - t0) * 1000.0
+                    hdrs = {k: v for k, v in resp.headers.items()}
+                    self.politeness.record_observation(url, resp.status, rtt_ms, hdrs.get("Retry-After"))
+                    return {
+                        "status": resp.status,
+                        "headers": hdrs,
+                        "body_bytes": raw_bytes,
+                        "body": raw_bytes.decode("utf-8", errors="ignore"),
+                        "rtt_ms": round(rtt_ms, 2),
+                    }
+            except urllib.error.HTTPError as exc:
+                raw_bytes = exc.read() if exc.fp else b""
                 rtt_ms = (time.perf_counter() - t0) * 1000.0
-                hdrs = {k: v for k, v in resp.headers.items()}
-                self.politeness.record_observation(url, resp.status, rtt_ms, hdrs.get("Retry-After"))
+                hdrs = {k: v for k, v in exc.headers.items()} if exc.headers else {}
+                self.politeness.record_observation(url, exc.code, rtt_ms, hdrs.get("Retry-After"))
                 return {
-                    "status": resp.status,
+                    "status": exc.code,
                     "headers": hdrs,
                     "body_bytes": raw_bytes,
                     "body": raw_bytes.decode("utf-8", errors="ignore"),
                     "rtt_ms": round(rtt_ms, 2),
                 }
-        except urllib.error.HTTPError as exc:
-            raw_bytes = exc.read() if exc.fp else b""
-            rtt_ms = (time.perf_counter() - t0) * 1000.0
-            hdrs = {k: v for k, v in exc.headers.items()} if exc.headers else {}
-            self.politeness.record_observation(url, exc.code, rtt_ms, hdrs.get("Retry-After"))
-            return {
-                "status": exc.code,
-                "headers": hdrs,
-                "body_bytes": raw_bytes,
-                "body": raw_bytes.decode("utf-8", errors="ignore"),
-                "rtt_ms": round(rtt_ms, 2),
-            }
+
+        return await asyncio.to_thread(_sync_open)
 
     async def map_site(self, base_url: str, search_query: Optional[str] = None) -> List[MappedUrl]:
         async def _bytes_fetcher(u: str) -> Tuple[int, bytes, Dict[str, str]]:
@@ -103,24 +111,42 @@ class WorldClassCrawlerEngine:
         self,
         url: str,
         query: Optional[str] = None,
+        proxy: Optional[str] = None,
         template_id: Optional[str] = None,
         required_fields: Optional[List[str]] = None,
         positive_numeric_fields: Optional[List[str]] = None,
-        proxy: Optional[str] = None,
+        html_override: Optional[str] = None,
     ) -> Dict[str, Any]:
-        cond_headers = self.delta_store.get_conditional_headers(url)
-        async def _fetcher(u: str, hdrs: Optional[Dict[str, str]] = None, px: Optional[str] = None, **kw: Any) -> Dict[str, Any]:
-            return await self._raw_http_fetch(u, headers=hdrs, proxy=px or proxy)
+        if html_override is not None:
+            html = html_override
+            status = 200
+            headers: Dict[str, str] = {}
+            resp: Dict[str, Any] = {
+                "status": 200,
+                "headers": {},
+                "body": html,
+                "execution_tier": "HTML_OVERRIDE",
+                "clearance_reused": False,
+            }
+        else:
+            cond_headers = self.delta_store.get_conditional_headers(url)
 
-        resp = await self.clearance_bridge.fetch_with_promotion(
-            url=url,
-            http_fetcher=_fetcher,
-            browser_clearance_solver=self._browser_solver,
-            extra_headers=cond_headers,
-        )
-        html = str(resp.get("body", ""))
-        status = int(resp.get("status", 200))
-        headers = resp.get("headers") or {}
+            async def _fetcher_with_proxy(
+                target_u: str,
+                hdrs: Dict[str, str],
+                lease_proxy: Optional[str],
+            ) -> Dict[str, Any]:
+                return await self._raw_http_fetch(target_u, headers=hdrs, proxy=lease_proxy or proxy)
+
+            resp = await self.clearance_bridge.fetch_with_promotion(
+                url=url,
+                http_fetcher=_fetcher_with_proxy,
+                browser_clearance_solver=self._browser_solver,
+                extra_headers=cond_headers,
+            )
+            html = str(resp.get("body", ""))
+            status = int(resp.get("status", 200))
+            headers = resp.get("headers") or {}
 
         hydration = extract_hydration_state(html)
         distilled: DistilledMarkdown = html_to_fit_markdown(html, query=query)
@@ -157,7 +183,6 @@ class WorldClassCrawlerEngine:
         return {
             "url": canonicalize_url(url),
             "status": status,
-            "raw_html": html,
             "execution_tier": resp.get("execution_tier"),
             "clearance_reused": resp.get("clearance_reused", False),
             "hydration": hydration,
@@ -166,6 +191,7 @@ class WorldClassCrawlerEngine:
             "token_reduction_pct": distilled.token_reduction_pct,
             "tables_extracted": distilled.tables_extracted,
             "honeypots_stripped": distilled.honeypots_stripped,
+            "raw_html": html,
             "extracted_data": extracted_schema_data,
             "schema_resolution_tiers": schema_tiers,
             "pagination": pagination_plan,

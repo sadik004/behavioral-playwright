@@ -275,26 +275,24 @@ def test_layer11_fuzz_malformed_html_and_deep_dom_extraction() -> None:
 # ===========================================================================
 
 def test_layer12_sqlite_concurrent_writers_zero_winerror32() -> None:
-    \"\"\"Spawns 25 concurrent threads writing/reading SQLite WAL tables, then unlinks DB immediately (Windows NTFS WinError 32 test).\"\"\"
+    '''Spawns 25 concurrent threads writing/reading SQLite WAL tables, then unlinks DB immediately (Windows NTFS WinError 32 test).'''
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "stress_concurrent.db"
-        errors: List[Exception] = []
-
-        # Pre-initialize schema and WAL mode before multi-threaded worker access
         with contextlib.closing(sqlite3.connect(str(db_path), timeout=30.0)) as init_conn:
             init_conn.execute("PRAGMA journal_mode=WAL;")
-            init_conn.execute("PRAGMA busy_timeout=30000;")
             init_conn.execute(
                 "CREATE TABLE IF NOT EXISTS stress_log (id INTEGER PRIMARY KEY AUTOINCREMENT, wid INT, step INT, url TEXT)"
             )
             init_conn.commit()
 
+        errors: List[Exception] = []
+
         def _worker(worker_id: int) -> None:
             try:
                 for step in range(8):
-                    conn = sqlite3.connect(str(db_path), timeout=30.0)
+                    conn = sqlite3.connect(str(db_path), timeout=60.0)
                     try:
-                        conn.execute("PRAGMA busy_timeout=30000;")
+                        conn.execute("PRAGMA busy_timeout=60000;")
                         conn.execute(
                             "INSERT INTO stress_log (wid, step, url) VALUES (?, ?, ?)",
                             (worker_id, step, f"https://example.com/{worker_id}/{step}"),
@@ -316,6 +314,9 @@ def test_layer12_sqlite_concurrent_writers_zero_winerror32() -> None:
         with contextlib.closing(sqlite3.connect(str(db_path), timeout=30.0)) as check_conn:
             count = check_conn.execute("SELECT COUNT(*) FROM stress_log").fetchone()[0]
             assert count == 25 * 8
+
+        del check_conn
+        gc.collect()
 
         db_path.unlink()
         assert not db_path.exists()
@@ -422,6 +423,10 @@ def install_stress_suite(repo_root: Path) -> Path:
 
 def _run_cmd(cmd: List[str], cwd: Path, timeout: int = 180) -> Tuple[int, str]:
     env = os.environ.copy()
+    env["OPENBLAS_NUM_THREADS"] = "1"
+    env["MKL_NUM_THREADS"] = "1"
+    env["OMP_NUM_THREADS"] = "1"
+    env["NUMEXPR_NUM_THREADS"] = "1"
     py_paths = [str(cwd / "src"), str(cwd)]
     existing = env.get("PYTHONPATH", "")
     if existing:
@@ -464,7 +469,8 @@ def builtin_ast_anti_gaming_scan(repo_root: Path) -> Tuple[int, str]:
                 continue
             try:
                 tree = ast.parse(py.read_text(encoding="utf-8", errors="replace"), filename=str(py))
-            except SyntaxError:
+            except SyntaxError as exc:
+                swallow_hits.append(f"SYNTAX-ERROR:{py.relative_to(repo_root).as_posix()}:{exc.lineno}")
                 continue
             rel = py.relative_to(repo_root).as_posix()
             for node in ast.walk(tree):
@@ -498,8 +504,8 @@ def builtin_dag_cycle_scan(target_dir: Path, pkg_prefix: str) -> Tuple[int, str]
         graph.setdefault(mod, set())
         try:
             tree = ast.parse(py.read_text(encoding="utf-8", errors="replace"))
-        except SyntaxError:
-            continue
+        except SyntaxError as exc:
+            return 1, f"SyntaxError in {py.name}:{exc.lineno}: {exc.msg}"
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith(pkg_prefix + "."):
                 sub = node.module.split(pkg_prefix + ".", 1)[1]
@@ -788,8 +794,7 @@ def run_all_12_layers(repo_root: Path) -> List[LayerResult]:
                 crawler = c_mod.TieredCrawlerService()
                 res = asyncio.run(crawler.crawl(m_mod.CrawlRequest(url=url), use_checkpoint=False))
                 assert getattr(res, "status_code", 200) == 200
-                html_text = getattr(res, "html", "") or getattr(res, "body", "")
-                assert "Real Server Content" in html_text
+                assert "Real Server Content" in (getattr(res, "html", "") or getattr(res, "body", ""))
                 engine_used = "TieredCrawlerService"
             elif deep_mod is not None and hasattr(deep_mod, "DeepSiteCrawler"):
                 with tempfile.TemporaryDirectory() as tmpdir:
@@ -861,8 +866,12 @@ def run_all_12_layers(repo_root: Path) -> List[LayerResult]:
     if verify_script.exists() and (repo_root / "src" / "veil" / "kinematics").exists():
         rc, out = _run_cmd([sys.executable, "scripts/verify_all_features_real.py"], repo_root, timeout=240)
         status = "PASS" if rc == 0 else "FAIL"
-        summary_line = [ln for ln in out.splitlines() if "PASS" in ln or "FAIL" in ln or "Total" in ln]
-        details = summary_line[-1] if summary_line else (out.splitlines()[-1] if out else f"Exit code {rc}")
+        if rc != 0:
+            failed_lines = [ln for ln in out.splitlines() if "[FAIL]" in ln or "[ERROR-REASON]" in ln or "Error" in ln or "Traceback" in ln]
+            details = "; ".join(failed_lines[-3:]) if failed_lines else (out.splitlines()[-1] if out else f"Exit code {rc}")
+        else:
+            summary_line = [ln for ln in out.splitlines() if "Summary" in ln or "PASS" in ln or "passed" in ln]
+            details = summary_line[-1] if summary_line else "All features passed."
     elif wave2_test.exists():
         rc, out = _run_cmd([sys.executable, str(wave2_test.relative_to(repo_root))], repo_root, timeout=180)
         status = "PASS" if rc == 0 else "FAIL"

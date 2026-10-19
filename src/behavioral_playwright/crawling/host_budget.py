@@ -1,4 +1,4 @@
-"""Backward-compatible alias forwarding to `veil.crawling.host_budget`."""
+"""Backward-compatible alias."""
 import importlib as _importlib
 import sys as _sys
 

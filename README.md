@@ -1,10 +1,10 @@
-# 🛡️ Behavioral Playwright (AI-Native Enterprise Hardened Edition — v10.0.2 Quantum Architecture)
+# 🛡️ Behavioral Playwright (AI-Native Enterprise Hardened Edition — v6.2.0 Quantum Edition)
 
-[![Version](https://img.shields.io/badge/version-v10.0.2-blue?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
-[![Tests](https://img.shields.io/badge/Tests-742%2F742%20Passed%20(100%25)-success?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
+[![Version](https://img.shields.io/badge/version-v6.2.0--quantum-blue?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
+[![Tests](https://img.shields.io/badge/Tests-267%2F267%20Passed%20(100%25)-success?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![CreepJS Audit](https://img.shields.io/badge/CreepJS%20Audit-100%25%20Clean-success?style=for-the-badge)](https://creepjs.com)
 [![KS-Test](https://img.shields.io/badge/KS--Test-p%3D0.5285%20(Human)-brightgreen?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
-[![MCP Server](https://img.shields.io/badge/MCP%20Server-47%20Tools%20Active-purple?style=for-the-badge)](https://modelcontextprotocol.io)
+[![MCP Server](https://img.shields.io/badge/MCP%20Server-20%20Tools%20Active-purple?style=for-the-badge)](https://modelcontextprotocol.io)
 [![Security Engine](https://img.shields.io/badge/Security-SAML%20%7C%20OAuth%20%7C%20GraphQL%20%7C%20IDOR-red?style=for-the-badge)](https://github.com/sadik004/behavioral-playwright)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -24,7 +24,7 @@ A production-grade, enterprise behavioral evasion, stealth automation, and deep 
   - [6. Multi-Engine Provider Architecture](#6-multi-engine-provider-architecture-bpproviders)
   - [7. Intelligent Proxy Pool & Session Management](#7-intelligent-proxy-pool--session-management-bpproxy)
   - [8. Enterprise Resilience & Circuit Breaker](#8-enterprise-resilience--circuit-breaker-bpresilience)
-  - [9. 4-Tier Adaptive Crawler & Deep Site Exploration (`veil.crawling` / `bp.crawling`)](#9-4-tier-adaptive-crawler--deep-site-exploration-veilcrawling--bpcrawling)
+  - [9. Asynchronous Recursive Crawler & Sitemap Parser](#9-asynchronous-recursive-crawler--sitemap-parser-bpcrawling)
   - [10. Quantitative SEC Point-in-Time & NASDAQ ITCH-5.0 Parser](#10-quantitative-sec-point-in-time--nasdaq-itch-50-parser-bpquant)
   - [11. Unified Multi-Format Storage & Exporters](#11-unified-multi-format-storage--exporters-bpstorage)
   - [12. Observability, Telemetry & QA Reporting](#12-observability-telemetry--qa-reporting-bpobservability)
@@ -33,7 +33,7 @@ A production-grade, enterprise behavioral evasion, stealth automation, and deep 
   - [15. Deep Logic & Protected Attribute Security Auditing Suite (`behavioral_evasion_suite`)](#15-deep-logic--protected-attribute-security-auditing-suite-behavioral_evasion_suite)
   - [16. SEO, AEO & GEO Data Mining & Verification Engine (`bp.mining`)](#16-seo-aeo--geo-data-mining--verification-engine-bpmining)
 - [🧩 Unified Facade (`BP`) API Reference](#-unified-facade-bp-api-reference)
-- [⚡ PowerPlay Integration Subsystem (`bp.powerplay` / `Bpp`)](#-powerplay-integration-subsystem-bppowerplay--bpp)
+- [? PowerPlay Integration Subsystem (`bp.powerplay` / `Bpp`)](#-powerplay-integration-subsystem-bppowerplay--bpp)
 - [🔐 Shared Authentication Architecture](#-shared-authentication-architecture)
 - [🤖 Claude Desktop & Cursor AI Setup Guide](#-claude-desktop--cursor-ai-setup-guide)
 - [💻 Complete CLI Command Reference](#-complete-cli-command-reference)
@@ -72,29 +72,43 @@ behavioral-playwright/
 │   ├── swarm_orchestrator.py              # Multi-tab concurrency coordinator
 │   └── persona_matrix.py                  # Sticky proxy & digital soul rotation
 ├── src/
-│   ├── veil/                              # 3-Tier Clean Architecture Implementation (15 Cohesive Domains)
-│   │   ├── crawling/                      # 4-tier adaptive crawler, SQLite WAL, SimHash, OPIC frontier
-│   │   ├── resilience/                    # Circuit breaker, exponential backoff, retry, recovery
-│   │   ├── security/                      # GraphQL auditor, OOB listener, CSRF, security protocols
-│   │   ├── verification/                  # CSR rendering drift auditor, state verifier
-│   │   ├── mcp/                           # Fast JSON-RPC 2.0 MCP server with 47 specialized tools
-│   │   ├── powerplay/                     # Hardened biomechanics, captcha solver, L4 network, schema guard
-│   │   ├── providers/                     # Multi-engine browser & HTTP provider factory and adapters
-│   │   ├── storage/                       # Async task queue, unified data stores, multi-format exporters
-│   │   ├── selectors/                     # Multi-tier selector resolver (CSS, Semantic, Fuzzy, Self-Healing)
-│   │   ├── automation/                    # Biomechanical mouse curves, natural keyboard typing, scroll
-│   │   ├── api/                           # Direct asynchronous HTTP client with connection pooling
-│   │   └── verification/                  # Live DOM auditor & rendering assertion sentinels
-│   └── behavioral_playwright/             # 100% Backward-Compatible Symbol Parity Facade Layer
-│       ├── facade.py                      # Unified `BP` entrypoint delegating to `veil` subsystems
-│       └── ...                            # Full alias surface maintaining zero-breakage legacy imports
-├── archive/
-│   └── deduplicated_legacy/               # Preserved legacy monolithic engines with backward-compatible shims
-└── tests/                                 # Complete Enterprise Quality Gates (742 Passed / 100% Clean)
-    ├── unit/                              # Unit test suite covering all domains, models, and controllers
-    ├── functional/                        # Phase 1-8 functional verification suites
-    ├── integration/                       # Real end-to-end multi-provider and live crawling suites
-    └── integrity/                         # Cryptographic locks, trust boundaries, mutations, external verifiers
+│   └── behavioral_playwright/
+│       ├── __init__.py                    # Global exports: BP, AutomationConfig, AuthConfig, ProxyPool
+│       ├── facade.py                      # Unified BP facade orchestrating all domain namespaces
+│       ├── api/                           # Direct asynchronous HTTP client with in-memory TTL caching
+│       ├── automation/                    # Biomechanical mouse curves, natural keyboard typing, scroll
+│       ├── browser/                       # Browser abstractions & session lifecycle
+│       ├── cli/                           # Command-line interface (`bp scrape`, `crawl`, `mcp-server`, etc.)
+│       ├── config/                        # AutomationConfig, AuthConfig, BrowserConfig, CircuitBreakerConfig
+│       ├── core/                          # Hardened V15 Evasion Core & verified ITCH-5.0 wire parser
+│       ├── crawling/                      # Async recursive crawler & sitemap generator
+│       ├── document/                      # OCR & document parsing pipelines
+│       ├── extraction/                    # DOM extraction & structured markdown simplification
+│       ├── fingerprint/                   # Dynamic hardware profiles & WebGL/Canvas noise generator
+│       ├── handoff/                       # Session state, cookie & context serialization
+│       ├── integrations/                  # Extension hooks, webhook triggers, alert dispatchers
+│       ├── mapping/                       # Structural site & DOM tree mapper
+│       ├── mcp/                           # Standard JSON-RPC 2.0 Stdio MCP Server & AI Tool Dispatcher
+│       ├── models/                        # Typed data contracts (DOMElement, ExtractionRecord, Quote)
+│       ├── observability/                 # SQLite event sink, performance tracing, QA metrics
+│       ├── page/                          # PageSession & context controllers
+│       ├── providers/                     # Multi-provider adapters (Playwright, Patchright, UC, curl-cffi, Browser-Use, Stagehand)
+│       ├── proxy/                         # Intelligent proxy pool, rotation, and sticky session manager
+│       ├── resilience/                    # Circuit breakers, retry policy, self-healing memory
+│       ├── search/                        # Visual & DOM query search engine
+│       ├── selectors/                     # Multi-tier selector resolver (CSS, Semantic, Fuzzy, Self-Healing)
+│       ├── storage/                       # Unified data storage & exporters (JSON, NDJSON, CSV, SQLite)
+│       └── verification/                  # Element verification & assertion sentinels
+└── tests/
+    ├── unit/                              # 113 unit tests (all modules & namespaces covered)
+    ├── integration/                       # 3 multi-component and live provider tests
+    ├── test_evasion_suite.py              # Multi-patch evasion integration tests
+    ├── test_ks_statistical.py             # Kolmogorov-Smirnov Weibull & CreepJS tests
+    ├── test_baseline_protection.py        # 13 core V15 baseline capability protection tests
+    ├── test_honesty_hardening.py          # 11 data contract & honesty hardening tests
+    ├── test_itch_binary.py                # 17 NASDAQ ITCH-5.0 wire parser verification tests
+    ├── test_providers.py                  # 18 multi-provider live & double verification tests
+    └── test_v23_quarantine.py             # 7 V23 quarantine pins
 ```
 
 ---
@@ -119,7 +133,7 @@ playwright install chromium
 
 ```python
 import asyncio
-from veil import BP  # Modern Clean Architecture entrypoint (or: from behavioral_playwright import BP)
+from behavioral_playwright import BP
 
 async def main():
     async with BP() as bp:
@@ -139,7 +153,7 @@ if __name__ == "__main__":
 
 ```python
 import asyncio
-from veil import BP, AutomationConfig, AuthConfig
+from behavioral_playwright import BP, AutomationConfig, AuthConfig
 
 async def main():
     config = AutomationConfig(
@@ -166,7 +180,7 @@ If you are an AI assistant, autonomous agent, or MCP client interacting with thi
 | **Fetch raw JSON / REST data** | Asynchronous API Client | `bp.api.get()`, `post()` | *Internal Execution* | *Use Python API* | Direct socket request | In-memory TTL cache; threadpool urllib transport |
 | **Render dynamic JS webpage** | Browser Navigation | `bp.goto()`, `bp.web.navigate()` | `scrape_page` | `bp scrape <url>` | Direct HTTP API fetch | Requires Chromium / Patchright installed |
 | **Extract structured links/text** | Structured DOM Extractor | `bp.extract(target="links")` | `scrape_page` | `bp scrape <url> -o out.json` | Regex / outerHTML parse | Extracts semantic cards, links, headings |
-| **Recursive domain exploration** | 4-Tier Adaptive Deep Crawler | `bp.crawl(url, max_pages=N)`, `DeepSiteCrawler` | `crawl_domain` | `bp crawl <url> -m 10` | Tier 1 ➔ Tier 4 Escalation | SQLite WAL persistent frontier, SimHash dedup, Thompson Sampling |
+| **Recursive domain exploration** | Asynchronous Crawler | `bp.crawl(url, max_pages=N)` | `crawl_domain` | `bp crawl <url> -m 10` | Single page `goto()` | In-memory URL queue; depth-limited |
 | **Multimodal visual inspection** | Viewport Screenshot | `bp.screenshot()` | `take_screenshot` | *Use Python API* | Page DOM extraction | Returns Base64 PNG string in MCP |
 | **Resilient element interaction** | Multi-Tier Selector Engine | `bp.click()`, `bp.type()` | *Internal Execution* | *Use Python API* | L1 Exact ➔ L2 Semantic ➔ L3 Fuzzy | Confidence threshold >= 0.60 |
 | **Circumvent bot protection** | V15 Stealth Evasion | Built-in via `bp.goto()` | *Internal Execution* | *Built-in to CLI* | Provider switch (`patchright`) | 10 runtime patches + dynamic WebGL noise |
@@ -242,18 +256,23 @@ async with BP() as bp:
 
 ### 5. Model Context Protocol (MCP) Stdio Server (`bp.mcp`)
 - **JSON-RPC 2.0 Compliance**: Operates over Stdio conforming to MCP Specification `2024-11-05`.
-- **47 Production AI Tools (JSON-RPC 2.0 Dispatcher)**:
-  - **Core Scraping, Crawling & Vision (8 Tools)**: `scrape_page`, `crawl_domain`, `crawl`, `search`, `map_site`, `take_screenshot`, `stealth_open_page`, `stealth_get_snapshot`, `ocr_image`.
-  - **Stealth Kinematics & Biometrics (5 Tools)**: `stealth_click`, `stealth_type`, `stealth_navigate`, `audit_biometrics`, `memory_pid_health`.
-  - **DOM Verification & API Intelligence (3 Tools)**: `audit_csr_drift`, `sniff_api_responses`, `extract_metadata`.
-  - **Social Media & B2B Intelligence (7 Tools)**: `linkedin_check_auth`, `linkedin_get_profile`, `linkedin_update_headline`, `linkedin_update_about`, `reddit_mine_jobs`, `reddit_analyze_lead`, `reddit_check_auth`.
-  - **Agentic Workflow Orchestration (7 Tools)**: `execute_workflow`, `inspect_state`, `workflow_navigate`, `workflow_resolve`, `workflow_extract`, `workflow_search`, `workflow_verify`.
-  - **Deep Security Auditing (2 Tools)**: `run_graphql_security_audit`, `run_security_audit_on_page`.
-  - **Financial Precision & Host Diagnostics (2 Tools)**: `quant_pit_align`, `get_provider_matrix`.
-  - **Quantum Evasion Diagnostics (6 Tools)**: `module_shield_status`, `module_persona_profile`, `module_kinematic_eval`, `stealth_human_action`, `stealth_extract_data`, `stealth_close_session`.
-  - **RAG Chunking & Webhook Delivery (2 Tools)**: `rag_chunk`, `trigger_webhook`.
-  - **Compatibility & Standalone Aliases (5 Tools)**: `human_interact`, `stealth_fetch`, `generate_stealth_script`, `scrape`, `crawl`.
-  > *See [`docs/usage/mcp.md`](docs/usage/mcp.md) for the exhaustive JSON-RPC schema and argument specifications for all 47 tools.*
+- **16 Production AI Tools**:
+  1. `scrape_page`: Self-healing DOM extraction and markdown generator.
+  2. `crawl_domain`: Multi-page recursive crawler.
+  3. `take_screenshot`: Base64 PNG viewport capture for multimodal vision LLMs.
+  4. `quant_pit_align`: SEC EDGAR Point-in-Time metadata validator.
+  5. `get_provider_matrix`: Live host engine and network driver status inspector.
+  6. `stealth_click`: Undetectable humanized coordinate or selector click with Costello saccades.
+  7. `stealth_type`: Humanized typing using physical QWERTY distance latencies.
+  8. `stealth_navigate`: Multi-state CAPTCHA loop protection and content entropy audit.
+  9. `audit_biometrics`: Two-sample KS-test and Wasserstein distance biometric validator.
+  10. `memory_pid_health`: Closed-loop Chromium memory PID controller status.
+  11. `extract_metadata`: Next.js `__NEXT_DATA__`, Nuxt state, JSON-LD schemas, and OpenGraph tags.
+  12. `sniff_api_responses`: Intercepts background XHR/Fetch JSON responses matching URL patterns.
+  13. `mine_google_suggest`: Google autocomplete and recursive A-Z alphabet drilldown.
+  14. `audit_csr_drift`: CSR vs SSR rendering drift auditor and SEO indexation risk evaluator.
+  15. `mine_paa`: People Also Ask question tree miner.
+  16. `check_cannibalization`: Jaccard SERP overlap keyword cannibalization checker.
 
 ---
 
@@ -293,53 +312,10 @@ async with BP() as bp:
 
 ---
 
-### 9. 4-Tier Adaptive Crawler & Deep Site Exploration (`veil.crawling` / `bp.crawling`)
-
-An enterprise-grade, paper-grounded web crawling engine designed for large-scale web scraping, anti-bot evasion, and LLM corpus preparation:
-
-- **4-Tier Escalation Hierarchy (`CrawlerTier`)**:
-  - `Tier 1: HTTP_FAST` — In-memory cached async HTTP transport with zero-browser overhead.
-  - `Tier 2: TLS_IMPERSONATE` — Full JA3/JA4 fingerprint spoofing via `curl_cffi`.
-  - `Tier 3: BROWSER_HEADLESS` — Chromium headless instance with CDP WeakMap shields.
-  - `Tier 4: BROWSER_STEALTH_KINEMATICS` — Full biometric kinematics with Saccadic Costello trajectories and subpixel tremor.
-  - *Automated Escalation*: Dynamically detects Cloudflare, DataDome, and Akamai challenges (403/429/503) and escalates tier-by-tier with full telemetry.
-- **SQLite WAL-Mode Persistent Frontier Queue (`PersistentFrontierQueue`)**:
-  - Crash-resilient state store allowing multi-day crawls to resume instantly without re-fetching visited URLs.
-  - Integrated with Online Page Importance Computation (OPIC) and BM25 priority scoring.
-- **Multi-Armed Bandit (MAB) Proxy Routing (`BanditProxyRotator`)**:
-  - Beta-Bernoulli Thompson Sampling and UCB1 to dynamically allocate requests to the highest-performing proxies while applying exponential cooldowns on rate limits.
-- **64-bit SimHash Near-Duplicate Detection (`dedup.py`)**:
-  - Identifies soft 404s, parked domains, and boilerplate duplicate pages without quadratic comparisons.
-- **Ostendorff Sample-Then-Deepen Budget Allocation (`host_budget.py`)**:
-  - Optimizes crawl budgets using Shrout & Fleiss ICC(1) random-effects ANOVA and Spearman-Brown reliability to discover "hidden-gem" high-quality domains.
-- **Lossless Structural HTML Compression & Block-Tree Pruner (`BlockTreePruner`)**:
-  - Flattens Shadow DOM & declarative iframes, pruning boilerplate with BM25+log-salience to slash LLM prefill FLOPs by up to 80%.
-
-```python
-import asyncio
-from veil import BP
-from veil.crawling.deep_crawler import DeepSiteCrawler, PersistentFrontierQueue
-from veil.crawling.models import CrawlRequest, CrawlerTier
-
-async def main():
-    # 1. High-level fluent crawling via facade:
-    async with BP() as bp:
-        # Crawl up to 25 pages with automatic 4-tier anti-bot escalation
-        results = await bp.crawl(
-            "https://example.com",
-            max_pages=25,
-            max_tier=CrawlerTier.BROWSER_STEALTH_KINEMATICS
-        )
-        print(f"Discovered and extracted {len(results)} pages")
-
-    # 2. Standalone crash-resilient deep crawler with SQLite WAL frontier:
-    frontier = PersistentFrontierQueue(db_path="deep_crawl_frontier.db")
-    crawler = DeepSiteCrawler(frontier=frontier, max_concurrency=5)
-    await crawler.crawl_site(start_url="https://example.com/docs", max_depth=3)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
+### 9. Asynchronous Recursive Crawler & Sitemap Parser (`bp.crawling`)
+- **Depth-Limited Crawling**: Traverses internal domain links while respecting concurrency limits.
+- **Sitemap Parser**: Ingests `sitemap.xml` for systematic URL discovery.
+- **Politeness Rules**: Configurable request delays and domain blacklists.
 
 ---
 
@@ -442,13 +418,17 @@ Client-side and protocol-level diagnostic auditing engine for modern APIs, Singl
 
 ---
 
-### 16. DOM Metadata Extraction & CSR Drift Verification (`bp.metadata`, `bp.verification`)
-A production-grade metadata extraction, hydration parsing, and rendering drift auditing subsystem:
+### 16. SEO, AEO & GEO Data Mining & Verification Engine (`bp.mining`)
+A production-grade search intelligence, autocomplete prediction, hydration extraction, and rendering drift auditing subsystem:
 
 | Module / Component | Namespace / Class | Capabilities & Architectural Functions |
 | :--- | :--- | :--- |
+| **`suggest_miner.py`** | `bp.mining.suggest` / `GoogleSuggestMiner` | High-throughput Google Suggest autocomplete extraction with wildcard (`*`, `_`) replacement and concurrent A-Z alphabet drilldown (`alphabet_tree`). |
 | **`rendering_auditor.py`** | `bp.verification.drift` / `CSRRenderingDriftAuditor` | Evaluates token-level Jaccard rendering divergence between initial static SSR/HTML and hydrated CSR DOM; detects missing H1 headings, page titles, client-injected links, and JSON-LD schemas. |
-| **`dom.py`** | `bp.metadata.extract_*` | Zero-latency Next.js `__NEXT_DATA__`, Nuxt state `__NUXT__`, JSON-LD schemas (`@graph` unpacked), and OpenGraph metadata extractor. |
+| **`paa_miner.py`** | `bp.mining.paa` / `PAAMiner` | Recursive People Also Ask accordion crawler with dynamic mutation observation, snippet capture, and source citation extraction. |
+| **`cannibalization.py`** | `bp.mining.cannibalization` / `SERPCannibalizationEngine` | Jaccard overlap similarity coefficient ($J = |A \cap B| / |A \cup B|$) on SERP URLs, outputting canonical `MERGE` vs `SPLIT` directives. |
+| **`aio_auditor.py`** | `bp.mining.aio` / `AIOAuditor` | Audits Google AI Overview (SGE) card presence, citations, brand rank, and competitor share of voice. |
+| **`dom.py`** | `bp.mining.extract_*` | Zero-latency Next.js `__NEXT_DATA__`, Nuxt state `__NUXT__`, JSON-LD schemas (`@graph` unpacked), and OpenGraph metadata extractor. |
 | **`sniffer.py`** | `bp.network.create_sniffer` / `JSONResponseSniffer` | Background XHR/Fetch API payload interceptor and async sniffer. |
 
 ---
@@ -491,7 +471,7 @@ async with BP(config=config) as bp:
 
 ---
 
-## ⚡ PowerPlay Integration Subsystem (`bp.powerplay` / `Bpp`)
+## 13 PowerPlay Integration Subsystem (`bp.powerplay` / `Bpp`)
 
 The **PowerPlay** subsystem provides an additive, decoupled layer of advanced mathematical models, trajectory synthesis, keystroke dynamics, information entropy auditing, and closed-loop memory control.
 
@@ -719,7 +699,16 @@ bp mcp-config --python-path python
 # 1. Zero-latency Next.js / Nuxt hydration & JSON-LD metadata extraction
 bp extract-meta "https://example.com" -o meta.json
 
-# 2. Audit CSR vs SSR rendering drift & SEO indexation risk
+# 2. Recursively mine Google People Also Ask tree
+bp mine-paa "best mechanical keyboard for coding" --depth 2 -o paa.json
+
+# 3. Check search intent cannibalization (Jaccard Overlap)
+bp check-overlap "python web scraping" "python web automation" --threshold 0.40
+
+# 4. Run Google wildcard & alphabet suggest drilldown
+bp mine-suggest "fastapi vs" --alphabet -o suggestions.json
+
+# 5. Audit CSR vs SSR rendering drift & SEO indexation risk
 bp audit-drift "https://example.com" -o drift.json
 ```
 
@@ -732,7 +721,7 @@ bp audit-drift "https://example.com" -o drift.json
 | **`patchright`** | Browser | ✔ Available | **`VERIFIED-LIVE`** | Hardened stealth Chromium with native C++ patch bindings. |
 | **`playwright`** | Browser | ✔ Available | **`VERIFIED-LIVE`** | Standard high-speed Playwright Chromium/Firefox/WebKit. |
 | **`uc`** | Browser | ✔ Available | **`PROVIDER-GATED-LIVE`** | Undetected-Chromedriver (Opt-in via `SQ_LIVE_UC=1`). |
-| **`curl_cffi`** | Network | ✔ Available | **`VERIFIED-LIVE`** | TLS fingerprint spoofing (JA3/JA4) with high-concurrency `AsyncSession` connection pooling. |
+| **`curl_cffi`** | Network | ✘ Optional | **`PROVIDER-GATED`** | TLS fingerprint spoofing (Raises `ProviderUnavailableError` if absent). |
 | **`browser_use`**| AI Agent | ✘ Optional | **`PROVIDER-GATED`** | LangChain/LLM browser agent (Requires LLM API key). |
 | **`stagehand`** | AI Agent | ✘ Optional | **`PROVIDER-GATED`** | TypeScript AI agent bridge (Requires Model + Key). |
 
@@ -765,12 +754,11 @@ Return 0.0ms        Execute Request           Verified-Live       Standard Chrom
 
 ## ⚠️ Known Limitations & Engineering Honesty
 
-1. **Third-Party AI Agent Providers**: `Browser-Use` and `Stagehand` require active external LLM API credentials and environment-specific packages.
-2. **PowerPlay Simulation vs Kernel Execution**: PowerPlay's OS-level display and input components (`VirtualDisplayManager`, `OSLevelInputBridge`) provide structured diagnostic simulation reports; they do not perform raw kernel interrupt injection or launch OS-level Xvfb display servers. Network socket tuning (`TCPTTLMTUAligner`) outputs standard parameter recommendations without altering OS network tables.
-3. **MCP Server Scope**: The MCP server focuses on tool discovery and execution (`tools/list`, `tools/call`). Resource/prompt listing methods return standard `-32601` error codes conforming to the MCP specification.
-4. **Verified Completed Capabilities (Wave 1 & Wave 2 Upgrades)**:
-   - *High-Concurrency Connection Pooling*: Implemented via `CurlCffiProvider` with session reuse and `curl_cffi.requests.AsyncSession` connection pooling (verified live in `tests/integration/test_all_features_real.py` and `TieredCrawlerService` Tier 2).
-   - *Multi-Session SQLite Disk Persistence & HTTP ETag Storage*: Implemented via `DeltaCrawlStore` with SQLite WAL mode, conditional HTTP headers (`If-None-Match`, `If-Modified-Since`), and 64-bit SimHash hamming distance change detection.
+1. **Connection Pooling**: `AsyncApiClient` uses Python's standard library `urllib.request` running in an asynchronous threadpool. High-concurrency connection pooling using `curl_cffi` is optional roadmap work.
+2. **Cache Storage**: `ApiRequestCache` is an in-memory TTL dictionary. Multi-session SQLite disk persistence and HTTP ETag validation are future enhancements.
+3. **MCP Server Scope**: The MCP server focuses on tool execution (`tools/list`, `tools/call`). Resource/prompt listing methods return standard `-32601` error codes.
+4. **Third-Party AI Agent Providers**: `Browser-Use` and `Stagehand` require active external LLM API credentials and dependencies.
+5. **PowerPlay Simulation vs Kernel Execution**: PowerPlay's OS-level display and input components (`VirtualDisplayManager`, `OSLevelInputBridge`) provide structured diagnostic simulation reports; they do not perform raw kernel interrupt injection or launch OS-level Xvfb display servers. Network socket tuning (`TCPTTLMTUAligner`) outputs standard parameter recommendations without altering OS network tables.
 
 ---
 

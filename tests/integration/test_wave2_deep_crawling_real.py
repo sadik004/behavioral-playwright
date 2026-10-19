@@ -373,15 +373,9 @@ def test_pillar_13_live_deep_site_crawler_and_ui_telemetry() -> None:
             assert math.isclose(sum(p["dataman_sample_prob"] for p in pages), 1.0, rel_tol=1e-3)
             assert jsonl_p.exists() and len(jsonl_p.read_text(encoding="utf-8").strip().splitlines()) == summary["crawled_count"]
 
-            # Close SQLite WAL handles before Windows TemporaryDirectory cleanup
-            crawler.close()
-
-            # Verify SQLite WAL crash-resume: re-running with the same checkpoint DB should skip already COMPLETED URLs
+            # Verify SQLite WAL crash-resume WITHOUT manual .close() call (proving production Windows NTFS safety)
             ckpt = PersistentFrontierQueue(db_path=ckpt_db)
-            try:
-                assert len(ckpt.get_completed_urls()) >= 4
-            finally:
-                ckpt.close()
+            assert len(ckpt.get_completed_urls()) >= 4
 
             # Verify UITraceTelemetryVerifier (arXiv:2605.14786 Table 1 & arXiv:2406.07647 Appendix C)
             verifier = UITraceTelemetryVerifier(viewport_height=1000)

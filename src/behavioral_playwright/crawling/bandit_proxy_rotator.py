@@ -1,4 +1,4 @@
-"""Backward-compatible alias forwarding to `veil.crawling.bandit_proxy_rotator`."""
+"""Backward-compatible alias."""
 import importlib as _importlib
 import sys as _sys
 

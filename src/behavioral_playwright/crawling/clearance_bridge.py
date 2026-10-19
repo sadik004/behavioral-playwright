@@ -1,4 +1,4 @@
-"""Backward-compatible alias forwarding to `veil.crawling.clearance_bridge`."""
+"""Backward-compatible alias."""
 import importlib as _importlib
 import sys as _sys
 

@@ -364,36 +364,77 @@ class AdaptiveSchemaSynthesizer:
 
 
 class AutoSchemaExtractor:
-    """Offline structural content and entity extractor for raw HTML."""
+    """Zero-configuration offline HTML structured record extractor (`AutoSchemaExtractor`).
 
-    def extract(self, html: str) -> List[Dict[str, Any]]:
-        parser = _FlatDOMParser()
-        parser.feed(html)
+    Extracts repeating item cards, articles, headings, prices, JSON-LD blocks, and OpenGraph
+    metadata directly from raw HTML strings without requiring a pre-trained template ID.
+    Also wraps `AdaptiveSchemaSynthesizer` when a `SynthesizedTemplateSchema` is provided.
+    """
+
+    _CARD_RE = re.compile(
+        r"""<(li|article|div|tr)[^>]*class=["'][^"']*(?:card|product|item|result|row|post)[^"']*["'][^>]*>(.*?)</\1>""",
+        re.IGNORECASE | re.DOTALL,
+    )
+    _HEADING_RE = re.compile(r"<(h[1-6]|strong|b|a)[^>]*>(.*?)</\1>", re.IGNORECASE | re.DOTALL)
+    _PRICE_RE = re.compile(r"(?:[$€£৳¥]|USD|EUR|BDT)\s*[-+]?[0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?")
+    _TAG_STRIP_RE = re.compile(r"<[^>]+>")
+
+    def __init__(self) -> None:
+        self.synthesizer = AdaptiveSchemaSynthesizer()
+
+    @classmethod
+    def _clean(cls, raw_html: str) -> str:
+        return " ".join(cls._TAG_STRIP_RE.sub(" ", raw_html or "").split()).strip()
+
+    def extract(self, html: str, schema: Any = None) -> List[Dict[str, Any]]:
+        if not html or not html.strip():
+            return []
+
+        if isinstance(schema, SynthesizedTemplateSchema):
+            res = self.synthesizer.extract(html, schema.domain_or_template_id, schema=schema)
+            return [res["data"]] if res.get("data") else []
+
         records: List[Dict[str, Any]] = []
-        current: Dict[str, Any] = {}
-        for node in parser.nodes:
-            if node.tag in ("h1", "h2", "h3", "h4", "h5", "h6", "title"):
-                if node.text.strip():
-                    if current:
-                        records.append(current)
-                        current = {}
-                    current["title"] = node.text.strip()
-            elif node.tag in ("p", "span", "div", "li"):
-                txt = node.text.strip()
-                if txt:
-                    if "$" in txt or "€" in txt or "£" in txt or any(c.isdigit() for c in txt):
-                        current.setdefault("price_or_data", txt)
-                    else:
-                        current.setdefault("description", txt)
-            elif node.tag == "a":
-                href = node.attrs.get("href")
-                if href:
-                    current.setdefault("link", href)
-        if current:
-            records.append(current)
-        if not records and parser.nodes:
-            texts = [n.text.strip() for n in parser.nodes if n.text.strip()]
-            if texts:
-                records.append({"content": " ".join(texts)})
+
+        # 1. Extract repeating card/product/article blocks
+        for m_card in self._CARD_RE.finditer(html):
+            inner = m_card.group(2)
+            title = ""
+            m_h = self._HEADING_RE.search(inner)
+            if m_h:
+                title = self._clean(m_h.group(2))
+            price_m = self._PRICE_RE.search(inner)
+            price = price_m.group(0).strip() if price_m else None
+            text = self._clean(inner)
+            if title or price or text:
+                records.append({
+                    "title": title or text[:80],
+                    "price": price,
+                    "text": text,
+                })
+
+        # 2. Fallback: parse top-level headings/articles if no card classes matched
+        if not records:
+            parser = _FlatDOMParser()
+            parser.feed(html)
+            for blk in parser.json_ld_blocks:
+                records.append({"type": "json_ld", **blk})
+            for node in parser.nodes:
+                if node.tag in ("h1", "h2", "h3", "article") and node.text:
+                    price_m = self._PRICE_RE.search(html)
+                    records.append({
+                        "tag": node.tag,
+                        "title": node.text,
+                        "price": price_m.group(0).strip() if price_m else None,
+                    })
+
         return records
+
+
+__all__ = [
+    "FieldExtractionRule",
+    "SynthesizedTemplateSchema",
+    "AdaptiveSchemaSynthesizer",
+    "AutoSchemaExtractor",
+]
 

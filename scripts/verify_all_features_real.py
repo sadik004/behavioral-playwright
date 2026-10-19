@@ -793,8 +793,11 @@ async def verify_subsystems(server_url: str) -> List[FeatureResult]:
     tool2 = await handle_tool_call("quant_pit_align", {"filing": {"symbol": "AAPL", "revenue": 1000000}})
     tool3 = await handle_tool_call("audit_biometrics", {"samples": [{"x": 10, "y": 10, "t": 0.0}]})
     tool4 = await handle_tool_call("memory_pid_health", {"current_rss_mb": 450.0, "target_rss_mb": 512.0})
-    tool5 = await handle_tool_call("crawl_domain", {"url": f"{server_url}/html", "max_pages": 1, "depth": 1})
-    tool6 = await handle_tool_call("rag_chunk", {"markdown": "# Heading\nSome text content here."})
+    tool5 = await handle_tool_call("check_cannibalization", {
+        "query_a": "python web scraping", "query_b": "python browser automation",
+        "urls_a": ["https://python.org"], "urls_b": ["https://python.org"], "threshold": 0.3,
+    })
+    tool6 = await handle_tool_call("mine_google_suggest", {"query": "fastapi vs", "alphabet": False})
     tool7 = await handle_tool_call("inspect_state", {"workflow_id": "wf_test_01"})
     tool8 = await handle_tool_call("extract_metadata", {"url": f"{server_url}/html"})
     tool9 = await handle_tool_call("run_graphql_security_audit", {"target_url": f"{server_url}/html"})
@@ -803,25 +806,33 @@ async def verify_subsystems(server_url: str) -> List[FeatureResult]:
     tool12 = await handle_tool_call("scrape_page", {"url": f"{server_url}/html", "target": "raw"})
 
     # 4. Real CLI execution via subprocess
-    cli_env = {**os.environ, "PYTHONPATH": str(SRC_DIR), "OPENBLAS_NUM_THREADS": "1"}
-    cli_help = subprocess.run([sys.executable, "-m", "veil.cli.main", "--help"], env=cli_env, capture_output=True, text=True)
-    cli_doc = subprocess.run([sys.executable, "-m", "veil.cli.main", "doctor"], env=cli_env, capture_output=True, text=True)
-    cli_aud = subprocess.run([sys.executable, "-m", "veil.cli.main", "audit"], env=cli_env, capture_output=True, text=True)
+    cli_paths = [str(SRC_DIR), str(REPO_ROOT)]
+    cli_env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(cli_paths),
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+    }
+    cli_help = subprocess.run([sys.executable, "-m", "veil.cli.main", "--help"], env=cli_env, cwd=str(REPO_ROOT), capture_output=True, text=True)
+    cli_doc = subprocess.run([sys.executable, "-m", "veil.cli.main", "doctor"], env=cli_env, cwd=str(REPO_ROOT), capture_output=True, text=True)
+    cli_aud = subprocess.run([sys.executable, "-m", "veil.cli.main", "audit"], env=cli_env, cwd=str(REPO_ROOT), capture_output=True, text=True)
+
 
     lat = (time.perf_counter() - t0) * 1000.0
-    passed = (
-        resp_clean.status_code == 200
-        and resp_clean.escalations_count == 0
-        and len(resp_cf.escalation_history) > 0
-        and cli_help.returncode == 0
-        and cli_doc.returncode == 0
-        and cli_aud.returncode == 0
-    )
+    p1 = resp_clean.status_code == 200
+    p2 = resp_clean.escalations_count == 0
+    p3 = len(resp_cf.escalation_history) > 0
+    p4 = cli_help.returncode == 0
+    p5 = cli_doc.returncode == 0
+    p6 = cli_aud.returncode == 0
+    passed = p1 and p2 and p3 and p4 and p5 and p6
     results.append(FeatureResult(
         subsystem="10. Crawler, MCP & CLI",
         feature_module="veil.crawling, veil.mcp.tools (12 Tools) & veil.cli.main",
         real_input=f"Crawl {server_url}/html & {server_url}/cf-challenge, invoke 12 MCP tools, run 3 CLI subcommands",
-        real_output=f"clean_status=200, cf_escalations={len(resp_cf.escalation_history)}, 12 MCP tools OK, CLI exit=0",
+        real_output=f"clean_status={resp_clean.status_code}({p1}), esc_cnt={resp_clean.escalations_count}({p2}), cf_esc={len(resp_cf.escalation_history)}({p3}), help={cli_help.returncode}({p4}), doc={cli_doc.returncode}({p5})[out={cli_doc.stdout.strip()!r}, err={cli_doc.stderr.strip()!r}], aud={cli_aud.returncode}({p6})",
         latency_ms=lat,
         passed=passed,
     ))
@@ -978,6 +989,7 @@ def print_terminal_table(results: List[FeatureResult]) -> None:
         print(f"{feat_name:<55} | {r.latency_ms:>8.1f}ms | {status:^8}")
         if not r.passed:
             all_passed = False
+            print(f"  [ERROR-REASON] {r.subsystem}: in='{r.real_input}' out='{r.real_output}'")
 
     print(sep)
     passed_count = sum(1 for r in results if r.passed)
