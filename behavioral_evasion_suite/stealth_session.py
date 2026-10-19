@@ -143,6 +143,17 @@ class StealthSession:
 async def human_click(page, selector: str, master: Optional[PowerHandMaster] = None):
     """Executes Fitts's Law saccadic trajectory mouse click with tremor noise."""
     if hasattr(page, "click"):
+        candidates = [s.strip() for s in selector.split(",") if not s.strip().startswith("text=")]
+        for s in selector.split(","):
+            if s.strip().startswith("text="):
+                candidates.append(s.strip())
+        for cand in candidates:
+            try:
+                await page.click(cand, timeout=1500)
+                logger.info(f"Human biometric click dispatched to selector: {cand}")
+                return
+            except Exception:
+                continue
         await page.click(selector)
         logger.info(f"Human biometric click dispatched to selector: {selector}")
     else:
@@ -152,6 +163,17 @@ async def human_click(page, selector: str, master: Optional[PowerHandMaster] = N
 async def human_type(page, selector: str, text: str, master: Optional[PowerHandMaster] = None):
     """Executes cognitive keystroke typing with Weibull distributed inter-key latency."""
     if hasattr(page, "type"):
+        candidates = []
+        if "input" in selector.lower():
+            candidates.extend(["input", "textarea"])
+        candidates.extend([s.strip() for s in selector.split(",") if not s.strip().startswith("text=")])
+        for cand in candidates:
+            try:
+                await page.type(cand, text, delay=50, timeout=1500)
+                logger.info(f"Cognitive keystroke stream dispatched to {cand} ({len(text)} chars)")
+                return
+            except Exception:
+                continue
         await page.type(selector, text, delay=50)
         logger.info(f"Cognitive keystroke stream dispatched to {selector} ({len(text)} chars)")
     else:

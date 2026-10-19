@@ -38,6 +38,18 @@ class ProviderInfo:
     installed: bool
     version: Optional[str] = None
     error: Optional[str] = None
+    def to_dict(self) -> Dict[str, Any]:
+        return {"provider": self.provider, "name": self.provider, "module": self.module, "installed": self.installed, "version": self.version, "error": self.error}
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.to_dict().get(key, default)
+
+    def __getitem__(self, key: str) -> Any:
+        return self.to_dict()[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.to_dict()
+
 
 
 def detect_provider(provider: str, module: str) -> ProviderInfo:

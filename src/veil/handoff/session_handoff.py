@@ -8,6 +8,13 @@ logger = get_logger("handoff.session_handoff")
 
 
 class SessionHandoff:
+    def create_handoff_ticket(self, url: str = "about:blank", reason: str = "challenge_escalation") -> Dict[str, Any]:
+        return {
+            "url": url,
+            "reason": reason,
+            "handoff_status": "PENDING_HUMAN_OPERATOR",
+        }
+
     """Manages browser session handoffs (cookies, local/session storage)."""
 
     def __init__(self, page: PageSession) -> None:
@@ -120,6 +127,13 @@ class SessionHandoff:
         """Backward-compatible wrapper: export when no data given, restore otherwise."""
         if context_data is None:
             return await self.export()
+        if isinstance(context_data, dict) and ("reason" in context_data or "handoff_status" in context_data):
+            url = getattr(self.page, "url", "about:blank") if self.page is not None else "about:blank"
+            reason = context_data.get("reason", "challenge_escalation")
+            return {
+                **self.create_handoff_ticket(url=url, reason=reason),
+                "context": context_data,
+            }
         return await self.restore(context_data)
 
     # ------------------------------------------------------------------

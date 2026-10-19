@@ -9,6 +9,45 @@ from typing import Dict, List, Any
 
 
 class CognitiveKeystrokeEngine:
+    _SPECIAL_KEYCODES: Dict[str, Tuple[str, int]] = {
+        ' ': ('Space', 32),
+        '\n': ('Enter', 13),
+        '\t': ('Tab', 9),
+        '.': ('Period', 190),
+        ',': ('Comma', 188),
+        '/': ('Slash', 191),
+        ';': ('Semicolon', 186),
+        "'": ('Quote', 222),
+        '"': ('Quote', 222),
+        '-': ('Minus', 189),
+        '=': ('Equal', 187),
+    }
+
+    @classmethod
+    def _char_to_keycode(cls, ch: str) -> int:
+        if not ch:
+            return 32
+        if ch.isalpha():
+            return ord(ch.upper())
+        if ch.isdigit():
+            return ord(ch)
+        spec = {
+            ' ': 32, '\n': 13, '\t': 9, ';': 186, '=': 187, ',': 188,
+            '-': 189, '.': 190, '/': 191, '`': 192, '[': 219, '\\': 220,
+            ']': 221, "'": 222, '"': 222
+        }
+        return spec.get(ch, ord(ch[0]))
+
+    @classmethod
+    def _resolve_keycode(cls, ch: str) -> Tuple[str, int]:
+        if ch.isalpha():
+            return f"Key{ch.upper()}", ord(ch.upper())
+        if ch.isdigit():
+            return f"Digit{ch}", ord(ch)
+        if ch in cls._SPECIAL_KEYCODES:
+            return cls._SPECIAL_KEYCODES[ch]
+        return "Quote", 32
+
     """
     Simulates human typing dynamics using QWERTY spatial distances, Weibull key-dwell times,
     probabilistic adjacent typos with backspace auto-correction, and OS Physical ScanCodes.
@@ -70,13 +109,15 @@ class CognitiveKeystrokeEngine:
                     'delay': self._rng.uniform(0.06, 0.12)
                 })
 
+            wpm_factor = 65.0 / max(15.0, float(self.base_wpm))
             dist = self._get_key_distance(last_key, char)
-            flight_delay = max(0.025, (dist * 0.015) + self._rng.weibullvariate(1.8, 2.2) * 0.03)
+            flight_delay = max(0.025, (dist * 0.015) + self._rng.weibullvariate(1.8, 2.2) * 0.03) * wpm_factor
+            c_code, c_kc = self._resolve_keycode(char)
             plan.append({
                 'action': 'type',
                 'key': char,
-                'code': f"Key{char.upper()}" if char.isalpha() else "Space" if char == ' ' else "Quote",
-                'keyCode': ord(char.upper()) if char.isalpha() else 32,
+                'code': c_code,
+                'keyCode': c_kc,
                 'delay': flight_delay,
                 'is_typo': False
             })

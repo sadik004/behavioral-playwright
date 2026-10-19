@@ -64,7 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
     scrape_p = subparsers.add_parser("scrape", help="Scrape a URL and extract links/text")
     scrape_p.add_argument("url", help="Target URL to scrape")
     scrape_p.add_argument("--output", "-o", help="Output file path (e.g., out.json, out.csv)")
-    scrape_p.add_argument("--target", default="links", choices=["links", "articles"], help="Extraction target")
+    scrape_p.add_argument("--target", default="links", choices=["links", "articles", "table", "tables", "cards", "text", "metadata", "json_ld", "open_graph"], help="Extraction target")
 
     # 2. Crawl command
     crawl_p = subparsers.add_parser("crawl", help="Recursively crawl a URL")

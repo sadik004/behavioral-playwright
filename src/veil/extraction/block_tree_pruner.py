@@ -295,7 +295,7 @@ class BlockTreePruner:
         builder._flush()
         blocks = builder.blocks
 
-        orig_tokens = max(1, len(re.findall(r"\S+", html or "")))
+        orig_tokens = max(1, sum(b.token_estimate for b in blocks), len(re.findall(r"<[^>]+>|[^\s<>]+", html or "")))
         if not blocks:
             return BlockTreePruneResult(
                 simplified_html="",

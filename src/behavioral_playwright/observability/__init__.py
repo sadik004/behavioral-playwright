@@ -1,0 +1,12 @@
+"""Backward-compatible package alias forwarding to `veil.observability`."""
+from __future__ import annotations
+
+import importlib as _importlib
+
+_mod = _importlib.import_module("veil.observability")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v
+
+def __getattr__(name: str):
+    return getattr(_mod, name)

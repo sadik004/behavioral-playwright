@@ -148,3 +148,4 @@ class WorkflowTimeoutError(OrchestrationError):
     """Raised when a workflow or step exceeds its monotonic timeout budget."""
     pass
 
+VeilError = BehavioralPlaywrightError

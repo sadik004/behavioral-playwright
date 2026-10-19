@@ -1,3 +1,5 @@
+import os
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
 """
 behavioral-playwright: Resilient, self-healing browser automation framework
 built on Playwright. Primary package interface — exposes the unified BP facade

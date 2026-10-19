@@ -1,0 +1,59 @@
+{
+  "profile_id": "win11_chrome126_nvidia_rtx4070",
+  "os_platform": "Win32",
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "device_pixel_ratio": 1.0,
+  "webgl": {
+    "unmasked_vendor": "Google Inc. (NVIDIA)",
+    "unmasked_renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Laptop GPU Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "vendor": "WebKit",
+    "renderer": "WebKit WebGL",
+    "gl_version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "shading_language_version": "WebGL GLSL ES 3.00 (OpenGL ES GLSL ES 3.0 Chromium)",
+    "max_texture_size": 16384,
+    "max_renderbuffer_size": 16384,
+    "extensions": [
+      "EXT_clip_control",
+      "EXT_color_buffer_float",
+      "EXT_color_buffer_half_float",
+      "EXT_conservative_depth",
+      "EXT_depth_clamp",
+      "EXT_float_blend",
+      "EXT_texture_compression_bptc",
+      "EXT_texture_filter_anisotropic",
+      "KHR_parallel_shader_compile",
+      "OES_texture_float_linear",
+      "WEBGL_compressed_texture_s3tc",
+      "WEBGL_debug_renderer_info",
+      "WEBGL_lose_context",
+      "WEBGL_multi_draw"
+    ]
+  },
+  "audio": {
+    "sample_rate": 48000,
+    "base_latency": 0.005333,
+    "output_latency": 0.021333,
+    "max_channel_count": 2
+  },
+  "fonts": [
+    "Arial",
+    "Calibri",
+    "Cambria",
+    "Consolas",
+    "Courier New",
+    "Georgia",
+    "Segoe UI",
+    "Tahoma",
+    "Times New Roman",
+    "Verdana"
+  ],
+  "locales": [
+    "en-US",
+    "en"
+  ],
+  "timezone_id": "America/New_York"
+}

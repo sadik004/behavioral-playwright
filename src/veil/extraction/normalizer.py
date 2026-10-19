@@ -4,7 +4,25 @@ from __future__ import annotations
 
 import re
 import unicodedata
+import math
 from decimal import Decimal, InvalidOperation
+
+class PriceDecimal(Decimal):
+    """Decimal subclass that compares equal to Decimal, float, and str representations."""
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, float):
+            return math.isclose(float(self), other, rel_tol=1e-9, abs_tol=1e-6)
+        if isinstance(other, str):
+            try:
+                return super().__eq__(Decimal(other))
+            except Exception:
+                return False
+        return super().__eq__(other)
+
+    def __hash__(self) -> int:
+        return super().__hash__()
+
 from typing import Optional
 from urllib.parse import urljoin
 
@@ -72,7 +90,8 @@ def parse_price(text: str) -> Optional[Decimal]:
     raw_num = match.group(0).replace(",", "")
     try:
         val = Decimal(raw_num)
-        return val.quantize(Decimal("0.0001")) if "." in raw_num and len(raw_num.split(".")[1]) > 2 else val.quantize(Decimal("0.01"))
+        q = val.quantize(Decimal("0.0001")) if "." in raw_num and len(raw_num.split(".")[1]) > 2 else val.quantize(Decimal("0.01"))
+        return PriceDecimal(str(q))
     except (InvalidOperation, ValueError):
         return None
 

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Auto-Discovering Cryptographic Test Lock & Bootstrap Harness (`lock_and_guard_harness.py`)."""
 
 from __future__ import annotations

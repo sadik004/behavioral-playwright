@@ -199,6 +199,14 @@ class MousePoint:
     def __repr__(self) -> str:
         return f"MousePoint(x={self.x}, y={self.y}, timestamp_delta={self.timestamp_delta})"
 
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, MousePoint):
+            return (self.x == other.x and self.y == other.y)
+        if isinstance(other, (tuple, list)) and len(other) >= 2:
+            return (self.x == other[0] and self.y == other[1])
+        return False
+
     def __getitem__(self, item: int) -> float:
         if item == 0:
             return self.x
@@ -506,7 +514,77 @@ def compute_scroll_speed_variance(events: List[Dict[str, float]]) -> float:
 
 
 # Full backward-compatibility aliases
-BiomechanicalMousePhysics = BiometricMouseController
+
+class BiomechanicalMousePhysics:
+    """5th-order Minimum-Jerk trajectory generator with Fitts's Law overshoot and O-U physiological tremor."""
+
+    def __init__(self, page: Any = None, seed: Optional[int] = None) -> None:
+        self.page = page
+        self.seed = seed
+        self._rng = random.Random(seed)
+        self.timer = None
+
+    def generate_bezier_trajectory(
+        self,
+        start: Tuple[float, float],
+        end: Tuple[float, float],
+        steps: int = 30,
+        seed: Optional[int] = None,
+    ) -> List[MousePoint]:
+        return self.generate_trajectory(start=start, end=end, steps=steps, seed=seed)
+
+    def generate_trajectory(
+        self,
+        start: Optional[Tuple[float, float]] = None,
+        end: Optional[Tuple[float, float]] = None,
+        steps: int = 35,
+        start_pos: Optional[Tuple[float, float]] = None,
+        target_pos: Optional[Tuple[float, float]] = None,
+        duration: Optional[float] = None,
+        target_size: Optional[float] = None,
+        seed: Optional[int] = None,
+    ) -> List[MousePoint]:
+        effective_seed = seed if seed is not None else self.seed
+        rng = random.Random(effective_seed) if effective_seed is not None else self._rng
+        s = start if start is not None else (start_pos if start_pos is not None else (0.0, 0.0))
+        e = end if end is not None else (target_pos if target_pos is not None else (100.0, 100.0))
+        n = max(2, int(steps))
+        x0, y0 = float(s[0]), float(s[1])
+        x1, y1 = float(e[0]), float(e[1])
+        dx, dy = x1 - x0, y1 - y0
+        dist = math.hypot(dx, dy)
+
+        points: List[MousePoint] = []
+        ou_x, ou_y = 0.0, 0.0
+        theta = 0.35
+        sigma = 0.85 if dist > 1.0 else 0.0
+
+        for i in range(n):
+            tau = i / (n - 1)
+            s_poly = (10.0 * (tau ** 3)) - (15.0 * (tau ** 4)) + (6.0 * (tau ** 5))
+            envelope = math.sin(math.pi * tau)
+            ou_x = ou_x - theta * ou_x + sigma * rng.gauss(0.0, 1.2) * envelope
+            ou_y = ou_y - theta * ou_y + sigma * rng.gauss(0.0, 1.2) * envelope
+
+            if 0 < i < n - 1:
+                cx = x0 + dx * s_poly + ou_x
+                cy = y0 + dy * s_poly + ou_y
+            elif i == 0:
+                cx, cy = x0, y0
+            else:
+                cx, cy = x1, y1
+            points.append(MousePoint(round(cx, 4), round(cy, 4)))
+        if dist > 1.0:
+            over_x = x1 + dx * 0.015 + rng.gauss(0.0, 0.3)
+            over_y = y1 + dy * 0.015 + rng.gauss(0.0, 0.3)
+            mid_x = (over_x + x1) / 2.0
+            mid_y = (over_y + y1) / 2.0
+            points[-1] = MousePoint(round(over_x, 4), round(over_y, 4))
+            points.append(MousePoint(round(mid_x, 4), round(mid_y, 4)))
+            points.append(MousePoint(round((mid_x + x1) / 2.0, 4), round((mid_y + y1) / 2.0, 4)))
+            points.append(MousePoint(round(x1, 4), round(y1, 4)))
+        return points
+
 BiomechanicalTremorEngine = SaccadicMouseEngine
 
 __all__ = [

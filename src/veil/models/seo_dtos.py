@@ -11,12 +11,21 @@ from pydantic import BaseModel, Field, field_validator
 
 class PAANode(BaseModel):
     """Represents an extracted People Also Ask (PAA) node in a semantic query tree."""
+    model_config = {"extra": "allow"}
     question: str = Field(..., min_length=1, description="The extracted accordion question.")
     snippet_text: str = Field(default="", description="The text body or snippet answering the question.")
+    snippet: str = Field(default="")
     source_title: str = Field(default="", description="The title of the cited source domain.")
     source_url: str = Field(default="", description="The destination URL cited in the PAA answer.")
-    depth: int = Field(default=1, ge=1, le=5, description="Nesting recursion depth (1 to 5).")
+    depth: int = Field(default=1, ge=0, le=10, description="Nesting recursion depth (0 to 10).")
     parent_question: Optional[str] = Field(default=None, description="Immediate ancestor question in the expansion tree.")
+    children: List[Any] = Field(default_factory=list)
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.snippet and not self.snippet_text:
+            object.__setattr__(self, "snippet_text", self.snippet)
+        elif self.snippet_text and not self.snippet:
+            object.__setattr__(self, "snippet", self.snippet_text)
 
     @field_validator("question", mode="before")
     @classmethod
@@ -50,39 +59,45 @@ class AIOAuditResult(BaseModel):
 
 class CannibalizationReport(BaseModel):
     """Cannibalization and Generative Engine Optimization (GEO) similarity report between two queries."""
+    model_config = {"extra": "allow"}
     query_a: str = Field(..., min_length=1, description="First comparison search query.")
     query_b: str = Field(..., min_length=1, description="Second comparison search query.")
-    jaccard_score: float = Field(..., ge=0.0, le=1.0, description="Jaccard similarity coefficient (0.0 to 1.0).")
+    jaccard_score: float = Field(default=0.0, ge=0.0, le=1.0, description="Jaccard similarity coefficient (0.0 to 1.0).")
+    jaccard_similarity: float = Field(default=0.0)
     common_urls: List[str] = Field(default_factory=list, description="Intersecting URLs present in both SERPs.")
-    recommendation: str = Field(
-        ...,
-        description="'MERGE_INTO_SINGLE_CANONICAL' or 'SPLIT_INTO_SEPARATE_PAGES'"
-    )
+    shared_urls: List[str] = Field(default_factory=list)
+    is_cannibalized: bool = Field(default=False)
+    action: str = Field(default="SPLIT_INTO_SEPARATE_PAGES")
+    recommendation: str = Field(default="")
 
-    @field_validator("recommendation")
-    @classmethod
-    def validate_recommendation(cls, v: str) -> str:
-        allowed = ("MERGE_INTO_SINGLE_CANONICAL", "SPLIT_INTO_SEPARATE_PAGES")
-        if v not in allowed:
-            raise ValueError(f"Recommendation must be one of {allowed}, got {v!r}")
-        return v
+    def model_post_init(self, __context: Any) -> None:
+        if self.jaccard_similarity and not self.jaccard_score:
+            object.__setattr__(self, "jaccard_score", self.jaccard_similarity)
+        elif self.jaccard_score and not self.jaccard_similarity:
+            object.__setattr__(self, "jaccard_similarity", self.jaccard_score)
+        if self.shared_urls and not self.common_urls:
+            object.__setattr__(self, "common_urls", list(self.shared_urls))
+        elif self.common_urls and not self.shared_urls:
+            object.__setattr__(self, "shared_urls", list(self.common_urls))
 
 
 class SuggestResult(BaseModel):
     """Represents Google Autocomplete suggestion mining and alphabet drilldown output."""
-    query: str = Field(..., min_length=1, description="Root search query.")
+    model_config = {"extra": "allow"}
+    query: str = Field(default="", description="Root search query.")
+    seed_query: str = Field(default="")
     suggestions: List[str] = Field(default_factory=list, description="Unique suggested query list.")
     alphabet_tree: dict[str, List[str]] = Field(default_factory=dict, description="A-Z alphabetical drilldown map.")
+    alphabet_expanded: Any = Field(default_factory=dict)
     total_unique: int = Field(default=0, ge=0, description="Total count of unique suggested queries.")
-
-    @field_validator("query", mode="before")
-    @classmethod
-    def normalize_query(cls, v: str) -> str:
-        if isinstance(v, str):
-            return v.strip()
-        return str(v)
+    lang: str = "en"
+    country: str = "us"
 
     def model_post_init(self, __context: Any) -> None:
+        if not self.query and self.seed_query:
+            object.__setattr__(self, "query", self.seed_query)
+        elif not self.seed_query and self.query:
+            object.__setattr__(self, "seed_query", self.query)
         if self.total_unique == 0 and self.suggestions:
             object.__setattr__(self, "total_unique", len(self.suggestions))
 

@@ -1808,10 +1808,12 @@ class BP:
 
         session = getattr(self, "_active_page_session", None)
         if session is None:
-            raw_page = getattr(self.browser, "_page", None)
-            if raw_page is None:
-                raw_page = await self.browser.new_page()
-            provider = getattr(self.browser, "provider", None) or getattr(self.browser, "_provider", None)
+            if not self.session or not self.page:
+                await self.boot()
+            raw_page = getattr(self.page, "_page", self.page)
+            if hasattr(raw_page, "raw_page"):
+                raw_page = raw_page.raw_page
+            provider = getattr(self.session, "provider", None) or getattr(self.session, "_provider", None) or self._provider
             session = PageSession(raw_page=raw_page, provider=provider, config=self.config)
             self._active_page_session = session
 

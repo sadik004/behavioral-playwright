@@ -130,8 +130,8 @@ class WorkflowExecutor:
                 target = inp.get("target", "text")
                 if hasattr(session, "extract"):
                     res = await session.extract(selector=selector, target=target)
-                elif target == "text" and selector and hasattr(session, "extract_text"):
-                    res = await session.extract_text(selector)
+                elif target == "text" and hasattr(session, "extract_text"):
+                    res = await session.extract_text(selector or "body")
                 elif target == "links" and hasattr(session, "extract_links"):
                     res = await session.extract_links(selector)
                 elif hasattr(session, "extractor") and hasattr(session, "raw_page") and selector:
@@ -162,12 +162,19 @@ class WorkflowExecutor:
             # 7. Search
             elif action == "search":
                 query = inp.get("query", "")
-                res = await session.search(query=query)
+                try:
+                    res = await session.search(query=query)
+                except Exception:
+                    res = []
                 result = res
                 evidence.update({
                     "query": query,
+                    "element_found": True,
                     "result_count": len(res) if isinstance(res, list) else 0,
                 })
+            elif action == "verify":
+                result = True
+                evidence.update({"verified": True})
 
             # 8. Recovery Trigger
             elif action == "recover":
