@@ -50,9 +50,10 @@ def main():
 
     # 3. Extract src/veil/extraction/dom.py and tests/integration/test_master_bugfree_real.py from zip
     dom_p = repo_root / "src" / "veil" / "extraction" / "dom.py"
-    with open(dom_p, "wb") as out_f:
-        out_f.write(zf.read("src/veil/extraction/dom.py"))
-    print("Updated src/veil/extraction/dom.py with authoritative dual-mode version.")
+    if not dom_p.exists():
+        with open(dom_p, "wb") as out_f:
+            out_f.write(zf.read("src/veil/extraction/dom.py"))
+        print("Updated src/veil/extraction/dom.py with authoritative dual-mode version.")
 
     master_p = repo_root / "tests" / "integration" / "test_master_bugfree_real.py"
     with open(master_p, "wb") as out_f:
