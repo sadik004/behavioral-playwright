@@ -27,6 +27,10 @@ class McpServer:
         method = request.get("method")
         params = request.get("params", {})
 
+        # JSON-RPC 2.0: notifications have no id or are explicit notifications
+        if req_id is None or method == "notifications/initialized" or (isinstance(method, str) and method.startswith("notifications/")):
+            return None
+
         if method == "initialize":
             return {
                 "jsonrpc": "2.0",
@@ -52,26 +56,30 @@ class McpServer:
             
             is_error = "error" in result
             content_text = json.dumps(result, indent=2)
+            res_dict: Dict[str, Any] = {
+                "content": [{"type": "text", "text": content_text}],
+                "isError": is_error,
+            }
+            if isinstance(result, dict) and "page_content" in result:
+                res_dict["page_content"] = result["page_content"]
+            elif isinstance(result, dict) and "result" in result and isinstance(result["result"], dict) and "page_content" in result["result"]:
+                res_dict["page_content"] = result["result"]["page_content"]
+
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,
-                "result": {
-                    "content": [{"type": "text", "text": content_text}],
-                    "isError": is_error,
-                },
+                "result": res_dict,
             }
 
         elif method == "ping":
             return {"jsonrpc": "2.0", "id": req_id, "result": {}}
 
-        # Notification or unknown method
-        if req_id is not None:
-            return {
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "error": {"code": -32601, "message": f"Method not found: {method}"},
-            }
-        return None
+        # Unknown method with valid req_id
+        return {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "error": {"code": -32601, "message": f"Method not found: {method}"},
+        }
 
     async def run_stdio(self) -> None:
         """Reads JSON-RPC lines from stdin and writes responses to stdout."""
@@ -102,7 +110,7 @@ class McpServer:
             try:
                 req = json.loads(line_str)
                 resp = await self.handle_request(req)
-                if resp:
+                if resp is not None:
                     real_stdout.write(json.dumps(resp) + "\n")
                     real_stdout.flush()
             except Exception as exc:

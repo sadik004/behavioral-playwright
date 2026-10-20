@@ -1477,10 +1477,27 @@ class BP:
 
     async def open(self, url: str) -> None:
         """Navigates to the specified URL."""
-        if not self.page:
+        is_dead = not self.page or getattr(self.page, "is_closed", lambda: False)()
+        if not is_dead and hasattr(self.page, "raw_page"):
+            raw = self.page.raw_page
+            if raw and getattr(raw, "is_closed", lambda: False)():
+                is_dead = True
+            elif raw and getattr(raw, "_channel", None) and getattr(raw._channel, "_connection", None) is None:
+                is_dead = True
+        if is_dead:
             await self.boot()
         if self.page:
-            await self.page.goto(url)
+            try:
+                await self.page.goto(url)
+            except Exception as exc:
+                if "send" in str(exc) or "closed" in str(exc).lower():
+                    logger.debug("Page channel dead; re-booting session: %s", exc)
+                    await self.close()
+                    await self.boot()
+                    if self.page:
+                        await self.page.goto(url)
+                else:
+                    raise
 
     async def goto(self, url: str) -> None:
         """Alias for open()."""

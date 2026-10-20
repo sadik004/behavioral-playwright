@@ -82,6 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # 5. MCP Server command
     subparsers.add_parser("mcp-server", help="Launch standard JSON-RPC 2.0 stdio MCP server")
+    subparsers.add_parser("mcp", help="Launch standard JSON-RPC 2.0 stdio MCP server (alias)")
 
     # 6. MCP Config command
     cfg_p = subparsers.add_parser("mcp-config", help="Generate Claude Desktop JSON configuration")
@@ -477,7 +478,7 @@ def main(args: Optional[List[str]] = None) -> int:
         return run_matrix(config=config)
     elif parsed.command == "qa-report":
         return run_qa_report(parsed.db, config=config)
-    elif parsed.command == "mcp-server":
+    elif parsed.command in ("mcp-server", "mcp"):
         from behavioral_playwright.mcp.server import McpServer
         server = McpServer(config=config)
         asyncio.run(server.run_stdio())

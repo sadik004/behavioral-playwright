@@ -23,6 +23,11 @@ from behavioral_evasion_suite.nlp_intent_parser import NLPIntentParser
 from behavioral_evasion_suite.nlp_executor import NLPStealthExecutor
 from behavioral_evasion_suite.satellite_field_verifier import SatelliteFieldVerifier, SatelliteYardLocation
 
+try:
+    from veil.mcp.tools import MCP_TOOL_DEFINITIONS, McpToolDispatcher
+except ImportError:
+    from behavioral_playwright.mcp.tools import MCP_TOOL_DEFINITIONS, McpToolDispatcher
+
 # Check if official FastMCP is available
 HAS_FASTMCP = False
 try:
@@ -120,174 +125,131 @@ if HAS_FASTMCP:
             report = await auditor.run_full_page_audit(page)
             return json.dumps(report, indent=2)
 
-    def run():
-        mcp.run()
+    _mcp_dispatcher = McpToolDispatcher()
+    for _tool_def in MCP_TOOL_DEFINITIONS:
+        _tname = _tool_def["name"]
+        if _tname in ("execute_nlp_browser_task", "parse_nlp_instruction_plan", "verify_satellite_yard", "get_stealth_engine_status", "run_security_audit_on_page"):
+            continue
+        def _make_tool_wrapper(tn: str):
+            async def _dyn_call(**kwargs: Any) -> str:
+                r = await _mcp_dispatcher.execute_tool(tn, kwargs)
+                return json.dumps(r, indent=2)
+            _dyn_call.__name__ = tn
+            return _dyn_call
+        try:
+            mcp.add_tool(
+                _make_tool_wrapper(_tname),
+                name=_tname,
+                description=_tool_def.get("description", ""),
+            )
+        except Exception:
+            _ = "fastmcp_add_tool_fallback"
 
-else:
-    # Standalone JSON-RPC 2.0 stdio fallback implementation for environments without mcp package
-    class FallbackStdioMCPServer:
-        def __init__(self):
-            self.executor = NLPStealthExecutor()
-            self.parser = NLPIntentParser()
-            self.yard_verifier = SatelliteFieldVerifier()
 
-        async def handle_request(self, req: Dict[str, Any]) -> Dict[str, Any]:
-            method = req.get("method")
-            params = req.get("params", {})
-            req_id = req.get("id")
+class FallbackStdioMCPServer:
+    def __init__(self):
+        self.executor = NLPStealthExecutor()
+        self.parser = NLPIntentParser()
+        self.yard_verifier = SatelliteFieldVerifier()
+        self.dispatcher = McpToolDispatcher()
 
-            if method == "initialize":
-                return {
-                    "jsonrpc": "2.0",
-                    "id": req_id,
-                    "result": {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {"tools": {}},
-                        "serverInfo": {"name": "behavioral-playwright", "version": "10.0.2"},
-                    },
-                }
+    async def handle_request(self, req: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        method = req.get("method")
+        params = req.get("params", {})
+        req_id = req.get("id")
 
-            if method == "notifications/initialized":
-                return {"jsonrpc": "2.0", "id": req_id, "result": {}}
+        # JSON-RPC 2.0: notifications have no id or are explicit notifications
+        if req_id is None or method == "notifications/initialized" or (isinstance(method, str) and method.startswith("notifications/")):
+            return None
 
-            if method == "tools/list":
-                return {
-                    "jsonrpc": "2.0",
-                    "id": req_id,
-                    "result": {
-                        "tools": [
-                            {
-                                "name": "execute_nlp_browser_task",
-                                "description": "Execute browser automation using natural language instructions with Level 5 stealth.",
-                                "inputSchema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "instruction": {"type": "string", "description": "Natural language command"},
-                                        "profile": {"type": "string", "default": "win11_nvidia_rtx4070"},
-                                    },
-                                    "required": ["instruction"],
-                                },
-                            },
-                            {
-                                "name": "parse_nlp_instruction_plan",
-                                "description": "Parses a natural language instruction into a validated sequence of browser actions.",
-                                "inputSchema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "instruction": {"type": "string"},
-                                    },
-                                    "required": ["instruction"],
-                                },
-                            },
-                            {
-                                "name": "verify_satellite_yard",
-                                "description": "Generate satellite proof links and CV score for a physical address.",
-                                "inputSchema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "company_name": {"type": "string"},
-                                        "physical_address": {"type": "string"},
-                                        "address": {"type": "string"},
-                                        "city": {"type": "string"},
-                                        "state": {"type": "string"},
-                                        "latitude": {"type": "number"},
-                                        "longitude": {"type": "number"},
-                                        "lat": {"type": "number"},
-                                        "lon": {"type": "number"},
-                                    },
-                                },
-                            },
-                            {
-                                "name": "get_stealth_engine_status",
-                                "description": "Check Level 5 stealth evasion engine status.",
-                                "inputSchema": {"type": "object"},
-                            },
-                            {
-                                "name": "run_security_audit_on_page",
-                                "description": "Performs a full defensive security audit on the target URL using UnifiedSecurityAuditorV5.",
-                                "inputSchema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "url": {"type": "string"},
-                                        "profile": {"type": "string", "default": "win11_nvidia_rtx4070"},
-                                    },
-                                    "required": ["url"],
-                                },
-                            },
-                        ]
-                    },
-                }
+        if method == "initialize":
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "behavioral-playwright", "version": "10.0.2"},
+                },
+            }
 
-            elif method == "tools/call":
-                name = params.get("name")
-                args = params.get("arguments", {})
+        if method == "tools/list":
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "tools": MCP_TOOL_DEFINITIONS,
+                },
+            }
 
-                if name == "execute_nlp_browser_task":
-                    inst = args.get("instruction", "")
-                    res = await self.executor.execute(inst)
-                    return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps(res.model_dump(), indent=2)}]}}
+        elif method == "tools/call":
+            name = params.get("name", "")
+            args = params.get("arguments", {})
 
-                elif name == "parse_nlp_instruction_plan":
-                    inst = args.get("instruction", "")
-                    actions = self.parser.parse(inst)
-                    return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps([a.model_dump() for a in actions], indent=2)}]}}
+            tool_res = await self.dispatcher.execute_tool(name, args)
+            is_error = "error" in tool_res
+            content_text = json.dumps(tool_res, indent=2)
+            res_payload: Dict[str, Any] = {
+                "content": [{"type": "text", "text": content_text}],
+                "isError": is_error,
+            }
+            if isinstance(tool_res, dict) and "page_content" in tool_res:
+                res_payload["page_content"] = tool_res["page_content"]
+            elif isinstance(tool_res, dict) and "result" in tool_res and isinstance(tool_res["result"], dict) and "page_content" in tool_res["result"]:
+                res_payload["page_content"] = tool_res["result"]["page_content"]
 
-                elif name == "verify_satellite_yard":
-                    loc = SatelliteYardLocation(
-                        company_name=args.get("company_name", "Target"),
-                        physical_address=args.get("physical_address", args.get("address", "")),
-                        city=args.get("city", "City"),
-                        state=args.get("state", "TX"),
-                        latitude=float(args.get("latitude", args.get("lat", 0.0))),
-                        longitude=float(args.get("longitude", args.get("lon", 0.0))),
-                    )
-                    bundle = self.yard_verifier.build_verification_bundle(loc)
-                    return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps(bundle.model_dump(), indent=2)}]}}
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": res_payload,
+            }
 
-                elif name == "get_stealth_engine_status":
-                    status_info = {
-                        "version": "10.0.2",
-                        "status": "READY",
-                        "shields": ["Worker", "DirectWrite Font", "Realtek Hardware", "Newtonian Scroll", "Socket TTL", "NLP Engine", "Satellite Verifier"],
-                    }
-                    return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps(status_info, indent=2)}]}}
+        elif method == "ping":
+            return {"jsonrpc": "2.0", "id": req_id, "result": {}}
 
-                elif name == "run_security_audit_on_page":
-                    from behavioral_evasion_suite import StealthSession, UnifiedSecurityAuditorV5
-                    url = args.get("url", "https://example.com")
-                    prof = args.get("profile", "win11_nvidia_rtx4070")
-                    async with StealthSession(profile=prof) as session:
-                        page = session.page
-                        auditor = UnifiedSecurityAuditorV5(page=page)
-                        await page.goto(url)
-                        report = await auditor.run_full_page_audit(page)
-                        return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps(report, indent=2)}]}}
+        return {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": f"Method {method} not found"}}
 
-            return {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": f"Method {method} not found"}}
+    async def run_stdio(self):
+        import logging
+        logging.basicConfig(
+            stream=sys.stderr,
+            level=logging.INFO,
+            format="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
+        )
+        for h in list(logging.root.handlers):
+            if getattr(h, "stream", None) == sys.stdout:
+                h.stream = sys.stderr
 
-        async def run_stdio(self):
-            loop = asyncio.get_running_loop()
-            reader = asyncio.StreamReader()
-            protocol = asyncio.StreamReaderProtocol(reader)
-            await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+        real_stdout = sys.stdout
+        sys.stdout = sys.stderr
 
-            while True:
-                line = await reader.readline()
-                if not line:
-                    break
-                try:
-                    req = json.loads(line.decode().strip())
-                    resp = await self.handle_request(req)
-                    sys.stdout.write(json.dumps(resp) + "\n")
-                    sys.stdout.flush()
-                except Exception as e:
-                    err_resp = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": str(e)}}
-                    sys.stdout.write(json.dumps(err_resp) + "\n")
-                    sys.stdout.flush()
+        loop = asyncio.get_running_loop()
+        reader = asyncio.StreamReader()
+        protocol = asyncio.StreamReaderProtocol(reader)
+        await loop.connect_read_pipe(lambda: protocol, sys.stdin)
 
-    def run():
-        srv = FallbackStdioMCPServer()
-        asyncio.run(srv.run_stdio())
+        while True:
+            line = await reader.readline()
+            if not line:
+                break
+            line_str = line.decode().strip()
+            if not line_str:
+                continue
+            try:
+                req = json.loads(line_str)
+                resp = await self.handle_request(req)
+                if resp is not None:
+                    real_stdout.write(json.dumps(resp) + "\n")
+                    real_stdout.flush()
+            except Exception as e:
+                err_resp = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": str(e)}}
+                real_stdout.write(json.dumps(err_resp) + "\n")
+                real_stdout.flush()
+
+
+def run():
+    srv = FallbackStdioMCPServer()
+    asyncio.run(srv.run_stdio())
 
 
 if __name__ == "__main__":

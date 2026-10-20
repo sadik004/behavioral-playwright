@@ -9,6 +9,7 @@ from veil.extraction.auto_schema import (
 from veil.extraction.hydration import extract_hydration_state
 from veil.extraction.markdown import (
     DistilledMarkdown,
+    MarkdownConverter,
     html_to_fit_markdown,
 )
 from veil.extraction.quarantine import (
@@ -70,6 +71,7 @@ __all__ = [
     "extract_hydration_state",
     "DistilledMarkdown",
     "html_to_fit_markdown",
+    "MarkdownConverter",
     "DataQuarantineGate",
     "QuarantineVerdict",
     "BlockTreePruneResult",

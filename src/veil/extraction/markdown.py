@@ -231,3 +231,24 @@ def html_to_fit_markdown(html: str, query: Optional[str] = None) -> DistilledMar
         tables_extracted=parser.tables_extracted,
         honeypots_stripped=parser.honeypots_stripped,
     )
+
+
+class MarkdownConverter:
+    """Enterprise HTML to Markdown converter using fit-markdown boilerplate and honeypot distiller."""
+
+    def __init__(self, query: Optional[str] = None) -> None:
+        self.default_query = query
+
+    def convert(self, html: str, query: Optional[str] = None) -> str:
+        """Converts raw HTML into clean, high-density Markdown text."""
+        effective_query = query if query is not None else self.default_query
+        distilled = html_to_fit_markdown(html, query=effective_query)
+        return distilled.fit_markdown if distilled.fit_markdown else distilled.raw_markdown
+
+
+__all__ = [
+    "DistilledMarkdown",
+    "html_to_fit_markdown",
+    "MarkdownConverter",
+]
+
