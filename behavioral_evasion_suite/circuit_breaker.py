@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Patch 8: Status-Granular Circuit Breaker with Cooldown Jitter
 Handles cooldowns and dynamic delays based on block taxonomy with Gaussian Jitter.

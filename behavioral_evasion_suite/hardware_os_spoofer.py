@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Patch 4: Hardware and OS Sync (WebGL & Platform Masking)
 Aligns canvas hashes, system fonts, and WebGL parameter query returns

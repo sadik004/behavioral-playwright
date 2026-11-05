@@ -1,7 +1,21 @@
-"""Backward-compatible package alias forwarding to `veil.mapping`."""
-import importlib as _importlib
+"""Mapping and Page Intelligence module."""
 
-_mod = _importlib.import_module("veil.mapping")
-for _k, _v in _mod.__dict__.items():
-    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
-        globals()[_k] = _v
+from behavioral_playwright.mapping.mapper import SiteMapper
+from behavioral_playwright.mapping.models import (
+    FieldEvidence,
+    MappedField,
+    MappingResult,
+    SearchResultItem,
+    SourceType,
+)
+from behavioral_playwright.mapping.schema_mapper import PageSchemaMapper
+
+__all__ = [
+    "SiteMapper",
+    "PageSchemaMapper",
+    "SourceType",
+    "FieldEvidence",
+    "MappedField",
+    "MappingResult",
+    "SearchResultItem",
+]

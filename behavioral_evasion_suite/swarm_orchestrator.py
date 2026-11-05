@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Isolated Worker Context Swarm Orchestrator
 Orchestrates parallel browser worker contexts with isolated socket contexts.

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Fluent High-Level Developer API (Code UX) for Behavioral Evasion Suite (v6.0.0 Level 5 Quantum Edition)
 Provides a clean, drop-in async context manager and page wrapper for Playwright with zero boilerplate.

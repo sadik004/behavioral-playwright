@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Backward-compatible module forwarding to `veil.kinematics.dom_telemetry`."""
 
 from veil.kinematics.dom_telemetry import (

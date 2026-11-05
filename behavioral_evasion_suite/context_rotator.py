@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Patch 5: Concurrent Memory Recycling & Context Rotation
 Actively recycles BrowserContexts and purges V8 caching boundaries

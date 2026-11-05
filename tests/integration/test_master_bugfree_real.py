@@ -328,7 +328,7 @@ def test_bug_09_all_34_mcp_tools_real_dispatch() -> None:
     """Verifies all 34 MCP tools in veil.mcp.tools execute cleanly against a live local HTTP server."""
     from veil.mcp.tools import handle_tool_call
 
-    tools_file = SRC_DIR / "veil" / "mcp" / "tools.py"
+    tools_file = (SRC_DIR / "behavioral_playwright" / "mcp" / "tools.py") if (SRC_DIR / "behavioral_playwright" / "mcp" / "tools.py").exists() else (SRC_DIR / "veil" / "mcp" / "tools.py")
     tool_names = sorted(set(re.findall(r"tool_name\s*==\s*['\"]([^'\"]+)['\"]", tools_file.read_text(encoding="utf-8"))))
     assert len(tool_names) >= 34
 

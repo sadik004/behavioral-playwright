@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Patch 6: OS File Descriptor & Socket Starvation Guard
 Prevents OS File Descriptor Exhaustion (OSError: [Errno 24] Too many open files).

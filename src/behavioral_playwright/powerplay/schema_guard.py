@@ -1,5 +1,5 @@
-"""Backward-compatible module alias forwarding to `veil.kinematics.schema_guard`."""
+"""Backward-compatible module alias forwarding to `behavioral_playwright.kinematics.schema_guard`."""
 import importlib as _importlib
 import sys as _sys
 
-_sys.modules[__name__] = _importlib.import_module("veil.kinematics.schema_guard")
+_sys.modules[__name__] = _importlib.import_module("behavioral_playwright.kinematics.schema_guard")

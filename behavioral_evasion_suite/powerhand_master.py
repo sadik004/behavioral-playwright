@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Unified PowerHand Master Facade & Production Playwright Integration Runner
 Hardened against Floating-Point Exceptions, DOM Race Conditions, and CreepJS/Sannysoft audits.

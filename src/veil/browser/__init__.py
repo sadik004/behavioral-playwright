@@ -1,14 +1,16 @@
-"""Browser provider implementations."""
+"""Backward-compatible package alias forwarding to `behavioral_playwright.browser`."""
+from __future__ import annotations
 
-from behavioral_playwright.browser.base import BrowserProvider
-from behavioral_playwright.browser.mock_provider import MockBrowserProvider, MockPage
-from behavioral_playwright.browser.playwright_provider import PlaywrightProvider
-from behavioral_playwright.browser.pool import BrowserPoolManager
+import importlib as _importlib
+import sys as _sys
 
-__all__ = [
-    "BrowserProvider",
-    "MockBrowserProvider",
-    "MockPage",
-    "PlaywrightProvider",
-    "BrowserPoolManager",
-]
+_mod = _importlib.import_module("behavioral_playwright.browser")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v
+
+__all__ = getattr(_mod, "__all__", [k for k in globals() if not k.startswith("_")])
+
+
+def __getattr__(name: str):
+    return getattr(_mod, name)

@@ -1,7 +1,42 @@
-"""Backward-compatible package alias forwarding to `veil.resilience`."""
-import importlib as _importlib
+"""Resilience, fault tolerance, and recovery primitives."""
 
-_mod = _importlib.import_module("veil.resilience")
-for _k, _v in _mod.__dict__.items():
-    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
-        globals()[_k] = _v
+from behavioral_playwright.resilience.circuit_breaker import (
+    CircuitBreaker,
+    CircuitState,
+)
+from behavioral_playwright.resilience.idempotency import (
+    IdempotencyPolicy,
+    OperationType,
+)
+from behavioral_playwright.resilience.models import (
+    RecoveryRecord,
+    RecoveryState,
+    RetryAttemptRecord,
+)
+from behavioral_playwright.resilience.recovery import RecoveryManager
+from behavioral_playwright.resilience.retry import RetryPolicy
+from behavioral_playwright.resilience.state import PageStateEntry, StateTracker
+from behavioral_playwright.resilience.taxonomy import (
+    FailureCategory,
+    classify_failure,
+    is_recoverable_via_restart,
+    is_retryable,
+)
+
+__all__ = [
+    "CircuitBreaker",
+    "CircuitState",
+    "FailureCategory",
+    "IdempotencyPolicy",
+    "OperationType",
+    "PageStateEntry",
+    "RecoveryManager",
+    "RecoveryRecord",
+    "RecoveryState",
+    "RetryAttemptRecord",
+    "RetryPolicy",
+    "StateTracker",
+    "classify_failure",
+    "is_recoverable_via_restart",
+    "is_retryable",
+]

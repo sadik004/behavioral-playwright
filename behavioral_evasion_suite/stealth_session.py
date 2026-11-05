@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 StealthSession & Human Input Emulation Helpers - Level 5 Quantum Edition
 Unified Level-5 Quantum Hardened Session Context Manager for Behavioral Playwright.

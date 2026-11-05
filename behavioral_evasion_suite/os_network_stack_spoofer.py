@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 OS Network Stack Spoofer - Level 5 Quantum Edition
 Passive OS TCP/IP Socket TTL & Network Stack Fingerprint Spoofer.

@@ -1,5 +1,144 @@
-"""Backward-compatible module alias forwarding to `veil.mcp.server`."""
-import importlib as _importlib
-import sys as _sys
+"""Standard JSON-RPC 2.0 Model Context Protocol (MCP) Server."""
 
-_sys.modules[__name__] = _importlib.import_module("veil.mcp.server")
+from __future__ import annotations
+
+import asyncio
+import json
+import sys
+from typing import Any, Dict, Optional
+
+from behavioral_playwright.config.settings import AutomationConfig
+from behavioral_playwright.mcp.tools import MCP_TOOL_DEFINITIONS, McpToolDispatcher
+
+
+class McpServer:
+    """Stdio-based JSON-RPC 2.0 server for Claude Desktop, Cursor, and AI Agents."""
+
+    def __init__(
+        self,
+        config: Optional[AutomationConfig] = None,
+        bp: Optional[Any] = None,
+    ) -> None:
+        self.dispatcher = McpToolDispatcher(bp=bp, config=config)
+
+
+    async def handle_request(self, request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        req_id = request.get("id")
+        method = request.get("method")
+        params = request.get("params", {})
+
+        # JSON-RPC 2.0: notifications have no id or are explicit notifications
+        if req_id is None or method == "notifications/initialized" or (isinstance(method, str) and method.startswith("notifications/")):
+            return None
+
+        if method == "initialize":
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "behavioral-playwright-mcp", "version": "10.0.0"},
+                },
+            }
+
+        elif method == "tools/list":
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {"tools": MCP_TOOL_DEFINITIONS},
+            }
+
+        elif method == "tools/call":
+            tool_name = params.get("name", "")
+            arguments = params.get("arguments", {})
+            result = await self.dispatcher.execute_tool(tool_name, arguments)
+            
+            is_error = "error" in result
+            content_text = json.dumps(result, indent=2)
+            res_dict: Dict[str, Any] = {
+                "content": [{"type": "text", "text": content_text}],
+                "isError": is_error,
+            }
+            if isinstance(result, dict) and "page_content" in result:
+                res_dict["page_content"] = result["page_content"]
+            elif isinstance(result, dict) and "result" in result and isinstance(result["result"], dict) and "page_content" in result["result"]:
+                res_dict["page_content"] = result["result"]["page_content"]
+
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": res_dict,
+            }
+
+        elif method == "ping":
+            return {"jsonrpc": "2.0", "id": req_id, "result": {}}
+
+        # Unknown method with valid req_id
+        return {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "error": {"code": -32601, "message": f"Method not found: {method}"},
+        }
+
+    async def run_stdio(self) -> None:
+        """Reads JSON-RPC lines from stdin and writes responses to stdout."""
+        import logging
+
+        logging.basicConfig(
+            stream=sys.stderr,
+            level=logging.INFO,
+            format="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
+        )
+        for h in list(logging.root.handlers):
+            if getattr(h, "stream", None) == sys.stdout:
+                h.stream = sys.stderr
+
+        real_stdout = sys.stdout
+        sys.stdout = sys.stderr
+
+        loop = asyncio.get_running_loop()
+
+        while True:
+            line_str = await loop.run_in_executor(None, sys.stdin.readline)
+            if not line_str:
+                break
+            line_str = line_str.strip()
+            if not line_str:
+                continue
+
+            try:
+                req = json.loads(line_str)
+                resp = await self.handle_request(req)
+                if resp is not None:
+                    real_stdout.write(json.dumps(resp) + "\n")
+                    real_stdout.flush()
+            except Exception as exc:
+                err_resp = {
+                    "jsonrpc": "2.0",
+                    "id": None,
+                    "error": {"code": -32700, "message": f"Parse error: {str(exc)}"},
+                }
+                real_stdout.write(json.dumps(err_resp) + "\n")
+                real_stdout.flush()
+
+    @staticmethod
+    def generate_claude_config(python_path: str = "python") -> Dict[str, Any]:
+        """Generates standard claude_desktop_config.json entry."""
+        return {
+            "mcpServers": {
+                "behavioral-playwright": {
+                    "command": python_path,
+                    "args": ["-m", "behavioral_playwright.mcp.server"],
+                }
+            }
+        }
+
+
+def main() -> None:
+    server = McpServer()
+    asyncio.run(server.run_stdio())
+
+
+if __name__ == "__main__":
+    main()

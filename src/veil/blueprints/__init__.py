@@ -1,23 +1,16 @@
-"""Veil Customizable Client Service Blueprints (`veil.blueprints`).
+"""Backward-compatible package alias forwarding to `behavioral_playwright.blueprints`."""
+from __future__ import annotations
 
-Provides 5 production-grade blueprints:
-1. EcommerceStealthBlueprint - Catalog, pricing, and table extraction with Newtonian scroll
-2. CognitiveFormAgentBlueprint - Autonomous form agent with Weibull typing & pre-click streams
-3. WebRTCAndAuthAuditBlueprint - Security headers, WebRTC leak risk, and session state vaulting
-4. QuantPiTAndITCHBlueprint - Point-in-Time financial alignment and NASDAQ TotalView-ITCH 5.0 feeds
-5. FirecrawlReplacementBlueprint - Self-contained, zero-cost drop-in replacement for Firecrawl
-"""
+import importlib as _importlib
+import sys as _sys
 
-from veil.blueprints.ecommerce import EcommerceStealthBlueprint
-from veil.blueprints.form_agent import CognitiveFormAgentBlueprint
-from veil.blueprints.security_audit import WebRTCAndAuthAuditBlueprint
-from veil.blueprints.quant import QuantPiTAndITCHBlueprint
-from veil.blueprints.firecrawl import FirecrawlReplacementBlueprint
+_mod = _importlib.import_module("behavioral_playwright.blueprints")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v
 
-__all__ = [
-    "EcommerceStealthBlueprint",
-    "CognitiveFormAgentBlueprint",
-    "WebRTCAndAuthAuditBlueprint",
-    "QuantPiTAndITCHBlueprint",
-    "FirecrawlReplacementBlueprint",
-]
+__all__ = getattr(_mod, "__all__", [k for k in globals() if not k.startswith("_")])
+
+
+def __getattr__(name: str):
+    return getattr(_mod, name)

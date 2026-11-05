@@ -5,7 +5,7 @@ src.behavioral_playwright.providers to ensure identity consistency.
 """
 from __future__ import annotations
 
-from src.behavioral_playwright.providers.base import (
+from behavioral_playwright.providers.base import (
     HONESTY_NOTE,
     ProviderInfo,
     ProviderUnavailableError,

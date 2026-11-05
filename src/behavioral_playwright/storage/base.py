@@ -1,5 +1,15 @@
-"""Backward-compatible module alias forwarding to `veil.storage.base`."""
-import importlib as _importlib
-import sys as _sys
+"""Storage base interfaces."""
 
-_sys.modules[__name__] = _importlib.import_module("veil.storage.base")
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Sequence
+
+
+class BaseExporter(ABC):
+    """Abstract interface for exporting structured extraction records."""
+
+    @abstractmethod
+    def export(self, records: Sequence[Dict[str, Any]], target_path: str, **kwargs: Any) -> str:
+        """Exports records to destination path and returns the resolved target path."""
+        pass

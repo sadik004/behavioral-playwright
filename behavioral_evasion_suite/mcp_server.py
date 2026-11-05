@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Behavioral Playwright MCP Server - Level 5+ Enterprise Standard
 Provides Model Context Protocol (MCP) JSON-RPC 2.0 interface over stdio for

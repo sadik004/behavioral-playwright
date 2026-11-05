@@ -1,17 +1,16 @@
-"""Selectors and self-healing resolution module."""
+"""Backward-compatible package alias forwarding to `behavioral_playwright.selectors`."""
+from __future__ import annotations
 
-from behavioral_playwright.selectors.fuzzy import FuzzyResolverStrategy
-from behavioral_playwright.selectors.memory import MemoryEntry, SelectorMemory
-from behavioral_playwright.selectors.resolver import SelfHealingResolver
-from behavioral_playwright.selectors.semantic import SemanticResolverStrategy
-from behavioral_playwright.selectors.strategies import ResolverStrategy
+import importlib as _importlib
+import sys as _sys
 
-__all__ = [
-    "FuzzyResolverStrategy",
-    "MemoryEntry",
-    "ResolverStrategy",
-    "SelectorMemory",
-    "SelfHealingResolver",
-    "SemanticResolverStrategy",
-]
+_mod = _importlib.import_module("behavioral_playwright.selectors")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v
 
+__all__ = getattr(_mod, "__all__", [k for k in globals() if not k.startswith("_")])
+
+
+def __getattr__(name: str):
+    return getattr(_mod, name)

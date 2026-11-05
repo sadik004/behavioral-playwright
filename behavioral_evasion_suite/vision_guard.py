@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Backward-compatible module forwarding to `veil.kinematics.vision_guard`."""
 
 from veil.kinematics.vision_guard import (

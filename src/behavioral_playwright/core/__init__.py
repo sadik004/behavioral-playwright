@@ -1,7 +1,23 @@
-"""Backward-compatible package alias forwarding to `veil.core`."""
-import importlib as _importlib
+"""Core hardened evasion, quantitative market contract, and ITCH-5.0 parsing engines."""
 
-_mod = _importlib.import_module("veil.core")
-for _k, _v in _mod.__dict__.items():
-    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
-        globals()[_k] = _v
+from behavioral_playwright.core.itch_binary import (
+    ItchBinaryParser,
+    ItchParseResult,
+    ItchProtocolError,
+    ItchTruncatedError,
+    ItchUnknownTypeError,
+    ItchInvalidFieldError,
+    ItchLifecycleError,
+    EXPECTED_LENGTHS,
+)
+
+__all__ = [
+    "ItchBinaryParser",
+    "ItchParseResult",
+    "ItchProtocolError",
+    "ItchTruncatedError",
+    "ItchUnknownTypeError",
+    "ItchInvalidFieldError",
+    "ItchLifecycleError",
+    "EXPECTED_LENGTHS",
+]

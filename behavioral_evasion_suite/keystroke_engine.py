@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Biometric Cognitive Keystroke Engine with Physical ScanCodes
 Simulates human typing dynamics using QWERTY spatial distances, Weibull flight times,
@@ -5,7 +6,7 @@ probabilistic adjacent typos with backspace auto-correction, and physical keycod
 """
 import math
 import random
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 
 
 class CognitiveKeystrokeEngine:
@@ -26,27 +27,34 @@ class CognitiveKeystrokeEngine:
     @classmethod
     def _char_to_keycode(cls, ch: str) -> int:
         if not ch:
-            return 32
-        if ch.isalpha():
-            return ord(ch.upper())
-        if ch.isdigit():
-            return ord(ch)
-        spec = {
-            ' ': 32, '\n': 13, '\t': 9, ';': 186, '=': 187, ',': 188,
-            '-': 189, '.': 190, '/': 191, '`': 192, '[': 219, '\\': 220,
-            ']': 221, "'": 222, '"': 222
-        }
-        return spec.get(ch, ord(ch[0]))
+            return 0
+        if len(ch) == 1 and ord(ch) < 128:
+            if ch.isalpha():
+                return ord(ch.upper())
+            if ch.isdigit():
+                return ord(ch)
+            spec = {
+                ' ': 32, '\n': 13, '\t': 9, ';': 186, '=': 187, ',': 188,
+                '-': 189, '.': 190, '/': 191, '`': 192, '[': 219, '\\': 220,
+                ']': 221, "'": 222, '"': 222
+            }
+            return spec.get(ch, ord(ch[0]))
+        return ord(ch[0]) if ch else 0
 
     @classmethod
     def _resolve_keycode(cls, ch: str) -> Tuple[str, int]:
-        if ch.isalpha():
-            return f"Key{ch.upper()}", ord(ch.upper())
-        if ch.isdigit():
-            return f"Digit{ch}", ord(ch)
-        if ch in cls._SPECIAL_KEYCODES:
-            return cls._SPECIAL_KEYCODES[ch]
-        return "Quote", 32
+        if not ch:
+            return "Unidentified", 0
+        if len(ch) == 1 and ord(ch) < 128:
+            if ch.isalpha():
+                return f"Key{ch.upper()}", ord(ch.upper())
+            if ch.isdigit():
+                return f"Digit{ch}", ord(ch)
+            if ch in cls._SPECIAL_KEYCODES:
+                return cls._SPECIAL_KEYCODES[ch]
+            return "Unidentified", ord(ch)
+        # Full Unicode / W3C Synthetic KeyboardEvent mapping for non-ASCII (Arabic, Kanji, Emojis)
+        return "Unidentified", ord(ch[0])
 
     """
     Simulates human typing dynamics using QWERTY spatial distances, Weibull key-dwell times,

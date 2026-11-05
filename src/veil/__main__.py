@@ -1,7 +1,5 @@
-"""Behavioral Playwright module execution entry point (python -m behavioral_playwright)."""
+"""Backward-compatible alias forwarding to `behavioral_playwright.__main__`."""
+import importlib as _importlib
+import sys as _sys
 
-import sys
-from behavioral_playwright.cli.main import main
-
-if __name__ == "__main__":
-    sys.exit(main())
+_sys.modules[__name__] = _importlib.import_module("behavioral_playwright.__main__")

@@ -1,21 +1,16 @@
-"""Mapping and Page Intelligence module."""
+"""Backward-compatible package alias forwarding to `behavioral_playwright.mapping`."""
+from __future__ import annotations
 
-from behavioral_playwright.mapping.mapper import SiteMapper
-from behavioral_playwright.mapping.models import (
-    FieldEvidence,
-    MappedField,
-    MappingResult,
-    SearchResultItem,
-    SourceType,
-)
-from behavioral_playwright.mapping.schema_mapper import PageSchemaMapper
+import importlib as _importlib
+import sys as _sys
 
-__all__ = [
-    "SiteMapper",
-    "PageSchemaMapper",
-    "SourceType",
-    "FieldEvidence",
-    "MappedField",
-    "MappingResult",
-    "SearchResultItem",
-]
+_mod = _importlib.import_module("behavioral_playwright.mapping")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v
+
+__all__ = getattr(_mod, "__all__", [k for k in globals() if not k.startswith("_")])
+
+
+def __getattr__(name: str):
+    return getattr(_mod, name)

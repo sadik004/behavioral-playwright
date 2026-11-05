@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Behavioral Evasion Suite & PowerHand Unified Master Engine (v6.0.0 Level 5 Quantum Edition)
 Unified Modular Anti-Bot Evasion Architecture, Statistical Biometric Engine, and Quantum Shields

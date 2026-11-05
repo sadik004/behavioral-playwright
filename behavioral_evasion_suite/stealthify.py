@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Universal Drop-In Stealthify & Autonomous Challenge Solver Engine (v6.0.0 Level 5 Quantum Edition)
 Enables 1-line transformation of existing Playwright Page instances into hardened, autonomous stealth agents.

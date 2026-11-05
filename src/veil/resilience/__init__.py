@@ -1,42 +1,16 @@
-"""Resilience, fault tolerance, and recovery primitives."""
+"""Backward-compatible package alias forwarding to `behavioral_playwright.resilience`."""
+from __future__ import annotations
 
-from behavioral_playwright.resilience.circuit_breaker import (
-    CircuitBreaker,
-    CircuitState,
-)
-from behavioral_playwright.resilience.idempotency import (
-    IdempotencyPolicy,
-    OperationType,
-)
-from behavioral_playwright.resilience.models import (
-    RecoveryRecord,
-    RecoveryState,
-    RetryAttemptRecord,
-)
-from behavioral_playwright.resilience.recovery import RecoveryManager
-from behavioral_playwright.resilience.retry import RetryPolicy
-from behavioral_playwright.resilience.state import PageStateEntry, StateTracker
-from behavioral_playwright.resilience.taxonomy import (
-    FailureCategory,
-    classify_failure,
-    is_recoverable_via_restart,
-    is_retryable,
-)
+import importlib as _importlib
+import sys as _sys
 
-__all__ = [
-    "CircuitBreaker",
-    "CircuitState",
-    "FailureCategory",
-    "IdempotencyPolicy",
-    "OperationType",
-    "PageStateEntry",
-    "RecoveryManager",
-    "RecoveryRecord",
-    "RecoveryState",
-    "RetryAttemptRecord",
-    "RetryPolicy",
-    "StateTracker",
-    "classify_failure",
-    "is_recoverable_via_restart",
-    "is_retryable",
-]
+_mod = _importlib.import_module("behavioral_playwright.resilience")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v
+
+__all__ = getattr(_mod, "__all__", [k for k in globals() if not k.startswith("_")])
+
+
+def __getattr__(name: str):
+    return getattr(_mod, name)

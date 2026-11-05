@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 NLP Action Executor for Behavioral Playwright
 Binds parsed natural language actions directly to StealthSession and Level 5 Quantum Shields.

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 SATELLITE FIELD TELEMETRY & YARD VERIFICATION ENGINE
 Part of behavioral-playwright Enterprise Suite

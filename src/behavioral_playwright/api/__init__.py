@@ -1,7 +1,13 @@
-"""Backward-compatible package alias forwarding to `veil.api`."""
-import importlib as _importlib
+"""API optimization package."""
 
-_mod = _importlib.import_module("veil.api")
-for _k, _v in _mod.__dict__.items():
-    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
-        globals()[_k] = _v
+from behavioral_playwright.api.client import (
+    ApiResponse,
+    ApiRequestCache,
+    AsyncApiClient,
+)
+
+__all__ = [
+    "ApiResponse",
+    "ApiRequestCache",
+    "AsyncApiClient",
+]

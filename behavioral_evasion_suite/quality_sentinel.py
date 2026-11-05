@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Patch 10: Pydantic Data Integrity & Honeypot Sentinel
 Monitors schema drift, detects empty pages, and screens element bounding boxes

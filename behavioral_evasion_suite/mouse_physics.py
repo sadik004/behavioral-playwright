@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Patch 3: Biomechanical Mouse Physics with Neuromuscular Inertia Filter
 Models high-fidelity human cursor movements based on Cubic Bézier curves,
@@ -97,7 +98,7 @@ class BiomechanicalMousePhysics:
         x2, y2 = e
 
         distance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-        if distance == 0:
+        if distance < 1.0:
             return [MousePoint(x1, y1)]
 
         # Fitts's Law Target Overshoot math
@@ -143,6 +144,9 @@ class BiomechanicalMousePhysics:
             curr_x = last_x + (x2 - last_x) * log_t
             curr_y = last_y + (y2 - last_y) * log_t
             points.append(MousePoint(curr_x, curr_y))
+
+        if points:
+            points[-1] = MousePoint(x2, y2)
 
         return points
 

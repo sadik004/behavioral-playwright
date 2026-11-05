@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Native JavaScript WeakMap Spoofing Utilities & Log Sanitizer
 """

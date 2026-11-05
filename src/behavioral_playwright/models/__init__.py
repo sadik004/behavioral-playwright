@@ -1,7 +1,35 @@
-"""Backward-compatible package alias forwarding to `veil.models`."""
-import importlib as _importlib
+"""Data models for behavioral-playwright."""
 
-_mod = _importlib.import_module("veil.models")
-for _k, _v in _mod.__dict__.items():
-    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
-        globals()[_k] = _v
+from behavioral_playwright.models.elements import BoundingBox, DOMElement
+from behavioral_playwright.models.results import (
+    CSRDriftReport,
+    ExtractionRecord,
+    ResolutionResult,
+    ResolutionStrategy,
+)
+from behavioral_playwright.models.linkedin_dtos import (
+    LinkedInAuthStatusDTO,
+    LinkedInProfileDTO,
+    LinkedInUpdateResultDTO,
+)
+from behavioral_playwright.models.reddit_dtos import (
+    RedditAuthStatusDTO,
+    RedditLeadAuditDTO,
+    RedditLeadDTO,
+)
+
+__all__ = [
+    "BoundingBox",
+    "DOMElement",
+    "ExtractionRecord",
+    "ResolutionResult",
+    "ResolutionStrategy",
+    "CSRDriftReport",
+    "LinkedInProfileDTO",
+    "LinkedInAuthStatusDTO",
+    "LinkedInUpdateResultDTO",
+    "RedditLeadDTO",
+    "RedditLeadAuditDTO",
+    "RedditAuthStatusDTO",
+]
+

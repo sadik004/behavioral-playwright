@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Patch 9: Non-Blocking Async Persistence Pipeline (PostgreSQL / NDJSON)
 Pluggable bulk ingestion layer with transaction safety. Offloads all blocking disk

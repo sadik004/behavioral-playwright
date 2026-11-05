@@ -1,7 +1,19 @@
-"""Backward-compatible package alias forwarding to `veil.storage`."""
-import importlib as _importlib
+"""Unified data storage and export subsystem."""
 
-_mod = _importlib.import_module("veil.storage")
-for _k, _v in _mod.__dict__.items():
-    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
-        globals()[_k] = _v
+from behavioral_playwright.storage.base import BaseExporter
+from behavioral_playwright.storage.exporters import (
+    CSVExporter,
+    DataStorageManager,
+    JSONExporter,
+    NDJSONExporter,
+    SQLiteExporter,
+)
+
+__all__ = [
+    "BaseExporter",
+    "JSONExporter",
+    "NDJSONExporter",
+    "CSVExporter",
+    "SQLiteExporter",
+    "DataStorageManager",
+]

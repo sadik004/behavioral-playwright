@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Unified Quantum Facade - Level 5+ Enterprise Architecture
 Aggregates and organizes all 31 sub-modules into 5 cohesive operational domains.

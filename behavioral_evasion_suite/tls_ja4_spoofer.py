@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Patch 2: TLS & JA4 Handshake Spoofing
 Outfits lightweight protocol requests with high-fidelity JA4/TLS handshakes

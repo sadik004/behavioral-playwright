@@ -1,19 +1,16 @@
-"""Dynamic fingerprint and hardware profile generator."""
+"""Backward-compatible package alias forwarding to `behavioral_playwright.fingerprint`."""
+from __future__ import annotations
 
-from behavioral_playwright.fingerprint.models import (
-    FingerprintProfile,
-    OSPlatform,
-    ScreenSpec,
-    WebGLSpec,
-)
-from behavioral_playwright.fingerprint.generator import FingerprintGenerator
-from behavioral_playwright.fingerprint.profiles import CURATED_PROFILES
+import importlib as _importlib
+import sys as _sys
 
-__all__ = [
-    "FingerprintProfile",
-    "FingerprintGenerator",
-    "OSPlatform",
-    "ScreenSpec",
-    "WebGLSpec",
-    "CURATED_PROFILES",
-]
+_mod = _importlib.import_module("behavioral_playwright.fingerprint")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v
+
+__all__ = getattr(_mod, "__all__", [k for k in globals() if not k.startswith("_")])
+
+
+def __getattr__(name: str):
+    return getattr(_mod, name)

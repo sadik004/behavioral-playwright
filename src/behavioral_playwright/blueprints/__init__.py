@@ -1,12 +1,23 @@
-"""Backward-compatible package alias forwarding to `veil.blueprints`."""
-from __future__ import annotations
+"""Veil Customizable Client Service Blueprints (`veil.blueprints`).
 
-import importlib as _importlib
+Provides 5 production-grade blueprints:
+1. EcommerceStealthBlueprint - Catalog, pricing, and table extraction with Newtonian scroll
+2. CognitiveFormAgentBlueprint - Autonomous form agent with Weibull typing & pre-click streams
+3. WebRTCAndAuthAuditBlueprint - Security headers, WebRTC leak risk, and session state vaulting
+4. QuantPiTAndITCHBlueprint - Point-in-Time financial alignment and NASDAQ TotalView-ITCH 5.0 feeds
+5. FirecrawlReplacementBlueprint - Self-contained, zero-cost drop-in replacement for Firecrawl
+"""
 
-_mod = _importlib.import_module("veil.blueprints")
-for _k, _v in _mod.__dict__.items():
-    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
-        globals()[_k] = _v
+from behavioral_playwright.blueprints.ecommerce import EcommerceStealthBlueprint
+from behavioral_playwright.blueprints.form_agent import CognitiveFormAgentBlueprint
+from behavioral_playwright.blueprints.security_audit import WebRTCAndAuthAuditBlueprint
+from behavioral_playwright.blueprints.quant import QuantPiTAndITCHBlueprint
+from behavioral_playwright.blueprints.firecrawl import FirecrawlReplacementBlueprint
 
-def __getattr__(name: str):
-    return getattr(_mod, name)
+__all__ = [
+    "EcommerceStealthBlueprint",
+    "CognitiveFormAgentBlueprint",
+    "WebRTCAndAuthAuditBlueprint",
+    "QuantPiTAndITCHBlueprint",
+    "FirecrawlReplacementBlueprint",
+]

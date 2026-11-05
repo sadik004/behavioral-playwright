@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Proxy & Session Isolation with Soft WebRTC Interception & HTTP/2 Header Synchronization
 Enforces 1-Proxy = 1-Isolated-Context lifecycle boundaries with WebRTC masking and persona coherence.

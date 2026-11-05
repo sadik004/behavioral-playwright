@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Patch 9 Support: Bounded Backpressure Async Queue
 Prevents concurrent memory bloating by restricting task queues with strict bounds.

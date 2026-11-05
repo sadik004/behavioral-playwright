@@ -1,7 +1,17 @@
-"""Backward-compatible package alias forwarding to `veil.selectors`."""
-import importlib as _importlib
+"""Selectors and self-healing resolution module."""
 
-_mod = _importlib.import_module("veil.selectors")
-for _k, _v in _mod.__dict__.items():
-    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
-        globals()[_k] = _v
+from behavioral_playwright.selectors.fuzzy import FuzzyResolverStrategy
+from behavioral_playwright.selectors.memory import MemoryEntry, SelectorMemory
+from behavioral_playwright.selectors.resolver import SelfHealingResolver
+from behavioral_playwright.selectors.semantic import SemanticResolverStrategy
+from behavioral_playwright.selectors.strategies import ResolverStrategy
+
+__all__ = [
+    "FuzzyResolverStrategy",
+    "MemoryEntry",
+    "ResolverStrategy",
+    "SelectorMemory",
+    "SelfHealingResolver",
+    "SemanticResolverStrategy",
+]
+

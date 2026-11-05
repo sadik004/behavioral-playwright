@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Coherent Hardware Profile Manager (Level 4 Engine Synchronization)
 Loads authentic system profiles containing fully synchronized WebGL, Audio,

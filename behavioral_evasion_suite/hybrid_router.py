@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Adaptive Dual-Engine Routing (Fast Path Protocol vs Heavy Path Browser)
 Performs optimized lightweight HTTP requests first, cascading dynamically

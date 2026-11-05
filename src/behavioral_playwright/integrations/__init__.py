@@ -1,7 +1,13 @@
-"""Backward-compatible package alias forwarding to `veil.integrations`."""
-import importlib as _importlib
+"""Integrations module for external platforms and services."""
 
-_mod = _importlib.import_module("veil.integrations")
-for _k, _v in _mod.__dict__.items():
-    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
-        globals()[_k] = _v
+from behavioral_playwright.integrations.extensions import IntegrationExtensions
+from behavioral_playwright.integrations.linkedin import LinkedInAutomationClient
+from behavioral_playwright.integrations.reddit import RedditAutomationClient
+
+__all__ = [
+    "IntegrationExtensions",
+    "LinkedInAutomationClient",
+    "RedditAutomationClient",
+]
+
+

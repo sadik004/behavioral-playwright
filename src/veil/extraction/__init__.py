@@ -1,87 +1,16 @@
-"""DOM & Semantic Extraction Subsystem."""
+"""Backward-compatible package alias forwarding to `behavioral_playwright.extraction`."""
+from __future__ import annotations
 
-from veil.extraction.auto_schema import (
-    AdaptiveSchemaSynthesizer,
-    AutoSchemaExtractor,
-    FieldExtractionRule,
-    SynthesizedTemplateSchema,
-)
-from veil.extraction.hydration import extract_hydration_state
-from veil.extraction.markdown import (
-    DistilledMarkdown,
-    MarkdownConverter,
-    html_to_fit_markdown,
-)
-from veil.extraction.quarantine import (
-    DataQuarantineGate,
-    QuarantineVerdict,
-)
-from veil.extraction.block_tree_pruner import (
-    BlockTreePruneResult,
-    BlockTreePruner,
-    DOMBlockNode,
-    flatten_shadow_dom_and_iframes,
-    lossless_structural_compress,
-)
-from veil.extraction.rag_chunker_exporter import (
-    HierarchicalRAGChunker,
-    SemanticRAGChunk,
-    StreamingCorpusExporter,
-    dataman_sampling_probabilities,
-    lexical_jaccard_cohesion,
-)
+import importlib as _importlib
+import sys as _sys
 
-try:
-    from behavioral_playwright.extraction.dom import (
-        DOMExtractor,
-        extract_json_ld,
-        extract_next_data,
-        extract_nuxt_data,
-        extract_open_graph,
-    )
-    from behavioral_playwright.extraction.normalizer import (
-        clean_text,
-        normalize_unicode,
-        normalize_whitespace,
-        parse_numeric,
-        parse_price,
-        remove_zero_width,
-        resolve_url,
-    )
-except ImportError as _optional_ext_exc:
-    _ = _optional_ext_exc
+_mod = _importlib.import_module("behavioral_playwright.extraction")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v
 
-__all__ = [
-    "DOMExtractor",
-    "extract_json_ld",
-    "extract_next_data",
-    "extract_nuxt_data",
-    "extract_open_graph",
-    "clean_text",
-    "normalize_unicode",
-    "normalize_whitespace",
-    "parse_numeric",
-    "parse_price",
-    "remove_zero_width",
-    "resolve_url",
-    "AdaptiveSchemaSynthesizer",
-    "AutoSchemaExtractor",
-    "FieldExtractionRule",
-    "SynthesizedTemplateSchema",
-    "extract_hydration_state",
-    "DistilledMarkdown",
-    "html_to_fit_markdown",
-    "MarkdownConverter",
-    "DataQuarantineGate",
-    "QuarantineVerdict",
-    "BlockTreePruneResult",
-    "BlockTreePruner",
-    "DOMBlockNode",
-    "flatten_shadow_dom_and_iframes",
-    "lossless_structural_compress",
-    "HierarchicalRAGChunker",
-    "SemanticRAGChunk",
-    "StreamingCorpusExporter",
-    "dataman_sampling_probabilities",
-    "lexical_jaccard_cohesion",
-]
+__all__ = getattr(_mod, "__all__", [k for k in globals() if not k.startswith("_")])
+
+
+def __getattr__(name: str):
+    return getattr(_mod, name)

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Cognitive Gaze Physics - Level 5 Quantum Edition
 Newtonian Inertial Scroll & Cognitive Reading Pause Engine.

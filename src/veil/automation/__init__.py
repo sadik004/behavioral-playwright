@@ -1,11 +1,16 @@
-"""Automation controllers for mouse, keyboard, and scrolling."""
+"""Backward-compatible package alias forwarding to `behavioral_playwright.automation`."""
+from __future__ import annotations
 
-from behavioral_playwright.automation.keyboard import KeyboardController
-from behavioral_playwright.automation.mouse import MouseController
-from behavioral_playwright.automation.scroll import ScrollController
+import importlib as _importlib
+import sys as _sys
 
-__all__ = [
-    "KeyboardController",
-    "MouseController",
-    "ScrollController",
-]
+_mod = _importlib.import_module("behavioral_playwright.automation")
+for _k, _v in _mod.__dict__.items():
+    if _k not in ("__name__", "__loader__", "__package__", "__spec__", "__path__", "__file__", "__cached__"):
+        globals()[_k] = _v
+
+__all__ = getattr(_mod, "__all__", [k for k in globals() if not k.startswith("_")])
+
+
+def __getattr__(name: str):
+    return getattr(_mod, name)
