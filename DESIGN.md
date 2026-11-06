@@ -389,3 +389,112 @@ Every architectural invariant is enforced by seven standalone verification suite
   - **Concurrency**: Up to $100+$ concurrent async HTTP requests per process bounded by `TokenBucketRateLimiter`.
 - **Tier 3 / Tier 4 (Headless / Kinematic Chromium + `ResolvedChromiumMemoryPIDController`)**:
   - **RAM Footprint**: Controlled around `target_mb = 512.0 MB` per Chromium instance via periodic resource timing cleanup, detached DOM pruning, and CDP garbage collection.
+
+---
+
+## 9. Distributed Reliability & High-Throughput Scalability Blueprint (Phase 2 Specification)
+
+This section serves as the binding architectural specification for **Phase 2: Distributed Reliability & Scalability Hardening**. Any implementation engineer or automated coding agent executing this specification must implement the exact contracts, mathematical invariants, and concurrency controls defined below without placeholders or mock shortcuts.
+
+### 9.1 Architectural Topology of Phase 2 Upgrades
+
+```mermaid
+flowchart TD
+    subgraph BulkheadLayer["1. Hierarchical Concurrency Bulkheads (crawling/service.py)"]
+        NetSem["Network Tier Bulkhead\nasyncio.Semaphore(128)\n(HTTP_FAST, TLS_IMPERSONATE)"]
+        BrowserSem["Browser Tier Bulkhead\nasyncio.Semaphore(8)\n(BROWSER_HEADLESS, BROWSER_STEALTH_KINEMATICS)"]
+    end
+
+    subgraph SharedStateLayer["2. Cross-Worker State Synchronization & Non-Stationary Bandit"]
+        DiscountBandit["Discounted BanditProxyRotator\nalpha <- max(1.0, gamma * alpha) + d_alpha\nbeta <- max(1.0, gamma * beta) + d_beta\n+ export_state() / import_state()"]
+        SharedBridge["Distributed BrowserClearanceBridge\nIn-Memory Lease Cache + Pluggable Shared Store\n+ export_leases() / import_leases()"]
+    end
+
+    subgraph LeaseReaperLayer["3. Fault-Tolerant Task Lease & Zombie Reaper (storage/task_queue.py)"]
+        PopLease["pop_task() sets status='running'\n+ leased_until = now + lease_timeout_sec"]
+        Heartbeat["heartbeat_task(task_id, extend_sec)\nExtends leased_until for active workers"]
+        Reaper["reclaim_expired_leases()\nTransitions expired 'running' tasks\nto 'retry:N' or 'failed:lease_expired'"]
+    end
+
+    BulkheadLayer --> SharedStateLayer
+    SharedStateLayer --> LeaseReaperLayer
+```
+
+---
+
+### 9.2 Upgrade 5A: Visibility Timeout Leases & Dead-Worker Zombie Reaper
+
+- **Target File**: [`src/behavioral_playwright/storage/task_queue.py`](file:///e:/behavioral-playwright/src/behavioral_playwright/storage/task_queue.py)
+- **Failure Mode Addressed**: If a worker process crashes (`SIGKILL` / OOM) after `pop_task()` transitions a task to `status = 'running'`, that task remains permanently stuck in `running` state.
+- **Required Interface Additions on `BaseTaskQueue`**:
+  1. Constructor parameter: `lease_timeout_sec: float = 60.0` stored as `self.lease_timeout_sec = float(lease_timeout_sec)`.
+  2. `heartbeat_task(self, task_id: str, extend_sec: Optional[float] = None) -> bool`:
+     - Extends `leased_until = time.time() + (extend_sec or self.lease_timeout_sec)` for a task currently in `status == 'running'`. Returns `True` if updated, `False` if task does not exist or is no longer `running`.
+  3. `reclaim_expired_leases(self) -> int`:
+     - Scans tasks where `status = 'running'` and `leased_until > 0 AND leased_until < time.time()`.
+     - If `retries + 1 < max_retries`, increments `retries = retries + 1`, sets `status = f'retry:{retries + 1}'`, clears `leased_until`, and re-queues the task for execution.
+     - If `retries + 1 >= max_retries`, transitions the task to `status = 'failed:lease_expired'`.
+     - Returns the exact count of reclaimed/expired tasks (`int`).
+- **Backend-Specific Schema & Atomic Rules**:
+  - **`SQLiteTaskQueue`**:
+    - Add column `leased_until REAL DEFAULT 0.0` to `tasks` table (via `CREATE TABLE IF NOT EXISTS` and safe `ALTER TABLE tasks ADD COLUMN leased_until REAL DEFAULT 0.0` migration check for existing tables).
+    - In `pop_task()`, set `leased_until = now + self.lease_timeout_sec` inside the `BEGIN IMMEDIATE` transaction.
+  - **`RedisTaskQueue`**:
+    - Store `leased_until` field inside the task hash (`self._task_key(task_id)`).
+    - In `reclaim_expired_leases()`, scan task hashes with `status == 'running'` and expired `leased_until`; atomically transition status and `ZADD` retryable tasks back into `self._pending_zset`.
+  - **`PostgresTaskQueue`**:
+    - Include `leased_until DOUBLE PRECISION DEFAULT 0.0` in table schema and update queries using parameterized SQL.
+
+---
+
+### 9.3 Upgrade 5B: Discounted Non-Stationary Thompson Sampling & State Sync
+
+- **Target File**: [`src/behavioral_playwright/crawling/bandit_proxy_rotator.py`](file:///e:/behavioral-playwright/src/behavioral_playwright/crawling/bandit_proxy_rotator.py)
+- **Failure Mode Addressed**: Under stationary Beta updates ($\alpha \leftarrow \alpha + 1$), a proxy that accumulated $\alpha = 1000$ successes over several hours retains a high mean ($\frac{1000}{1000 + \beta} \approx 0.98$) even after sudden IP degradation, causing repeated selection after cooldown expiry.
+- **Mathematical Specification (Discounted Beta Posterior)**:
+  - Add `decay_gamma: float = 0.98` ($\gamma \in (0.0, 1.0]$) to `BanditProxyRotator.__init__`.
+  - On `report_success(proxy_url, latency_ms)`:
+    $$\alpha_i \leftarrow \max(1.0, \gamma \cdot \alpha_i) + 1.0, \quad \beta_i \leftarrow \max(1.0, \gamma \cdot \beta_i)$$
+  - On `report_failure(proxy_url, status_code=None, is_waf_challenge=False)`:
+    $$\alpha_i \leftarrow \max(1.0, \gamma \cdot \alpha_i), \quad \beta_i \leftarrow \max(1.0, \gamma \cdot \beta_i) + \text{penalty}$$
+- **Cross-Worker State Synchronization Methods**:
+  - `export_state(self) -> Dict[str, Dict[str, Any]]`: Thread-safely serializes all `ProxyArmState` parameters (`alpha`, `beta`, `ewma_rtt_ms`, `pulls`, `consecutive_failures`, `cooldown_until`) under `self._lock`.
+  - `import_state(self, state_map: Dict[str, Dict[str, Any]], blend_weight: float = 0.5) -> None`: Thread-safely merges external worker state into local arms under `self._lock` using convex combination (`blend_weight` $\in [0.0, 1.0]$) for `alpha`, `beta`, and `ewma_rtt_ms`, and `max()` for `cooldown_until`.
+
+---
+
+### 9.4 Upgrade 5C: Distributed Session Lease Synchronization (`BrowserClearanceBridge`)
+
+- **Target File**: [`src/behavioral_playwright/crawling/clearance_bridge.py`](file:///e:/behavioral-playwright/src/behavioral_playwright/crawling/clearance_bridge.py)
+- **Failure Mode Addressed**: In multi-worker deployments, `self._leases` is isolated per process, forcing every worker to run a full headless browser session for the same domain.
+- **Required Interface Additions on `BrowserClearanceBridge`**:
+  1. Optional `shared_store: Optional[Any] = None` parameter in `BrowserClearanceBridge.__init__` (accepting any object with `.get(key)` / `.set(key, value)` or a mutable `Dict[str, str]`).
+  2. `export_leases(self) -> Dict[str, Dict[str, Any]]`: Thread-safely exports all non-expired `ClearanceLease` records as JSON-serializable dictionaries.
+  3. `import_leases(self, payload: Dict[str, Dict[str, Any]]) -> int`: Thread-safely imports valid, non-expired leases into `self._leases` (keeping the newest `created_at` per domain) and returns the number of active leases imported.
+  4. Automatic read-through / write-through when `shared_store` is configured:
+     - `get_valid_lease(domain)`: Checks local `self._leases` first; on miss/expiry, checks `shared_store` for key `f"bp:lease:{domain}"`, deserializes if valid and unexpired, and populates `self._leases`.
+     - `promote_session(...)`: Writes the newly minted `ClearanceLease` to both `self._leases` and `shared_store`.
+
+---
+
+### 9.5 Upgrade 5D: Hierarchical Concurrency Bulkheads (`TieredConcurrencyBulkhead`)
+
+- **Target File**: [`src/behavioral_playwright/crawling/service.py`](file:///e:/behavioral-playwright/src/behavioral_playwright/crawling/service.py)
+- **Failure Mode Addressed**: Unbounded concurrent escalation from Tier 1/2 (lightweight sockets) to Tier 3/4 (headless Chromium) can launch dozens of simultaneous browser contexts and exhaust host RAM.
+- **Required Class & Integration**:
+  - **`TieredConcurrencyBulkhead`**:
+    - `__init__(self, max_network_concurrency: int = 128, max_browser_concurrency: int = 8)`
+    - Separates `CrawlerTier.HTTP_FAST` and `CrawlerTier.TLS_IMPERSONATE` under `_network_sem = asyncio.Semaphore(max_network_concurrency)` and `CrawlerTier.BROWSER_HEADLESS` / `CrawlerTier.BROWSER_STEALTH_KINEMATICS` under `_browser_sem = asyncio.Semaphore(max_browser_concurrency)`.
+    - Provides an async context manager `slot(self, tier: CrawlerTier, timeout: float = 30.0)` that acquires the corresponding semaphore with `asyncio.wait_for(..., timeout=timeout)`, increments/decrements active in-flight counters (`active_network`, `active_browser`, `peak_network`, `peak_browser`, `rejected_timeouts`), and raises `TimeoutError` on backpressure saturation.
+    - Provides `get_metrics(self) -> Dict[str, int]` returning current and peak concurrency statistics.
+  - Wire `self.bulkhead = TieredConcurrencyBulkhead(...)` into `TieredCrawlerService.__init__` and wrap tier execution in `async with self.bulkhead.slot(tier):`.
+
+---
+
+### 9.6 Phase 2 Mandatory Verification Gate (`test_reliability_scalability_upgrade.py`)
+
+To certify Phase 2 implementation, `test_reliability_scalability_upgrade.py` at the repository root must execute 4 real integration checks without `MagicMock`:
+1. **Test 1 (Zombie Lease Reaper & Heartbeat)**: Push tasks into `SQLiteTaskQueue` and `RedisTaskQueue` (`_StatefulRedisEngine`) with `lease_timeout_sec=0.2`, pop them (`status == 'running'`), verify `heartbeat_task()` extends the lease, let a second popped task expire without completion, call `reclaim_expired_leases()`, and verify the zombie task transitions to `retry:1` and is successfully re-popped by a healthy worker.
+2. **Test 2 (Discounted Bandit Adaptation to Sudden Proxy Degradation)**: Train `BanditProxyRotator(decay_gamma=0.95)` where `proxy_A` succeeds 200 times ($\alpha$ saturates under discounting instead of growing to $201$) and then fails 15 times (`status_code=403`); prove that `proxy_B` (healthy) overtakes `proxy_A` immediately after cooldown, and verify `export_state()` / `import_state()` round-trip accuracy.
+3. **Test 3 (Cross-Worker Distributed Clearance Lease Sharing)**: Instantiate `bridge_worker_1` and `bridge_worker_2` sharing a backing store; execute `fetch_with_promotion()` on `bridge_worker_1` against a live local `TCPServer` that challenges unauthenticated requests, and verify `bridge_worker_2` immediately succeeds on the first request (`promoted == False`, `clearance_attempts == 0`) using the shared lease.
+4. **Test 4 (Hierarchical Concurrency Bulkhead Backpressure)**: Launch 25 concurrent `BROWSER_HEADLESS` tasks through `TieredConcurrencyBulkhead(max_network_concurrency=64, max_browser_concurrency=4)` and assert `metrics["peak_browser"] <= 4` while network tasks run concurrently without blockage, and verify `TimeoutError` when backpressure timeout is exceeded.
