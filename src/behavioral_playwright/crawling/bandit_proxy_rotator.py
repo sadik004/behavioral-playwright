@@ -37,7 +37,7 @@ class ProxyArmState:
     successes: int = 0
     failures: int = 0
     consecutive_failures: int = 0
-    ewma_rtt_ms: float = 200.0
+    ewma_rtt_ms: float = 250.0
     cooldown_until: float = 0.0
 
     @property
@@ -82,7 +82,7 @@ class BanditProxyRotator:
         self.max_cooldown_sec = max_cooldown_sec
         self.tau_latency_ms = tau_latency_ms
         self._rng = random.Random(seed)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._arms: Dict[str, ProxyArmState] = {
             p: ProxyArmState(proxy_url=p) for p in resolved_proxies
         }
@@ -99,23 +99,22 @@ class BanditProxyRotator:
         """Computes latency-penalized UCB1 index:
         UCB1_i = (alpha_i / (alpha_i + beta_i)) + c * sqrt(2 * ln(N) / n_i) - lambda_rtt * (RTT_ms / 1000).
         """
-        n_i = max(1, arm.pulls)
-        total_n = max(1, self._total_pulls)
-        exploit = arm.empirical_mean
-        explore = self.exploration_c * math.sqrt((2.0 * math.log(total_n + 1.0)) / n_i)
-        rtt_penalty = self.rtt_penalty_weight * (arm.ewma_rtt_ms / 1000.0)
-        return round(exploit + explore - rtt_penalty, 6)
+        with self._lock:
+            n_i = max(1, arm.pulls)
+            total_n = max(1, self._total_pulls)
+            exploit = arm.empirical_mean
+            explore = self.exploration_c * math.sqrt((2.0 * math.log(total_n + 1.0)) / n_i)
+            rtt_penalty = self.rtt_penalty_weight * (arm.ewma_rtt_ms / 1000.0)
+            return round(exploit + explore - rtt_penalty, 6)
 
     def sample_thompson_score(self, arm: ProxyArmState) -> float:
         """Samples theta_i ~ Beta(alpha_i, beta_i) scaled by exponential latency decay factor:
         Score_i = theta_i * exp(-ema_latency_ms / tau).
         """
         with self._lock:
-            x = self._rng.gammavariate(max(1e-5, arm.alpha), 1.0)
-            y = self._rng.gammavariate(max(1e-5, arm.beta), 1.0)
-        theta = x / (x + y) if (x + y) > 0.0 else 0.5
-        latency_factor = math.exp(-max(1.0, arm.ewma_rtt_ms) / self.tau_latency_ms)
-        return round(theta * latency_factor, 6)
+            theta = self._rng.betavariate(max(1e-5, arm.alpha), max(1e-5, arm.beta))
+            latency_factor = math.exp(-max(1.0, arm.ewma_rtt_ms) / self.tau_latency_ms)
+            return round(theta * latency_factor, 6)
 
     def select_proxy(
         self,
@@ -136,10 +135,10 @@ class BanditProxyRotator:
                 self._round_robin_idx += 1
                 return arm
 
-        if pol == "ucb1":
-            return max(available, key=self.compute_ucb1_score)
-        # Default policy: Bayesian Thompson Sampling with exponential latency scaling
-        return max(available, key=self.sample_thompson_score)
+            if pol == "ucb1":
+                return max(available, key=self.compute_ucb1_score)
+            # Default policy: Bayesian Thompson Sampling with exponential latency scaling
+            return max(available, key=self.sample_thompson_score)
 
     def record_feedback(
         self,
@@ -223,9 +222,10 @@ class BanditProxyRotator:
         latency_ms: float = 1000.0,
     ) -> None:
         key = getattr(node, "proxy_url", None) or str(node)
-        arm = self.record_feedback(key, success=False, latency_ms=latency_ms, is_challenge=is_challenge)
-        if quarantine_seconds is not None:
-            arm.cooldown_until = time.time() + float(quarantine_seconds)
+        with self._lock:
+            arm = self.record_feedback(key, success=False, latency_ms=latency_ms, is_challenge=is_challenge)
+            if quarantine_seconds is not None:
+                arm.cooldown_until = time.time() + float(quarantine_seconds)
 
 
 class BandwidthResourceBlocker:

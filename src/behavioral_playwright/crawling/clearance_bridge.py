@@ -59,8 +59,9 @@ class BrowserClearanceBridge:
         "x-kpsdk-ct",
     )
 
-    def __init__(self, default_ttl_seconds: float = 1800.0) -> None:
+    def __init__(self, default_ttl_seconds: float = 1800.0, proxy_rotator: Optional[Any] = None) -> None:
         self.default_ttl_seconds = default_ttl_seconds
+        self.proxy_rotator = proxy_rotator
         self._leases: Dict[str, ClearanceLease] = {}
         self.stats = {
             "fast_http_hits": 0,
@@ -130,8 +131,11 @@ class BrowserClearanceBridge:
         status = int(resp.get("status", 200))
         resp_headers = resp.get("headers") or {}
         body = str(resp.get("body", ""))
+        rtt_ms = float(resp.get("rtt_ms", 200.0))
 
         if not self.is_challenge_response(status, resp_headers, body):
+            if self.proxy_rotator is not None and proxy is not None:
+                self.proxy_rotator.report_success(proxy, latency_ms=rtt_ms)
             if lease is not None:
                 lease.reuse_count += 1
                 self.stats["promoted_http_reuses"] += 1
@@ -144,7 +148,9 @@ class BrowserClearanceBridge:
                 "tls_impersonate": tls_impersonate,
             }
 
-        # Challenge detected -> Invalidate stale lease & invoke Stealth Browser once
+        # Challenge detected -> Penalize proxy in Bayesian rotator, invalidate stale lease & invoke Stealth Browser once
+        if self.proxy_rotator is not None and proxy is not None:
+            self.proxy_rotator.report_failure(proxy, is_challenge=True, latency_ms=rtt_ms)
         self.invalidate_lease(url)
         self.stats["challenge_escalations"] += 1
         new_lease = await browser_clearance_solver(url)

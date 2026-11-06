@@ -11,10 +11,10 @@ Provides a decoupled BaseTaskQueue interface with:
 
 from __future__ import annotations
 
-import json
 import logging
 import random
 import sqlite3
+import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
@@ -80,6 +80,16 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status_priority ON tasks (status, priority 
 """
 
 
+def _extract_retry_count(status: str) -> int:
+    """Extracts the numeric retry count from status strings like 'retry:2' or 'running:2'."""
+    for prefix in ("retry:", "running:"):
+        if status.startswith(prefix):
+            sub = status.split(prefix, 1)[1]
+            if sub.isdigit():
+                return int(sub)
+    return 0
+
+
 class BaseTaskQueue(ABC):
     """Abstract interface defining standard lifecycle operations for all task queue backends."""
 
@@ -117,35 +127,40 @@ class SQLiteTaskQueue(BaseTaskQueue):
     """Local SQLite WAL-mode priority queue with exponential jittered backoff."""
 
     def __init__(self, db_path: str = "bp_tasks.db", timeout: float = 30.0, **kwargs: Any) -> None:
+        if db_path.startswith("sqlite:///"):
+            db_path = db_path[len("sqlite:///"):]
         self.db_path = db_path
         self.timeout = timeout
+        self._lock = threading.Lock()
 
     def init_queue(self) -> None:
-        conn = sqlite3.connect(self.db_path, timeout=self.timeout, check_same_thread=False)
-        try:
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.executescript(TASK_QUEUE_SCHEMA)
-            conn.commit()
-        finally:
-            conn.close()
+        with self._lock:
+            conn = sqlite3.connect(self.db_path, timeout=self.timeout, check_same_thread=False)
+            try:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.executescript(TASK_QUEUE_SCHEMA)
+                conn.commit()
+            finally:
+                conn.close()
 
     def push_task(
-        self, url: str, operation: str, priority: int = 0, max_attempts: int = 5
+        self, url: str, operation: str, priority: int = 0, max_attempts: int = 8
     ) -> int:
         for attempt in range(max_attempts):
             conn = None
             try:
-                conn = sqlite3.connect(self.db_path, timeout=self.timeout, check_same_thread=False)
-                cur = conn.execute(
-                    "INSERT INTO tasks (url, operation, priority, created_at)"
-                    " VALUES (?, ?, ?, ?)",
-                    (url, operation, priority, time.strftime("%Y-%m-%dT%H:%M:%S")),
-                )
-                conn.commit()
-                return int(cur.lastrowid or 0)
+                with self._lock:
+                    conn = sqlite3.connect(self.db_path, timeout=self.timeout, check_same_thread=False)
+                    cur = conn.execute(
+                        "INSERT INTO tasks (url, operation, priority, created_at)"
+                        " VALUES (?, ?, ?, ?)",
+                        (url, operation, priority, time.strftime("%Y-%m-%dT%H:%M:%S")),
+                    )
+                    conn.commit()
+                    return int(cur.lastrowid or 0)
             except sqlite3.OperationalError as exc:
                 if "locked" in str(exc).lower() and attempt < max_attempts - 1:
-                    time.sleep(random.uniform(0.05, 0.25) * (2 ** attempt))
+                    time.sleep(random.uniform(0.01, 0.08) * (2 ** attempt))
                     continue
                 raise
             finally:
@@ -153,25 +168,34 @@ class SQLiteTaskQueue(BaseTaskQueue):
                     conn.close()
         return 0
 
-    def pop_task(self, max_attempts: int = 5) -> Optional[Dict[str, Any]]:
+    def pop_task(self, max_attempts: int = 8) -> Optional[Dict[str, Any]]:
         for attempt in range(max_attempts):
             conn = None
             try:
-                conn = sqlite3.connect(self.db_path, timeout=self.timeout, isolation_level=None, check_same_thread=False)
-                conn.execute("PRAGMA journal_mode=WAL;")
-                conn.execute("PRAGMA busy_timeout=30000;")
-                conn.execute("BEGIN IMMEDIATE;")
-                row = conn.execute(
-                    "SELECT id, url, operation FROM tasks WHERE status='pending' "
-                    "ORDER BY priority DESC, id ASC LIMIT 1"
-                ).fetchone()
-                if row:
-                    conn.execute("UPDATE tasks SET status='running' WHERE id=?", (row[0],))
-                    conn.execute("COMMIT;")
-                    return {"id": row[0], "url": row[1], "operation": row[2]}
-                else:
-                    conn.execute("COMMIT;")
-                    return None
+                with self._lock:
+                    conn = sqlite3.connect(
+                        self.db_path,
+                        timeout=self.timeout,
+                        isolation_level=None,
+                        check_same_thread=False,
+                    )
+                    conn.execute("PRAGMA journal_mode=WAL;")
+                    conn.execute("PRAGMA busy_timeout=30000;")
+                    conn.execute("BEGIN IMMEDIATE;")
+                    row = conn.execute(
+                        "SELECT id, url, operation, status FROM tasks "
+                        "WHERE status='pending' OR status LIKE 'retry:%' "
+                        "ORDER BY priority DESC, id ASC LIMIT 1"
+                    ).fetchone()
+                    if row:
+                        prev_retries = _extract_retry_count(str(row[3] or ""))
+                        running_status = f"running:{prev_retries}" if prev_retries > 0 else "running"
+                        conn.execute("UPDATE tasks SET status=? WHERE id=?", (running_status, row[0]))
+                        conn.execute("COMMIT;")
+                        return {"id": row[0], "url": row[1], "operation": row[2]}
+                    else:
+                        conn.execute("COMMIT;")
+                        return None
             except sqlite3.OperationalError as exc:
                 if conn is not None:
                     try:
@@ -179,7 +203,7 @@ class SQLiteTaskQueue(BaseTaskQueue):
                     except Exception:
                         pass
                 if "locked" in str(exc).lower() and attempt < max_attempts - 1:
-                    time.sleep(random.uniform(0.05, 0.25) * (2 ** attempt))
+                    time.sleep(random.uniform(0.01, 0.08) * (2 ** attempt))
                     continue
                 raise
             except Exception:
@@ -195,48 +219,44 @@ class SQLiteTaskQueue(BaseTaskQueue):
         return None
 
     def complete_task(self, task_id: Union[int, str]) -> None:
-        conn = sqlite3.connect(self.db_path, timeout=self.timeout, check_same_thread=False)
-        try:
-            conn.execute(
-                "UPDATE tasks SET status='completed', completed_at=? WHERE id=?",
-                (time.strftime("%Y-%m-%dT%H:%M:%S"), int(task_id)),
-            )
-            conn.commit()
-        finally:
-            conn.close()
+        with self._lock:
+            conn = sqlite3.connect(self.db_path, timeout=self.timeout, check_same_thread=False)
+            try:
+                conn.execute(
+                    "UPDATE tasks SET status='completed', completed_at=? WHERE id=?",
+                    (time.strftime("%Y-%m-%dT%H:%M:%S"), int(task_id)),
+                )
+                conn.commit()
+            finally:
+                conn.close()
 
     def fail_task(self, task_id: Union[int, str], max_retries: int = 3) -> None:
-        conn = sqlite3.connect(self.db_path, timeout=self.timeout, check_same_thread=False)
-        try:
-            row = conn.execute("SELECT status FROM tasks WHERE id=?", (int(task_id),)).fetchone()
-            if not row:
-                return
-            status = str(row[0] or "")
-            if "retry:" in status:
-                try:
-                    attempt = int(status.split("retry:")[1]) + 1
-                except Exception:
-                    attempt = 1
-            else:
-                attempt = 1
+        with self._lock:
+            conn = sqlite3.connect(self.db_path, timeout=self.timeout, check_same_thread=False)
+            try:
+                row = conn.execute("SELECT status FROM tasks WHERE id=?", (int(task_id),)).fetchone()
+                if not row:
+                    return
+                status = str(row[0] or "")
+                attempt = _extract_retry_count(status) + 1
 
-            if attempt >= max_retries:
-                conn.execute("UPDATE tasks SET status='failed' WHERE id=?", (int(task_id),))
-            else:
-                conn.execute("UPDATE tasks SET status=? WHERE id=?", (f"retry:{attempt}", int(task_id)))
-            conn.commit()
-        finally:
-            conn.close()
+                if attempt >= max_retries:
+                    conn.execute("UPDATE tasks SET status='failed' WHERE id=?", (int(task_id),))
+                else:
+                    conn.execute("UPDATE tasks SET status=? WHERE id=?", (f"retry:{attempt}", int(task_id)))
+                conn.commit()
+            finally:
+                conn.close()
 
 
 class RedisTaskQueue(BaseTaskQueue):
     """Distributed in-memory task queue backed by Redis / Valkey.
 
     Uses Redis Hash `tasks:{id}` to store metadata and Sorted Set (ZSET) `tasks:pending`
-    ordered by priority. Atomic pop is executed via a Lua script to ensure zero duplicate delivery.
+    ordered by priority. Atomic pop is executed via a Lua script or verified atomic ZREM
+    claim loop to guarantee zero duplicate delivery across concurrent workers.
     """
 
-    # Lua Script: Atomically fetch highest priority task ID from ZSET, pop it, and mark as running
     POP_LUA_SCRIPT = """
     local pending_key = KEYS[1]
     local prefix = ARGV[1]
@@ -270,25 +290,9 @@ class RedisTaskQueue(BaseTaskQueue):
                 raise ProviderUnavailableError("redis", "redis", "pip install redis")
             self._client = redis.Redis.from_url(uri, decode_responses=True, **kwargs)
 
-        self._pop_script = None
-
     def init_queue(self) -> None:
-        """Pings Redis and registers atomic Lua script."""
-        try:
-            self._client.ping()
-        except Exception as exc:
-            logger.debug("Redis ping failed or mock in use: %s", exc)
-
-    def _get_pop_script(self) -> Any:
-        if self._pop_script is None:
-            # If client is mock, only use register_script if explicitly programmed
-            if hasattr(self._client, "_is_mock"):
-                return None
-            try:
-                self._pop_script = self._client.register_script(self.POP_LUA_SCRIPT)
-            except Exception:
-                self._pop_script = None
-        return self._pop_script
+        """Verifies connectivity to the Redis server."""
+        self._client.ping()
 
     def push_task(self, url: str, operation: str, priority: int = 0) -> str:
         task_id = str(uuid.uuid4().hex[:12])
@@ -311,39 +315,45 @@ class RedisTaskQueue(BaseTaskQueue):
         return task_id
 
     def pop_task(self) -> Optional[Dict[str, Any]]:
-        # Use atomic Lua script if available
-        script = self._get_pop_script()
-        if script is not None:
+        # 1. Primary path: server-side atomic Lua script via EVAL
+        if hasattr(self._client, "eval"):
             try:
-                res = script(keys=[self._pending_zset], args=[self.prefix])
+                res = self._client.eval(self.POP_LUA_SCRIPT, 1, self._pending_zset, self.prefix)
                 if not res:
                     return None
                 task_id, raw_fields = res[0], res[1]
-                # Parse returned list of [key, val, key, val...]
-                data: Dict[str, Any] = {"id": str(task_id)}
-                for i in range(0, len(raw_fields), 2):
-                    data[str(raw_fields[i])] = raw_fields[i + 1]
-                return {"id": data["id"], "url": data.get("url", ""), "operation": data.get("operation", "")}
-            except Exception as exc:
-                logger.debug("Lua script pop execution failed (%s); using pipeline fallback", exc)
+                if isinstance(raw_fields, dict):
+                    data = dict(raw_fields)
+                    data["id"] = str(task_id)
+                else:
+                    data = {"id": str(task_id)}
+                    for i in range(0, len(raw_fields), 2):
+                        data[str(raw_fields[i])] = raw_fields[i + 1]
+                return {
+                    "id": data["id"],
+                    "url": data.get("url", ""),
+                    "operation": data.get("operation", ""),
+                }
+            except NotImplementedError:
+                pass
 
-        # Fallback multi-step pop with transaction
-        pipe = self._client.pipeline()
-        # Fetch highest priority (ZREVRANGE 0 0)
-        items = self._client.zrevrange(self._pending_zset, 0, 0)
-        if not items:
-            return None
-        task_id = items[0]
-        # Remove from pending and set status to running
-        self._client.zrem(self._pending_zset, task_id)
-        task_key = f"{self.prefix}:task:{task_id}"
-        self._client.hset(task_key, "status", "running")
-        data = self._client.hgetall(task_key)
-        return {
-            "id": task_id,
-            "url": data.get("url", ""),
-            "operation": data.get("operation", ""),
-        }
+        # 2. Optimistic atomic ZREM claim loop (only the worker whose ZREM returns 1 wins the lease)
+        for _ in range(16):
+            items = self._client.zrevrange(self._pending_zset, 0, 0)
+            if not items:
+                return None
+            task_id = items[0]
+            removed = self._client.zrem(self._pending_zset, task_id)
+            if int(removed or 0) == 1:
+                task_key = f"{self.prefix}:task:{task_id}"
+                self._client.hset(task_key, "status", "running")
+                data = self._client.hgetall(task_key)
+                return {
+                    "id": task_id,
+                    "url": data.get("url", ""),
+                    "operation": data.get("operation", ""),
+                }
+        return None
 
     def complete_task(self, task_id: Union[int, str]) -> None:
         task_key = f"{self.prefix}:task:{task_id}"
@@ -362,7 +372,6 @@ class RedisTaskQueue(BaseTaskQueue):
             self._client.hset(task_key, mapping={"status": "failed", "retries": str(retries)})
         else:
             self._client.hset(task_key, mapping={"status": f"retry:{retries}", "retries": str(retries)})
-            # Re-enqueue in pending ZSET
             self._client.zadd(self._pending_zset, {str(task_id): priority})
 
 
@@ -376,13 +385,17 @@ class PostgresTaskQueue(BaseTaskQueue):
     def __init__(
         self,
         uri: str = "postgresql://postgres:postgres@localhost:5432/bp",
+        pool: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
         self.uri = uri
         self.kwargs = kwargs
-        if not POSTGRES_AVAILABLE:
-            raise ProviderUnavailableError("postgresql", "psycopg2", "pip install psycopg2-binary")
-        self._pool: Optional[Any] = None
+        if pool is not None:
+            self._pool = pool
+        else:
+            if not POSTGRES_AVAILABLE:
+                raise ProviderUnavailableError("postgresql", "psycopg2", "pip install psycopg2-binary")
+            self._pool = None
 
     def _get_connection(self) -> Any:
         if self._pool is None:
@@ -420,12 +433,11 @@ class PostgresTaskQueue(BaseTaskQueue):
         conn = self._get_connection()
         try:
             with conn.cursor() as cur:
-                # Lock-free atomic pop across concurrent workers
                 cur.execute(
                     """
-                    SELECT id, url, operation
+                    SELECT id, url, operation, status
                     FROM tasks
-                    WHERE status = 'pending'
+                    WHERE status = 'pending' OR status LIKE 'retry:%%'
                     ORDER BY priority DESC, id ASC
                     FOR UPDATE SKIP LOCKED
                     LIMIT 1;
@@ -435,8 +447,10 @@ class PostgresTaskQueue(BaseTaskQueue):
                 if not row:
                     conn.commit()
                     return None
-                task_id, url, operation = row[0], row[1], row[2]
-                cur.execute("UPDATE tasks SET status = 'running' WHERE id = %s;", (task_id,))
+                task_id, url, operation, status = row[0], row[1], row[2], str(row[3] or "")
+                prev_retries = _extract_retry_count(status)
+                running_status = f"running:{prev_retries}" if prev_retries > 0 else "running"
+                cur.execute("UPDATE tasks SET status = %s WHERE id = %s;", (running_status, task_id))
             conn.commit()
             return {"id": task_id, "url": url, "operation": operation}
         finally:
@@ -463,11 +477,7 @@ class PostgresTaskQueue(BaseTaskQueue):
                 if not row:
                     return
                 status = str(row[0] or "")
-                if status.startswith("retry:"):
-                    sub = status.split("retry:")[1]
-                    attempt = int(sub) + 1 if sub.isdigit() else 1
-                else:
-                    attempt = 1
+                attempt = _extract_retry_count(status) + 1
 
                 if attempt >= max_retries:
                     cur.execute("UPDATE tasks SET status = 'failed' WHERE id = %s;", (int(task_id),))
@@ -485,25 +495,23 @@ def create_task_queue(uri_or_path: str = "bp_tasks.db", **kwargs: Any) -> BaseTa
         return RedisTaskQueue(clean_uri, **kwargs)
     if clean_uri.startswith(("postgres://", "postgresql://")):
         return PostgresTaskQueue(clean_uri, **kwargs)
-    # Default to SQLite WAL queue
     return SQLiteTaskQueue(clean_uri or "bp_tasks.db", **kwargs)
 
 
 class TaskQueueRepository:
-    """Thread-safe, WAL-enabled priority task repository maintaining backward-compatible contracts.
-
-    Supports both legacy SQLite (db_path as first arg) and modern pluggable queue instances.
-    """
+    """Thread-safe, WAL-enabled priority task repository maintaining backward-compatible contracts."""
 
     def __init__(self, default_db: str = "bp_tasks.db") -> None:
         self.default_db = default_db
         self._queues: Dict[str, BaseTaskQueue] = {}
+        self._lock = threading.Lock()
 
     def _get_queue(self, uri_or_path: Optional[str] = None) -> BaseTaskQueue:
         target = uri_or_path or self.default_db
-        if target not in self._queues:
-            self._queues[target] = create_task_queue(target)
-        return self._queues[target]
+        with self._lock:
+            if target not in self._queues:
+                self._queues[target] = create_task_queue(target)
+            return self._queues[target]
 
     def init_queue(self, db_path: Optional[str] = None) -> None:
         queue = self._get_queue(db_path)

@@ -11,7 +11,7 @@ import sqlite3
 import time
 import urllib.error
 import urllib.request
-from typing import Any, Callable, Coroutine, Dict, List, Optional, TypeVar
+from typing import Any, Callable, Coroutine, Dict, List, Optional, TypeVar, Union
 from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
@@ -180,9 +180,14 @@ class WebNamespace:
 class InfrastructureNamespace:
     """Pluggable distributed task queue and local persistence layer (SQLite / Redis / Postgres)."""
 
+    def __init__(self) -> None:
+        self._queues: Dict[str, Any] = {}
+
     def _get_queue(self, uri_or_path: str = "bp_tasks.db") -> Any:
         from behavioral_playwright.storage.task_queue import create_task_queue
-        return create_task_queue(uri_or_path)
+        if uri_or_path not in self._queues:
+            self._queues[uri_or_path] = create_task_queue(uri_or_path)
+        return self._queues[uri_or_path]
 
     def init_queue(self, db_path: str = "bp_tasks.db") -> None:
         queue = self._get_queue(db_path)

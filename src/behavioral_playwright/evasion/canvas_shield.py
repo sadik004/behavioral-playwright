@@ -30,35 +30,40 @@ class CanvasWebGLShaderSpoofer:
             }}
             const getDeterministicPixelNoise = mulberry32;
 
+            function applyDeterministicNoise(imgData, w, startX, startY) {{
+                for (let i = 0; i < imgData.data.length; i += 4) {{
+                    const pxIdx = Math.floor(i / 4);
+                    const relX = pxIdx % w;
+                    const relY = Math.floor(pxIdx / w);
+                    const absX = startX + relX;
+                    const absY = startY + relY;
+
+                    // Deterministic single-bit micro-jitter with p < 0.002 (< 0.05% total channel delta)
+                    if (getDeterministicPixelNoise(absX, absY, 0, SESSION_SEED) < 0.002) {{
+                        imgData.data[i] ^= 1;
+                    }}
+                    if (getDeterministicPixelNoise(absX, absY, 1, SESSION_SEED) < 0.002) {{
+                        imgData.data[i + 1] ^= 1;
+                    }}
+                    if (getDeterministicPixelNoise(absX, absY, 2, SESSION_SEED) < 0.002) {{
+                        imgData.data[i + 2] ^= 1;
+                    }}
+                }}
+                return imgData;
+            }}
+
+            const origGetImageData = (typeof CanvasRenderingContext2D !== 'undefined' && CanvasRenderingContext2D.prototype.getImageData)
+                ? CanvasRenderingContext2D.prototype.getImageData
+                : null;
+
             // Intercept CanvasRenderingContext2D.prototype.getImageData
-            if (typeof CanvasRenderingContext2D !== 'undefined' && CanvasRenderingContext2D.prototype.getImageData) {{
-                const origGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+            if (origGetImageData) {{
                 const canvasHandler = function(sx, sy, sw, sh) {{
                     const imgData = origGetImageData.apply(this, arguments);
                     const w = imgData.width || sw;
-                    const h = imgData.height || sh;
                     const startX = typeof sx === 'number' ? sx : 0;
                     const startY = typeof sy === 'number' ? sy : 0;
-
-                    for (let i = 0; i < imgData.data.length; i += 4) {{
-                        const pxIdx = Math.floor(i / 4);
-                        const relX = pxIdx % w;
-                        const relY = Math.floor(pxIdx / w);
-                        const absX = startX + relX;
-                        const absY = startY + relY;
-
-                        // Deterministic single-bit micro-jitter with p < 0.002
-                        if (getDeterministicPixelNoise(absX, absY, 0, SESSION_SEED) < 0.002) {{
-                            imgData.data[i] ^= 1;
-                        }}
-                        if (getDeterministicPixelNoise(absX, absY, 1, SESSION_SEED) < 0.002) {{
-                            imgData.data[i + 1] ^= 1;
-                        }}
-                        if (getDeterministicPixelNoise(absX, absY, 2, SESSION_SEED) < 0.002) {{
-                            imgData.data[i + 2] ^= 1;
-                        }}
-                    }}
-                    return imgData;
+                    return applyDeterministicNoise(imgData, w, startX, startY);
                 }};
                 if (window.makeNative) window.makeNative(canvasHandler, 'getImageData');
                 CanvasRenderingContext2D.prototype.getImageData = canvasHandler;
@@ -71,28 +76,16 @@ class CanvasWebGLShaderSpoofer:
                     try {{
                         const w = this.width;
                         const h = this.height;
-                        if (w > 0 && h > 0) {{
+                        if (w > 0 && h > 0 && origGetImageData) {{
                             const offscreen = document.createElement('canvas');
                             offscreen.width = w;
                             offscreen.height = h;
                             const offCtx = offscreen.getContext('2d');
                             if (offCtx) {{
                                 offCtx.drawImage(this, 0, 0);
-                                const imgData = offCtx.getImageData(0, 0, w, h);
-                                for (let i = 0; i < imgData.data.length; i += 4) {{
-                                    const pxIdx = Math.floor(i / 4);
-                                    const px = pxIdx % w;
-                                    const py = Math.floor(pxIdx / w);
-                                    if (getDeterministicPixelNoise(px, py, 0, SESSION_SEED) < 0.002) {{
-                                        imgData.data[i] ^= 1;
-                                    }}
-                                    if (getDeterministicPixelNoise(px, py, 1, SESSION_SEED) < 0.002) {{
-                                        imgData.data[i + 1] ^= 1;
-                                    }}
-                                    if (getDeterministicPixelNoise(px, py, 2, SESSION_SEED) < 0.002) {{
-                                        imgData.data[i + 2] ^= 1;
-                                    }}
-                                }}
+                                // Call origGetImageData directly so noise is applied EXACTLY ONCE (preventing double-XOR cancellation)
+                                const imgData = origGetImageData.call(offCtx, 0, 0, w, h);
+                                applyDeterministicNoise(imgData, w, 0, 0);
                                 offCtx.putImageData(imgData, 0, 0);
                                 return origToDataURL.call(offscreen, type, encoderOptions);
                             }}
@@ -102,15 +95,6 @@ class CanvasWebGLShaderSpoofer:
                 }};
                 if (window.makeNative) window.makeNative(toDataURLHandler, 'toDataURL');
                 HTMLCanvasElement.prototype.toDataURL = toDataURLHandler;
-            }}
-
-            // Expose on CanvasRenderingContext2D if referenced by polyfills/tests
-            if (typeof CanvasRenderingContext2D !== 'undefined') {{
-                const ctxToDataURL = function() {{
-                    return this.canvas ? this.canvas.toDataURL.apply(this.canvas, arguments) : '';
-                }};
-                if (window.makeNative) window.makeNative(ctxToDataURL, 'toDataURL');
-                CanvasRenderingContext2D.prototype.toDataURL = ctxToDataURL;
             }}
 
             // WebGL unmasked vendor & renderer spoofer

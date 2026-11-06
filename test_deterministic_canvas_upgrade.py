@@ -113,11 +113,29 @@ function setupTestEnvironment(shieldCode) {
     };
 
     sandbox.HTMLCanvasElement.prototype.getContext = function(type) {
-        if (type === '2d') return new sandbox.CanvasRenderingContext2D();
+        if (type === '2d') {
+            const ctx = new sandbox.CanvasRenderingContext2D();
+            ctx._backing = null;
+            ctx.drawImage = function() {};
+            ctx.putImageData = function(imgData) { this._backing = imgData; };
+            return ctx;
+        }
         return null;
     };
     sandbox.HTMLCanvasElement.prototype.toDataURL = function() {
-        return 'data:image/png;base64,mockOriginalPng';
+        const buf = this._ctx && this._ctx._backing ? Buffer.from(this._ctx._backing.data) : Buffer.from('rawOriginal');
+        return 'data:image/png;base64,' + buf.toString('base64');
+    };
+    const sandboxDocument = {
+        createElement: function(tag) {
+            const c = new sandbox.HTMLCanvasElement();
+            const origGetCtx = c.getContext.bind(c);
+            c.getContext = function(type) {
+                c._ctx = origGetCtx(type);
+                return c._ctx;
+            };
+            return c;
+        }
     };
 
     // Baseline WebGL Mock
@@ -127,10 +145,10 @@ function setupTestEnvironment(shieldCode) {
 
     // Evaluate shield script inside sandbox context
     const executor = new Function(
-        'window', 'CanvasRenderingContext2D', 'HTMLCanvasElement', 'WebGLRenderingContext',
+        'window', 'document', 'CanvasRenderingContext2D', 'HTMLCanvasElement', 'WebGLRenderingContext',
         shieldCode
     );
-    executor(sandbox.window, sandbox.CanvasRenderingContext2D, sandbox.HTMLCanvasElement, sandbox.WebGLRenderingContext);
+    executor(sandbox.window, sandboxDocument, sandbox.CanvasRenderingContext2D, sandbox.HTMLCanvasElement, sandbox.WebGLRenderingContext);
 
     return sandbox;
 }
@@ -164,14 +182,22 @@ if (hash1 === hashB) {
     process.exit(2);
 }
 
-// Check 3: Native toString masking for W3C compliance
+// Check 3: Native toString masking for W3C compliance & toDataURL non-cancellation
 const gl = new envA.WebGLRenderingContext();
 const getParamStr = gl.getParameter.toString();
 const getImageDataStr = ctxA.getImageData.toString();
+const canvasElA = new envA.HTMLCanvasElement();
+const canvasElB = new envB.HTMLCanvasElement();
+const dataUrlA1 = canvasElA.toDataURL();
+const dataUrlA2 = canvasElA.toDataURL();
+const dataUrlB1 = canvasElB.toDataURL();
 
 const result = {
     idempotent_hash_match: hash1 === hash2,
     session_entropy_match: hash1 !== hashB,
+    todataurl_idempotent: dataUrlA1 === dataUrlA2,
+    todataurl_entropy: dataUrlA1 !== dataUrlB1,
+    no_ctx_todataurl_leak: !('toDataURL' in envA.CanvasRenderingContext2D.prototype),
     hash_session_a: hash1,
     hash_session_b: hashB,
     gl_getParameter_is_native: getParamStr.includes('[native code]'),
@@ -193,6 +219,9 @@ console.log(JSON.stringify(result));
         # Assertions
         self.assertTrue(data["idempotent_hash_match"], "Two calls within same session MUST produce identical hash!")
         self.assertTrue(data["session_entropy_match"], "Different session seeds MUST produce distinct hashes!")
+        self.assertTrue(data["todataurl_idempotent"], "toDataURL() double-run MUST be idempotent!")
+        self.assertTrue(data["todataurl_entropy"], "toDataURL() MUST NOT cancel out noise via double-XOR!")
+        self.assertTrue(data["no_ctx_todataurl_leak"], "CanvasRenderingContext2D.prototype MUST NOT have non-standard toDataURL!")
         self.assertTrue(data["gl_getParameter_is_native"], "getParameter.toString() must contain [native code]!")
         self.assertTrue(data["getImageData_is_native"], "getImageData.toString() must contain [native code]!")
         self.assertEqual(data["unmasked_vendor"], "Intel Inc.")

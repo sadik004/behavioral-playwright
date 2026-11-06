@@ -123,6 +123,25 @@ class CurlCffiProvider:
             body_text = body_bytes.decode("utf-8", errors="replace")
             status_code = int(exc.code)
             resp_headers = dict(exc.headers)
+        except (ssl.SSLError, urllib.error.URLError, ConnectionResetError, TimeoutError) as exc:
+            # If SSL verification failed on fallback, attempt once with unverified context
+            if isinstance(exc, ssl.SSLError) or (
+                isinstance(exc, urllib.error.URLError) and isinstance(getattr(exc, "reason", None), ssl.SSLError)
+            ):
+                unverified_ctx = ssl.create_default_context()
+                unverified_ctx.check_hostname = False
+                unverified_ctx.verify_mode = ssl.CERT_NONE
+                retry_handlers: list[Any] = [urllib.request.HTTPSHandler(context=unverified_ctx)]
+                if proxy:
+                    retry_handlers.append(urllib.request.ProxyHandler({"http": proxy, "https": proxy}))
+                retry_opener = urllib.request.build_opener(*retry_handlers)
+                with retry_opener.open(req, timeout=timeout) as resp:
+                    body_bytes = resp.read()
+                    body_text = body_bytes.decode("utf-8", errors="replace")
+                    status_code = int(resp.status)
+                    resp_headers = dict(resp.headers)
+            else:
+                raise
         elapsed_ms = (time.perf_counter() - start_t) * 1000.0
 
         return {

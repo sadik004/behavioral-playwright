@@ -108,6 +108,30 @@ class TestBayesianProxyUpgrade(unittest.TestCase):
         picked_default = rotator.get_proxy()
         self.assertIn(picked_default.proxy_url, proxies)
 
+    def test_4_concurrent_thread_safety_under_contention(self) -> None:
+        """Verifies that 16 threads executing 500 select_proxy + record_feedback operations suffer zero lost updates."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        proxies = [f"http://proxy-{i}:8080" for i in range(5)]
+        rotator = BanditProxyRotator(proxies=proxies, seed=77)
+
+        def worker(idx: int) -> str:
+            arm = rotator.select_proxy(policy="thompson")
+            rotator.record_feedback(
+                arm.proxy_url,
+                success=(idx % 4 != 0),
+                latency_ms=100.0 + (idx % 300),
+                is_challenge=(idx % 10 == 0),
+            )
+            return arm.proxy_url
+
+        with ThreadPoolExecutor(max_workers=16) as pool:
+            results = list(pool.map(worker, range(500)))
+
+        self.assertEqual(len(results), 500)
+        self.assertEqual(rotator._total_pulls, 500)
+        self.assertEqual(sum(a.pulls for a in rotator._arms.values()), 500)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
