@@ -70,6 +70,28 @@ class BrowserActionNamespace:
         return max(0.01, random.gauss(self._typing_mu, self._typing_sigma))
 
     # -- public actions -----------------------------------------------------
+    async def goto(self, url: str) -> bool:
+        """Navigates to URL via underlying facade/page."""
+        bp = self._bp
+        if hasattr(bp, "open"):
+            await bp.open(url)
+            return True
+        page = self._page()
+        if page is not None and hasattr(page, "goto"):
+            await page.goto(url)
+            return True
+        raise ProviderUnavailableError("Browser is not booted. Call bp.boot() first.")
+
+    async def screenshot(self, path: Optional[str] = None) -> bytes:
+        """Captures viewport screenshot via underlying facade/page."""
+        bp = self._bp
+        if hasattr(bp, "screenshot"):
+            return await bp.screenshot(path=path)
+        page = self._page()
+        if page is not None and hasattr(page, "screenshot"):
+            return await page.screenshot(path=path)
+        raise ProviderUnavailableError("Browser is not booted. Call bp.boot() first.")
+
     async def hover(self, selector: str) -> bool:
         return await self._delegate_or_fallback(
             "execute_safe_hover", "hover", selector)

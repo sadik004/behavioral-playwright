@@ -88,3 +88,50 @@ class DocumentNamespace:
     async def ocr_image(self, file_path: str) -> Dict[str, Any]:
         """Alias for :meth:`ocr_image_with_autocorrect`."""
         return await self.ocr_image_with_autocorrect(file_path)
+
+    async def parse_pdf(self, file_path: str) -> Dict[str, Any]:
+        """Extracts text from a PDF document using offline pypdf (with stream fallback).
+
+        Returns:
+            Dict containing success, file_path, pages, extracted text, and checksum.
+
+        Raises:
+            FileNotFoundError: if the file does not exist.
+        """
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"PDF file not found: {file_path}")
+
+        def _extract() -> tuple[list[str], str]:
+            pages_content: list[str] = []
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(file_path)
+                for p in reader.pages:
+                    t = p.extract_text() or ""
+                    pages_content.append(t)
+            except ImportError:
+                # Fallback stream / regex extraction if pypdf is absent
+                with open(file_path, "rb") as fh:
+                    data = fh.read()
+                stream_matches = re.findall(rb"stream[\r\n]+(.*?)[\r\n]+endstream", data, re.DOTALL)
+                extracted_streams: list[str] = []
+                for s in stream_matches:
+                    try:
+                        import zlib
+                        extracted_streams.append(zlib.decompress(s).decode("utf-8", errors="ignore"))
+                    except Exception:
+                        extracted_streams.append(s.decode("latin1", errors="ignore"))
+                pages_content.append("\n".join(extracted_streams))
+
+            full_extracted = "\n\n".join(pages_content)
+            cleaned = self.clean_parsed_text(full_extracted)
+            return pages_content, cleaned
+
+        pages, full_text = await asyncio.to_thread(_extract)
+        return {
+            "success": True,
+            "file_path": file_path,
+            "pages": pages,
+            "text": full_text,
+            "checksum": self._get_sha256(file_path),
+        }

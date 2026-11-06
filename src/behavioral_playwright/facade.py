@@ -260,6 +260,17 @@ class InfrastructureNamespace:
         finally:
             conn.close()
 
+    def save_to_cache(self, db_path: str, url: str, html: str, md: str = "") -> bool:
+        """Persists page cache into SQLite database."""
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        try:
+            conn.execute("CREATE TABLE IF NOT EXISTS page_cache (url TEXT PRIMARY KEY, html TEXT, markdown TEXT, cached_at TEXT);")
+            conn.execute("INSERT OR REPLACE INTO page_cache VALUES (?, ?, ?, ?);", (url, html, md, time.strftime("%Y-%m-%dT%H:%M:%S")))
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+
 
 class ObservabilityNamespace:
     """Execution tracing and QA reporting backed by SQLite."""
@@ -493,6 +504,10 @@ class IntegrationsNamespace:
             return True
         except urllib.error.HTTPError as exc:
             raise RuntimeError(f"Webhook rejected ({exc.code})") from exc
+
+    async def slack_webhook_notify_async(self, webhook_url: str, message_or_payload: Any) -> bool:
+        payload = {"text": message_or_payload} if isinstance(message_or_payload, str) else message_or_payload
+        return await self.n8n_webhook_trigger_async(webhook_url, payload)
 
     @property
     def linkedin(self) -> Any:
@@ -741,6 +756,22 @@ class AINamespace:
         for idx, item in enumerate(ranked):
             item["rank"] = idx + 1
         return ranked
+
+    def coerce_data_to_schema(self, data: Dict[str, Any], schema: Any) -> Dict[str, Any]:
+        """Coerces unstructured dictionary data into target schema types."""
+        if hasattr(schema, "__annotations__"):
+            coerced = {}
+            for k, v in data.items():
+                target_type = schema.__annotations__.get(k)
+                if target_type and v is not None:
+                    try:
+                        coerced[k] = target_type(v)
+                    except Exception:
+                        coerced[k] = v
+                else:
+                    coerced[k] = v
+            return coerced
+        return dict(data)
 
 
 class IntelligenceNamespace:

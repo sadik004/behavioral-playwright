@@ -8,7 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field
 try:
     from pydantic import field_validator
 except ImportError:
-    from pydantic import validator as field_validator
+    from pydantic import validator
+    def field_validator(*fields, mode="after", **kwargs):
+        return validator(*fields, pre=(mode == "before"), allow_reuse=True)
 
 from behavioral_playwright.models.elements import DOMElement
 
