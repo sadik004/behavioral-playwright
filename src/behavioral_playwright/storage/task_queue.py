@@ -1,6 +1,7 @@
 """SQLite WAL-mode priority task queue repository and persistence layer."""
 from __future__ import annotations
 
+import random
 import sqlite3
 import time
 from typing import Any, Dict, Optional

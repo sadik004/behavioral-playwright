@@ -18,22 +18,29 @@ logger = get_logger("selectors.resolver")
 DOM_SNAPSHOT_SCRIPT = """
 () => {
     const query = 'button, input, a, select, textarea, [role="button"], [role="link"], [role="textbox"], [role="checkbox"], [role="combobox"], [role="switch"], [role="option"], [role="radio"], [role="menuitem"], [role="tab"], [role="search"], [onclick], [tabindex], [data-testid], [aria-label], h1, h2, h3, h4, span.title, p.title';
-    const elements = Array.from(document.querySelectorAll(query));
+    // Bounded slice avoids forced synchronous layout thrashing on massive dynamic pages
+    const elements = Array.from(document.querySelectorAll(query)).slice(0, 500);
 
     const escapeCss = (val) => {
         if (!val) return '';
         if (window.CSS && typeof window.CSS.escape === 'function') {
             return window.CSS.escape(val);
         }
-        return String(val).replace(/["\\\\]/g, '\\\\$&');
+        return String(val).replace(/([!"#$%&'()*+,./:;<=>?@[\\\\\\]^`{|}~])/g, '\\\\$1');
     };
 
     return elements.map(el => {
         const rect = el.getBoundingClientRect();
         let className = '';
         if (el.className && typeof el.className === 'string') {
-            const classes = el.className.trim().split(/\\s+/).filter(c => c.length > 0);
-            if (classes.length > 0) className = '.' + classes.map(escapeCss).join('.');
+            const rawClasses = el.className.trim().split(/\\s+/).filter(c => c.length > 0);
+            // Sanitize and filter out noisy dynamic Tailwind utility tokens containing ':', '/', '[', '('
+            const safeClasses = rawClasses
+                .filter(c => !c.includes(':') && !c.includes('/') && !c.includes('[') && !c.includes('('))
+                .slice(0, 3);
+            if (safeClasses.length > 0) {
+                className = '.' + safeClasses.map(escapeCss).join('.');
+            }
         }
         const tag = el.tagName.toLowerCase();
         

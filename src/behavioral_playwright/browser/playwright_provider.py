@@ -1,19 +1,30 @@
 """Playwright implementation of BrowserProvider."""
 
+from __future__ import annotations
+
 import os
 import shutil
 import tempfile
 import time
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
-from playwright.async_api import (
-    Browser,
-    BrowserContext,
-    Page,
-    Playwright,
-    async_playwright,
-)
+try:
+    from playwright.async_api import (
+        Browser,
+        BrowserContext,
+        Page,
+        Playwright,
+        async_playwright,
+    )
+    PLAYWRIGHT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    Browser = Any  # type: ignore
+    BrowserContext = Any  # type: ignore
+    Page = Any  # type: ignore
+    Playwright = Any  # type: ignore
+    async_playwright = None
+    PLAYWRIGHT_AVAILABLE = False
 
 from behavioral_playwright.browser.base import BrowserProvider
 from behavioral_playwright.config.settings import BrowserConfig
@@ -37,6 +48,12 @@ class PlaywrightProvider(BrowserProvider):
     async def launch(self, config: Optional[BrowserConfig] = None) -> None:
         if config:
             self.config = config
+
+        if not PLAYWRIGHT_AVAILABLE or async_playwright is None:
+            raise BrowserProviderError(
+                "Playwright is not installed or available in this environment. "
+                "Install with: pip install playwright && playwright install"
+            )
 
         try:
             self._playwright = await async_playwright().start()

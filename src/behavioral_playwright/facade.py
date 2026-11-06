@@ -777,20 +777,48 @@ class AINamespace:
         return ranked
 
     def coerce_data_to_schema(self, data: Dict[str, Any], schema: Any) -> Dict[str, Any]:
-        """Coerces unstructured dictionary data into target schema types."""
-        if hasattr(schema, "__annotations__"):
+        """Coerces unstructured dictionary data into target schema types with PEP 563 string annotation support."""
+        import typing
+
+        hints = {}
+        try:
+            hints = typing.get_type_hints(schema)
+        except Exception:
+            hints = getattr(schema, "__annotations__", {})
+
+        type_map = {
+            int: int,
+            str: str,
+            float: float,
+            bool: lambda x: bool(int(x)) if str(x).isdigit() else str(x).lower() in ("true", "1", "yes"),
+            list: list,
+            dict: dict,
+            "int": int,
+            "str": str,
+            "float": float,
+            "bool": lambda x: bool(int(x)) if str(x).isdigit() else str(x).lower() in ("true", "1", "yes"),
+            "list": list,
+            "dict": dict,
+        }
+
+        if hints:
             coerced = {}
             for k, v in data.items():
-                target_type = schema.__annotations__.get(k)
-                if target_type and v is not None:
+                target_type = hints.get(k)
+                cast_fn = type_map.get(target_type)
+                if cast_fn is None and callable(target_type):
+                    cast_fn = target_type
+                if cast_fn is not None and v is not None:
                     try:
-                        coerced[k] = target_type(v)
+                        coerced[k] = cast_fn(v)
                     except Exception:
                         coerced[k] = v
                 else:
                     coerced[k] = v
             return coerced
         return dict(data)
+
+    coerce_data = coerce_data_to_schema
 
 
 class IntelligenceNamespace:

@@ -8,7 +8,11 @@ from __future__ import annotations
 
 import os
 from typing import Any, Optional
-from playwright.async_api import Page, async_playwright
+try:
+    from playwright.async_api import Page, async_playwright
+except (ImportError, ModuleNotFoundError):
+    Page = Any  # type: ignore
+    async_playwright = None
 
 from behavioral_playwright.automation.keyboard import KeyboardController
 from behavioral_playwright.automation.mouse import MouseController

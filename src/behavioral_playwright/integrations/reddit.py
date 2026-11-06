@@ -12,7 +12,10 @@ import re
 import urllib.error
 import urllib.request
 from typing import Any, Dict, List, Optional
-from playwright.async_api import async_playwright
+try:
+    from playwright.async_api import async_playwright
+except (ImportError, ModuleNotFoundError):
+    async_playwright = None
 
 from behavioral_playwright.browser.pool import BrowserPoolManager
 from behavioral_playwright.config.settings import BrowserConfig

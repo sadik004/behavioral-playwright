@@ -10,14 +10,24 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, Optional
 from urllib.parse import urlparse
 
-from playwright.async_api import (
-    Browser,
-    BrowserContext,
-    Page,
-    Playwright,
-    Route,
-    async_playwright,
-)
+try:
+    from playwright.async_api import (
+        Browser,
+        BrowserContext,
+        Page,
+        Playwright,
+        Route,
+        async_playwright,
+    )
+    PLAYWRIGHT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    Browser = Any  # type: ignore
+    BrowserContext = Any  # type: ignore
+    Page = Any  # type: ignore
+    Playwright = Any  # type: ignore
+    Route = Any  # type: ignore
+    async_playwright = None
+    PLAYWRIGHT_AVAILABLE = False
 
 from behavioral_playwright.config.settings import BrowserConfig
 from behavioral_playwright.exceptions import BrowserProviderError
@@ -77,6 +87,12 @@ class BrowserPoolManager:
         async with self._lock:
             if self.is_initialized:
                 return
+
+            if not PLAYWRIGHT_AVAILABLE or async_playwright is None:
+                raise BrowserProviderError(
+                    "Playwright is not installed or available in this environment. "
+                    "Install with: pip install playwright && playwright install"
+                )
 
             try:
                 self._semaphore = asyncio.Semaphore(self.max_concurrency)

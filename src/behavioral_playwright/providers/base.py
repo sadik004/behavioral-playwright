@@ -14,7 +14,7 @@ from __future__ import annotations
 import importlib
 import importlib.metadata
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Dict, Optional
 
 HONESTY_NOTE = (
     "Optional provider adapters for authorized automation/testing/research. "

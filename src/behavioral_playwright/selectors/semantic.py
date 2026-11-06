@@ -9,9 +9,11 @@ from behavioral_playwright.selectors.strategies import ResolverStrategy
 
 
 def _extract_tokens(s: str) -> str:
-    """Extracts alphanumeric/unicode words from selector or text strings."""
+    """Extracts alphanumeric/unicode words from selector or text strings, stripping zero-width joiners and NBSP."""
     if not s:
         return ""
+    # Strip invisible zero-width joiners/spaces and normalize non-breaking spaces
+    s = re.sub(r"[\u200b\u200c\u200d\uFEFF]", "", s).replace("\xa0", " ")
     # Strip common selector prefixes / noise words
     s = re.sub(r"^(button|a|input|select|div|span)[\.#]", "", s.strip(), flags=re.IGNORECASE)
     words = re.findall(r"\w+", s.lower(), flags=re.UNICODE)
