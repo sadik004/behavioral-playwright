@@ -7,6 +7,7 @@ without touching or querying DOM nodes.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import fnmatch
 import json
 import re
@@ -24,9 +25,10 @@ class JSONResponseSniffer:
     Hooks into Playwright page response events to capture backend REST/GraphQL data streams.
     """
 
-    def __init__(self, page: Any) -> None:
+    def __init__(self, page: Any, max_capacity: int = 1000) -> None:
         self.raw_page = getattr(page, "raw_page", None) or page
-        self._captured: List[Dict[str, Any]] = []
+        self.max_capacity = max_capacity
+        self._captured: deque[Dict[str, Any]] = deque(maxlen=max_capacity)
         self._lock = asyncio.Lock()
         self._new_data_event = asyncio.Event()
         self._handler: Optional[Callable[[Any], Any]] = None
@@ -106,14 +108,17 @@ class JSONResponseSniffer:
                 logger.warning(f"[JSONResponseSniffer] Failed to attach page listener: {exc}")
 
     def detach(self) -> None:
-        """Unsubscribes response interception listener."""
+        """Unsubscribes response interception listener safely."""
         if not self._is_attached or not self._handler:
             return
-        if hasattr(self.raw_page, "remove_listener"):
-            try:
-                self.raw_page.remove_listener("response", self._handler)
-            except Exception as exc:
-                logger.debug(f"NetworkSniffer: Error removing listener during detach: {exc}")
+        for method_name in ("remove_listener", "off"):
+            fn = getattr(self.raw_page, method_name, None)
+            if callable(fn):
+                try:
+                    fn("response", self._handler)
+                    break
+                except Exception as exc:
+                    logger.debug(f"NetworkSniffer: Error removing listener via {method_name}: {exc}")
         self._is_attached = False
 
     def clear(self) -> None:

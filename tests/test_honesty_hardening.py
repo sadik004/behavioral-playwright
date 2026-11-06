@@ -20,7 +20,8 @@ import pytest
 from pydantic import BaseModel
 
 BASE = Path(__file__).resolve().parent.parent
-V15_PATH = BASE / "behavioral_evasion_ten_patches_hardened_v15.py"
+_candidate = BASE / "archive" / "deduplicated_legacy" / "behavioral_evasion_ten_patches_hardened_v15.py"
+V15_PATH = _candidate if _candidate.exists() else (BASE / "behavioral_evasion_ten_patches_hardened_v15.py")
 
 
 def _load_module(name, path):

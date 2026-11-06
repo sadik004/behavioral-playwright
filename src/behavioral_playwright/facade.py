@@ -451,10 +451,7 @@ class NetworkNamespace:
         self._custom_headers = dict(headers)
 
     def measure_response_time(self, url: str, timeout: Optional[float] = None) -> float:
-        """Measures HTTP HEAD roundtrip latency in ms.
-
-        HTTP error statuses (4xx/5xx) still count as a completed roundtrip.
-        """
+        """Measures HTTP HEAD roundtrip latency in ms with automatic GET fallback on 405 Method Not Allowed."""
         if not url.lower().startswith(("http://", "https://")):
             raise ValueError(f"Invalid URL schema: {url!r}")
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
@@ -467,7 +464,15 @@ class NetworkNamespace:
             with urllib.request.urlopen(req, timeout=effective_timeout) as resp:
                 resp.read(0)
         except urllib.error.HTTPError as exc:
-            logger.debug(f"measure_response_time: HTTP status {exc.code} received (roundtrip completed in {time.perf_counter() - start:.3f}s)")
+            if exc.code == 405:
+                req_get = urllib.request.Request(url, method="GET", headers=headers)
+                try:
+                    with urllib.request.urlopen(req_get, timeout=effective_timeout) as resp_get:
+                        resp_get.read(1024)
+                except urllib.error.HTTPError as get_exc:
+                    logger.debug(f"measure_response_time: GET fallback HTTP status {get_exc.code}")
+            else:
+                logger.debug(f"measure_response_time: HTTP status {exc.code} received (roundtrip completed in {time.perf_counter() - start:.3f}s)")
         return (time.perf_counter() - start) * 1000.0
 
     async def measure_response_time_async(self, url: str,
@@ -475,6 +480,20 @@ class NetworkNamespace:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None, lambda: self.measure_response_time(url, timeout))
+
+    def compress_payload(self, data: str) -> bytes:
+        """Compresses string payload using gzip."""
+        import gzip
+        if not isinstance(data, str):
+            raise TypeError(f"Payload must be a string, got {type(data).__name__}")
+        return gzip.compress(data.encode("utf-8"))
+
+    def decompress_payload(self, data_bytes: bytes) -> str:
+        """Decompresses gzip bytes back into string."""
+        import gzip
+        if not isinstance(data_bytes, (bytes, bytearray)):
+            raise TypeError(f"Payload must be bytes, got {type(data_bytes).__name__}")
+        return gzip.decompress(data_bytes).decode("utf-8", errors="replace")
 
     def create_sniffer(self, page: Any) -> Any:
         """Instantiates a JSONResponseSniffer on the provided Playwright page."""
