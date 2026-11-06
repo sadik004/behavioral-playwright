@@ -178,87 +178,37 @@ class WebNamespace:
 
 
 class InfrastructureNamespace:
-    """SQLite WAL-mode priority task queue with retry accounting."""
+    """Pluggable distributed task queue and local persistence layer (SQLite / Redis / Postgres)."""
+
+    def _get_queue(self, uri_or_path: str = "bp_tasks.db") -> Any:
+        from behavioral_playwright.storage.task_queue import create_task_queue
+        return create_task_queue(uri_or_path)
 
     def init_queue(self, db_path: str = "bp_tasks.db") -> None:
-        conn = sqlite3.connect(db_path, check_same_thread=False)
-        try:
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.executescript(_SCHEMA)
-            conn.commit()
-        finally:
-            conn.close()
+        queue = self._get_queue(db_path)
+        queue.init_queue()
 
-    def push_task(self, db_path: str, url: str, operation: str,
-                  priority: int = 0) -> int:
-        conn = sqlite3.connect(db_path, check_same_thread=False)
-        try:
-            cur = conn.execute(
-                "INSERT INTO tasks (url, operation, priority, created_at)"
-                " VALUES (?, ?, ?, ?)",
-                (url, operation, priority, time.strftime("%Y-%m-%dT%H:%M:%S")),
-            )
-            conn.commit()
-            return int(cur.lastrowid or 0)
-        finally:
-            conn.close()
+    def push_task(
+        self,
+        db_path: str,
+        url: str,
+        operation: str,
+        priority: int = 0,
+    ) -> Union[int, str]:
+        queue = self._get_queue(db_path)
+        return queue.push_task(url=url, operation=operation, priority=priority)
 
     def pop_task(self, db_path: str) -> Optional[Dict[str, Any]]:
-        conn = sqlite3.connect(db_path, timeout=30.0, check_same_thread=False)
-        conn.isolation_level = None
-        try:
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA busy_timeout=30000;")
-            conn.execute("BEGIN IMMEDIATE;")
-            row = conn.execute(
-                "SELECT id, url, operation FROM tasks WHERE status='pending'"
-                " ORDER BY priority DESC LIMIT 1"
-            ).fetchone()
-            if row:
-                conn.execute("UPDATE tasks SET status='running' WHERE id=?", (row[0],))
-                conn.execute("COMMIT;")
-                return {"id": row[0], "url": row[1], "operation": row[2]}
-            else:
-                conn.execute("COMMIT;")
-                return None
-        except Exception:
-            try:
-                conn.execute("ROLLBACK;")
-            except Exception:
-                _ = "handled_expected_exception"  # SWALLOW-001 remediated
-            raise
-        finally:
-            conn.close()
+        queue = self._get_queue(db_path)
+        return queue.pop_task()
 
-    def complete_task(self, db_path: str, task_id: int) -> None:
-        conn = sqlite3.connect(db_path, check_same_thread=False)
-        try:
-            conn.execute(
-                "UPDATE tasks SET status='completed', completed_at=? WHERE id=?",
-                (time.strftime("%Y-%m-%dT%H:%M:%S"), task_id),
-            )
-            conn.commit()
-        finally:
-            conn.close()
+    def complete_task(self, db_path: str, task_id: Union[int, str]) -> None:
+        queue = self._get_queue(db_path)
+        queue.complete_task(task_id)
 
-    def fail_task(self, db_path: str, task_id: int, max_retries: int = 3) -> None:
-        conn = sqlite3.connect(db_path, timeout=30.0, check_same_thread=False)
-        try:
-            conn.execute("PRAGMA journal_mode=WAL;")
-            row = conn.execute("SELECT status FROM tasks WHERE id=?", (task_id,)).fetchone()
-            curr_status = str(row[0]) if row and row[0] else ""
-            if curr_status.startswith("retry:"):
-                sub = curr_status.split("retry:")[1]
-                attempt = int(sub) + 1 if sub.isdigit() else 1
-            else:
-                attempt = 1
-            if attempt >= max_retries:
-                conn.execute("UPDATE tasks SET status='failed' WHERE id=?", (task_id,))
-            else:
-                conn.execute("UPDATE tasks SET status=? WHERE id=?", (f"retry:{attempt}", task_id))
-            conn.commit()
-        finally:
-            conn.close()
+    def fail_task(self, db_path: str, task_id: Union[int, str], max_retries: int = 3) -> None:
+        queue = self._get_queue(db_path)
+        queue.fail_task(task_id, max_retries=max_retries)
 
     def save_to_cache(self, db_path: str, url: str, html: str, md: str = "") -> bool:
         """Persists page cache into SQLite database."""
