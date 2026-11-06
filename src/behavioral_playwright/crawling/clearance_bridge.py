@@ -10,6 +10,8 @@ Solves the biggest speed vs. stealth bottleneck in web crawling:
 
 from __future__ import annotations
 
+import json
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, Optional
@@ -59,10 +61,17 @@ class BrowserClearanceBridge:
         "x-kpsdk-ct",
     )
 
-    def __init__(self, default_ttl_seconds: float = 1800.0, proxy_rotator: Optional[Any] = None) -> None:
+    def __init__(
+        self,
+        default_ttl_seconds: float = 1800.0,
+        proxy_rotator: Optional[Any] = None,
+        shared_store: Optional[Any] = None,
+    ) -> None:
         self.default_ttl_seconds = default_ttl_seconds
         self.proxy_rotator = proxy_rotator
+        self.shared_store = shared_store
         self._leases: Dict[str, ClearanceLease] = {}
+        self._lock = threading.Lock()
         self.stats = {
             "fast_http_hits": 0,
             "challenge_escalations": 0,
@@ -75,19 +84,138 @@ class BrowserClearanceBridge:
 
     def get_valid_lease(self, url: str) -> Optional[ClearanceLease]:
         domain = self._extract_domain(url)
-        lease = self._leases.get(domain)
-        if lease is not None and not lease.is_expired:
-            return lease
-        if lease is not None and lease.is_expired:
-            del self._leases[domain]
-        return None
+        with self._lock:
+            lease = self._leases.get(domain)
+            if lease is not None and not lease.is_expired:
+                return lease
+            if lease is not None and lease.is_expired:
+                self._leases.pop(domain, None)
+
+            # Check shared_store read-through for distributed workers
+            if self.shared_store is not None:
+                key = f"bp:lease:{domain}"
+                raw = None
+                try:
+                    if hasattr(self.shared_store, "get"):
+                        raw = self.shared_store.get(key)
+                    elif isinstance(self.shared_store, dict):
+                        raw = self.shared_store.get(key)
+                except Exception:
+                    raw = None
+
+                if raw:
+                    data = None
+                    if isinstance(raw, str):
+                        try:
+                            data = json.loads(raw)
+                        except Exception:
+                            data = None
+                    elif isinstance(raw, dict):
+                        data = raw
+
+                    if data and isinstance(data, dict):
+                        try:
+                            l = ClearanceLease(
+                                domain=data.get("domain", domain),
+                                cookies=dict(data.get("cookies", {})),
+                                headers=dict(data.get("headers", {})),
+                                proxy_url=data.get("proxy_url"),
+                                tls_impersonate=data.get("tls_impersonate", "chrome124"),
+                                acquired_at=float(data.get("acquired_at", time.time())),
+                                ttl_seconds=float(data.get("ttl_seconds", self.default_ttl_seconds)),
+                                reuse_count=int(data.get("reuse_count", 0)),
+                            )
+                            if not l.is_expired:
+                                self._leases[domain] = l
+                                return l
+                        except Exception:
+                            pass
+            return None
 
     def store_lease(self, lease: ClearanceLease) -> None:
-        self._leases[lease.domain.lower()] = lease
+        domain = lease.domain.lower()
+        with self._lock:
+            self._leases[domain] = lease
+            if self.shared_store is not None:
+                key = f"bp:lease:{domain}"
+                payload = {
+                    "domain": domain,
+                    "cookies": dict(lease.cookies),
+                    "headers": dict(lease.headers),
+                    "proxy_url": lease.proxy_url,
+                    "tls_impersonate": lease.tls_impersonate,
+                    "acquired_at": float(lease.acquired_at),
+                    "ttl_seconds": float(lease.ttl_seconds),
+                    "reuse_count": int(lease.reuse_count),
+                }
+                json_str = json.dumps(payload)
+                try:
+                    if hasattr(self.shared_store, "set"):
+                        self.shared_store.set(key, json_str)
+                    elif isinstance(self.shared_store, dict):
+                        self.shared_store[key] = json_str
+                except Exception:
+                    pass
 
     def invalidate_lease(self, url: str) -> None:
         domain = self._extract_domain(url)
-        self._leases.pop(domain, None)
+        with self._lock:
+            self._leases.pop(domain, None)
+            if self.shared_store is not None:
+                key = f"bp:lease:{domain}"
+                try:
+                    if hasattr(self.shared_store, "delete"):
+                        self.shared_store.delete(key)
+                    elif isinstance(self.shared_store, dict):
+                        self.shared_store.pop(key, None)
+                except Exception:
+                    pass
+
+    def export_leases(self) -> Dict[str, Dict[str, Any]]:
+        """Thread-safely exports active non-expired leases for worker sync."""
+        with self._lock:
+            out: Dict[str, Dict[str, Any]] = {}
+            for domain, lease in list(self._leases.items()):
+                if not lease.is_expired:
+                    out[domain] = {
+                        "domain": lease.domain,
+                        "cookies": dict(lease.cookies),
+                        "headers": dict(lease.headers),
+                        "proxy_url": lease.proxy_url,
+                        "tls_impersonate": lease.tls_impersonate,
+                        "acquired_at": float(lease.acquired_at),
+                        "ttl_seconds": float(lease.ttl_seconds),
+                        "reuse_count": int(lease.reuse_count),
+                    }
+                else:
+                    self._leases.pop(domain, None)
+            return out
+
+    def import_leases(self, payload: Dict[str, Dict[str, Any]]) -> int:
+        """Thread-safely imports leases keeping newest acquired_at lease per domain."""
+        imported = 0
+        with self._lock:
+            for domain, raw in payload.items():
+                try:
+                    lease = ClearanceLease(
+                        domain=raw.get("domain", domain),
+                        cookies=dict(raw.get("cookies", {})),
+                        headers=dict(raw.get("headers", {})),
+                        proxy_url=raw.get("proxy_url"),
+                        tls_impersonate=raw.get("tls_impersonate", "chrome124"),
+                        acquired_at=float(raw.get("acquired_at", time.time())),
+                        ttl_seconds=float(raw.get("ttl_seconds", self.default_ttl_seconds)),
+                        reuse_count=int(raw.get("reuse_count", 0)),
+                    )
+                    if not lease.is_expired:
+                        dom_k = lease.domain.lower()
+                        existing = self._leases.get(dom_k)
+                        if existing is None or lease.acquired_at >= existing.acquired_at:
+                            self._leases[dom_k] = lease
+                            imported += 1
+                except Exception:
+                    pass
+        return imported
 
     def is_challenge_response(
         self,

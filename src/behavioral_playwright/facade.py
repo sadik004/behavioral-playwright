@@ -215,6 +215,14 @@ class InfrastructureNamespace:
         queue = self._get_queue(db_path)
         queue.fail_task(task_id, max_retries=max_retries)
 
+    def heartbeat_task(self, db_path: str, task_id: Union[int, str], extend_sec: Optional[float] = None) -> bool:
+        queue = self._get_queue(db_path)
+        return queue.heartbeat_task(task_id, extend_sec=extend_sec)
+
+    def reclaim_expired_leases(self, db_path: str = "bp_tasks.db", max_retries: int = 3) -> int:
+        queue = self._get_queue(db_path)
+        return queue.reclaim_expired_leases(max_retries=max_retries)
+
     def save_to_cache(self, db_path: str, url: str, html: str, md: str = "") -> bool:
         """Persists page cache into SQLite database."""
         conn = sqlite3.connect(db_path, check_same_thread=False)

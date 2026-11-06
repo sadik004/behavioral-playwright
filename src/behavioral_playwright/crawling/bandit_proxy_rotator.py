@@ -72,15 +72,19 @@ class BanditProxyRotator:
         max_cooldown_sec: float = 600.0,
         seed: Optional[int] = 42,
         tau_latency_ms: float = 1500.0,
+        decay_gamma: float = 0.98,
     ) -> None:
         if proxies is not None and len(proxies) == 0:
             raise ValueError("BanditProxyRotator requires at least one proxy URL.")
+        if not (0.0 < decay_gamma <= 1.0):
+            raise ValueError(f"decay_gamma must be in (0.0, 1.0], got {decay_gamma}")
         resolved_proxies = list(proxies) if proxies is not None else ["direct://local"]
         self.exploration_c = exploration_c
         self.rtt_penalty_weight = rtt_penalty_weight
         self.base_cooldown_sec = base_cooldown_sec
         self.max_cooldown_sec = max_cooldown_sec
         self.tau_latency_ms = tau_latency_ms
+        self.decay_gamma = float(decay_gamma)
         self._rng = random.Random(seed)
         self._lock = threading.RLock()
         self._arms: Dict[str, ProxyArmState] = {
@@ -159,16 +163,17 @@ class BanditProxyRotator:
             arm.ewma_rtt_ms = round(0.85 * arm.ewma_rtt_ms + 0.15 * max(1.0, latency_ms), 2)
 
             if success and not is_challenge:
-                # Reward fast responses more heavily
-                reward = 1.0 if latency_ms < 1000.0 else max(0.2, 1000.0 / latency_ms)
-                arm.alpha += reward
+                # Reward fast responses and apply non-stationary decay
+                arm.alpha = max(1.0, self.decay_gamma * arm.alpha) + 1.0
+                arm.beta = max(1.0, self.decay_gamma * arm.beta)
                 arm.successes += 1
                 arm.consecutive_failures = 0
                 arm.cooldown_until = 0.0
             else:
                 # Penalty heavier on Cloudflare/DataDome challenge drops
                 penalty = 3.0 if is_challenge else 1.5
-                arm.beta += penalty
+                arm.alpha = max(1.0, self.decay_gamma * arm.alpha)
+                arm.beta = max(1.0, self.decay_gamma * arm.beta) + penalty
                 arm.failures += 1
                 arm.consecutive_failures += 1
                 cooldown = min(
@@ -220,12 +225,45 @@ class BanditProxyRotator:
         quarantine_seconds: Optional[float] = None,
         is_challenge: bool = False,
         latency_ms: float = 1000.0,
+        status_code: Optional[int] = None,
+        is_waf_challenge: bool = False,
     ) -> None:
         key = getattr(node, "proxy_url", None) or str(node)
+        is_chal = is_challenge or is_waf_challenge or (status_code in (403, 407, 429, 502, 503, 504) if status_code else False)
         with self._lock:
-            arm = self.record_feedback(key, success=False, latency_ms=latency_ms, is_challenge=is_challenge)
+            arm = self.record_feedback(key, success=False, latency_ms=latency_ms, is_challenge=is_chal)
             if quarantine_seconds is not None:
                 arm.cooldown_until = time.time() + float(quarantine_seconds)
+
+    def export_state(self) -> Dict[str, Dict[str, Any]]:
+        """Thread-safely serializes proxy arm states for cross-worker synchronization."""
+        with self._lock:
+            return {
+                url: {
+                    "alpha": float(arm.alpha),
+                    "beta": float(arm.beta),
+                    "ewma_rtt_ms": float(arm.ewma_rtt_ms),
+                    "pulls": int(arm.pulls),
+                    "consecutive_failures": int(arm.consecutive_failures),
+                    "cooldown_until": float(arm.cooldown_until),
+                }
+                for url, arm in self._arms.items()
+            }
+
+    def import_state(
+        self, state_map: Dict[str, Dict[str, Any]], blend_weight: float = 0.5
+    ) -> None:
+        """Thread-safely merges remote proxy states using convex combination."""
+        w = max(0.0, min(1.0, float(blend_weight)))
+        with self._lock:
+            for proxy_url, remote in state_map.items():
+                arm = self._get_or_create_arm(proxy_url)
+                arm.alpha = max(1.0, (1.0 - w) * arm.alpha + w * float(remote.get("alpha", 1.0)))
+                arm.beta = max(1.0, (1.0 - w) * arm.beta + w * float(remote.get("beta", 1.0)))
+                arm.ewma_rtt_ms = round((1.0 - w) * arm.ewma_rtt_ms + w * float(remote.get("ewma_rtt_ms", 250.0)), 2)
+                arm.pulls = max(arm.pulls, int(remote.get("pulls", 0)))
+                arm.consecutive_failures = max(arm.consecutive_failures, int(remote.get("consecutive_failures", 0)))
+                arm.cooldown_until = max(arm.cooldown_until, float(remote.get("cooldown_until", 0.0)))
 
 
 class BandwidthResourceBlocker:

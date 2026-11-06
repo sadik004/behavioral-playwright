@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     operation TEXT NOT NULL,
     priority INTEGER DEFAULT 0,
     status TEXT DEFAULT 'pending',
+    leased_until REAL DEFAULT 0.0,
     created_at TEXT NOT NULL,
     completed_at TEXT
 );
@@ -73,6 +74,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     operation TEXT NOT NULL,
     priority INTEGER DEFAULT 0,
     status TEXT DEFAULT 'pending',
+    leased_until DOUBLE PRECISION DEFAULT 0.0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     completed_at TIMESTAMP WITH TIME ZONE
 );
@@ -92,6 +94,9 @@ def _extract_retry_count(status: str) -> int:
 
 class BaseTaskQueue(ABC):
     """Abstract interface defining standard lifecycle operations for all task queue backends."""
+
+    def __init__(self, lease_timeout_sec: float = 60.0) -> None:
+        self.lease_timeout_sec = float(lease_timeout_sec)
 
     @abstractmethod
     def init_queue(self) -> None:
@@ -122,11 +127,30 @@ class BaseTaskQueue(ABC):
         """Increments task retry counter or marks it as failed once max_retries is reached."""
         pass
 
+    @abstractmethod
+    def heartbeat_task(
+        self, task_id: Union[int, str], extend_sec: Optional[float] = None
+    ) -> bool:
+        """Extends task lease if currently running. Returns True if updated, False otherwise."""
+        pass
+
+    @abstractmethod
+    def reclaim_expired_leases(self, max_retries: int = 3) -> int:
+        """Reclaims expired running task leases and increments retries or marks as failed."""
+        pass
+
 
 class SQLiteTaskQueue(BaseTaskQueue):
     """Local SQLite WAL-mode priority queue with exponential jittered backoff."""
 
-    def __init__(self, db_path: str = "bp_tasks.db", timeout: float = 30.0, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        db_path: str = "bp_tasks.db",
+        timeout: float = 30.0,
+        lease_timeout_sec: float = 60.0,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(lease_timeout_sec=lease_timeout_sec)
         if db_path.startswith("sqlite:///"):
             db_path = db_path[len("sqlite:///"):]
         self.db_path = db_path
@@ -139,6 +163,10 @@ class SQLiteTaskQueue(BaseTaskQueue):
             try:
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.executescript(TASK_QUEUE_SCHEMA)
+                # Safe migration check for existing tables without leased_until column
+                cols = [r[1] for r in conn.execute("PRAGMA table_info(tasks);").fetchall()]
+                if "leased_until" not in cols:
+                    conn.execute("ALTER TABLE tasks ADD COLUMN leased_until REAL DEFAULT 0.0;")
                 conn.commit()
             finally:
                 conn.close()
@@ -152,8 +180,8 @@ class SQLiteTaskQueue(BaseTaskQueue):
                 with self._lock:
                     conn = sqlite3.connect(self.db_path, timeout=self.timeout, check_same_thread=False)
                     cur = conn.execute(
-                        "INSERT INTO tasks (url, operation, priority, created_at)"
-                        " VALUES (?, ?, ?, ?)",
+                        "INSERT INTO tasks (url, operation, priority, created_at, leased_until)"
+                        " VALUES (?, ?, ?, ?, 0.0)",
                         (url, operation, priority, time.strftime("%Y-%m-%dT%H:%M:%S")),
                     )
                     conn.commit()
@@ -188,9 +216,14 @@ class SQLiteTaskQueue(BaseTaskQueue):
                         "ORDER BY priority DESC, id ASC LIMIT 1"
                     ).fetchone()
                     if row:
+                        now = time.time()
+                        leased_until = now + self.lease_timeout_sec
                         prev_retries = _extract_retry_count(str(row[3] or ""))
                         running_status = f"running:{prev_retries}" if prev_retries > 0 else "running"
-                        conn.execute("UPDATE tasks SET status=? WHERE id=?", (running_status, row[0]))
+                        conn.execute(
+                            "UPDATE tasks SET status=?, leased_until=? WHERE id=?",
+                            (running_status, leased_until, row[0]),
+                        )
                         conn.execute("COMMIT;")
                         return {"id": row[0], "url": row[1], "operation": row[2]}
                     else:
@@ -223,7 +256,7 @@ class SQLiteTaskQueue(BaseTaskQueue):
             conn = sqlite3.connect(self.db_path, timeout=self.timeout, check_same_thread=False)
             try:
                 conn.execute(
-                    "UPDATE tasks SET status='completed', completed_at=? WHERE id=?",
+                    "UPDATE tasks SET status='completed', completed_at=?, leased_until=0.0 WHERE id=?",
                     (time.strftime("%Y-%m-%dT%H:%M:%S"), int(task_id)),
                 )
                 conn.commit()
@@ -241,12 +274,79 @@ class SQLiteTaskQueue(BaseTaskQueue):
                 attempt = _extract_retry_count(status) + 1
 
                 if attempt >= max_retries:
-                    conn.execute("UPDATE tasks SET status='failed' WHERE id=?", (int(task_id),))
+                    conn.execute("UPDATE tasks SET status='failed', leased_until=0.0 WHERE id=?", (int(task_id),))
                 else:
-                    conn.execute("UPDATE tasks SET status=? WHERE id=?", (f"retry:{attempt}", int(task_id)))
+                    conn.execute("UPDATE tasks SET status=?, leased_until=0.0 WHERE id=?", (f"retry:{attempt}", int(task_id)))
                 conn.commit()
             finally:
                 conn.close()
+
+    def heartbeat_task(self, task_id: Union[int, str], extend_sec: Optional[float] = None) -> bool:
+        duration = self.lease_timeout_sec if extend_sec is None else float(extend_sec)
+        now = time.time()
+        with self._lock:
+            conn = sqlite3.connect(self.db_path, timeout=self.timeout, check_same_thread=False)
+            try:
+                row = conn.execute("SELECT status FROM tasks WHERE id=?", (int(task_id),)).fetchone()
+                if not row:
+                    return False
+                status = str(row[0] or "")
+                if not (status == "running" or status.startswith("running:")):
+                    return False
+                conn.execute("UPDATE tasks SET leased_until=? WHERE id=?", (now + duration, int(task_id)))
+                conn.commit()
+                return True
+            finally:
+                conn.close()
+
+    def reclaim_expired_leases(self, max_retries: int = 3) -> int:
+        now = time.time()
+        with self._lock:
+            conn = sqlite3.connect(
+                self.db_path,
+                timeout=self.timeout,
+                isolation_level=None,
+                check_same_thread=False,
+            )
+            try:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA busy_timeout=30000;")
+                conn.execute("BEGIN IMMEDIATE;")
+                rows = conn.execute(
+                    "SELECT id, status FROM tasks "
+                    "WHERE (status='running' OR status LIKE 'running:%') "
+                    "AND leased_until > 0.0 AND leased_until < ?",
+                    (now,),
+                ).fetchall()
+                reclaimed = 0
+                for row in rows:
+                    tid = row[0]
+                    curr_status = str(row[1] or "")
+                    retries = _extract_retry_count(curr_status)
+                    new_retries = retries + 1
+                    if new_retries < max_retries:
+                        conn.execute(
+                            "UPDATE tasks SET status=?, leased_until=0.0 WHERE id=?",
+                            (f"retry:{new_retries}", tid),
+                        )
+                    else:
+                        conn.execute(
+                            "UPDATE tasks SET status='failed:lease_expired', leased_until=0.0 WHERE id=?",
+                            (tid,),
+                        )
+                    reclaimed += 1
+                conn.execute("COMMIT;")
+                return reclaimed
+            except Exception:
+                if conn is not None:
+                    try:
+                        conn.execute("ROLLBACK;")
+                    except Exception:
+                        pass
+                raise
+            finally:
+                if conn is not None:
+                    conn.close()
 
 
 class RedisTaskQueue(BaseTaskQueue):
@@ -260,6 +360,7 @@ class RedisTaskQueue(BaseTaskQueue):
     POP_LUA_SCRIPT = """
     local pending_key = KEYS[1]
     local prefix = ARGV[1]
+    local leased_until = ARGV[2] or "0"
     local items = redis.call('ZREVRANGE', pending_key, 0, 0)
     if #items == 0 then
         return nil
@@ -267,7 +368,7 @@ class RedisTaskQueue(BaseTaskQueue):
     local task_id = items[1]
     redis.call('ZREM', pending_key, task_id)
     local task_hash = prefix .. ':task:' .. task_id
-    redis.call('HSET', task_hash, 'status', 'running')
+    redis.call('HSET', task_hash, 'status', 'running', 'leased_until', leased_until)
     local task_data = redis.call('HGETALL', task_hash)
     return {task_id, task_data}
     """
@@ -277,8 +378,10 @@ class RedisTaskQueue(BaseTaskQueue):
         uri: str = "redis://localhost:6379/0",
         prefix: str = "bp",
         client: Optional[Any] = None,
+        lease_timeout_sec: float = 60.0,
         **kwargs: Any,
     ) -> None:
+        super().__init__(lease_timeout_sec=lease_timeout_sec)
         self.uri = uri
         self.prefix = prefix
         self._pending_zset = f"{prefix}:tasks:pending"
@@ -304,6 +407,7 @@ class RedisTaskQueue(BaseTaskQueue):
             "operation": operation,
             "priority": str(priority),
             "status": "pending",
+            "leased_until": "0.0",
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "completed_at": "",
             "retries": "0",
@@ -315,10 +419,13 @@ class RedisTaskQueue(BaseTaskQueue):
         return task_id
 
     def pop_task(self) -> Optional[Dict[str, Any]]:
+        now = time.time()
+        leased_until_str = str(now + self.lease_timeout_sec)
+
         # 1. Primary path: server-side atomic Lua script via EVAL
         if hasattr(self._client, "eval"):
             try:
-                res = self._client.eval(self.POP_LUA_SCRIPT, 1, self._pending_zset, self.prefix)
+                res = self._client.eval(self.POP_LUA_SCRIPT, 1, self._pending_zset, self.prefix, leased_until_str)
                 if not res:
                     return None
                 task_id, raw_fields = res[0], res[1]
@@ -329,6 +436,11 @@ class RedisTaskQueue(BaseTaskQueue):
                     data = {"id": str(task_id)}
                     for i in range(0, len(raw_fields), 2):
                         data[str(raw_fields[i])] = raw_fields[i + 1]
+
+                # Guarantee leased_until is populated in case external engine didn't evaluate ARGV[2]
+                task_key = f"{self.prefix}:task:{task_id}"
+                self._client.hset(task_key, "leased_until", leased_until_str)
+
                 return {
                     "id": data["id"],
                     "url": data.get("url", ""),
@@ -346,7 +458,7 @@ class RedisTaskQueue(BaseTaskQueue):
             removed = self._client.zrem(self._pending_zset, task_id)
             if int(removed or 0) == 1:
                 task_key = f"{self.prefix}:task:{task_id}"
-                self._client.hset(task_key, "status", "running")
+                self._client.hset(task_key, mapping={"status": "running", "leased_until": leased_until_str})
                 data = self._client.hgetall(task_key)
                 return {
                     "id": task_id,
@@ -360,6 +472,7 @@ class RedisTaskQueue(BaseTaskQueue):
         self._client.hset(task_key, mapping={
             "status": "completed",
             "completed_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "leased_until": "0.0",
         })
 
     def fail_task(self, task_id: Union[int, str], max_retries: int = 3) -> None:
@@ -369,10 +482,73 @@ class RedisTaskQueue(BaseTaskQueue):
         priority = float(data.get("priority", 0))
 
         if retries >= max_retries:
-            self._client.hset(task_key, mapping={"status": "failed", "retries": str(retries)})
+            self._client.hset(task_key, mapping={"status": "failed", "retries": str(retries), "leased_until": "0.0"})
         else:
-            self._client.hset(task_key, mapping={"status": f"retry:{retries}", "retries": str(retries)})
+            self._client.hset(task_key, mapping={"status": f"retry:{retries}", "retries": str(retries), "leased_until": "0.0"})
             self._client.zadd(self._pending_zset, {str(task_id): priority})
+
+    def heartbeat_task(self, task_id: Union[int, str], extend_sec: Optional[float] = None) -> bool:
+        task_key = f"{self.prefix}:task:{task_id}"
+        data = self._client.hgetall(task_key)
+        if not data:
+            return False
+        status = str(data.get("status", ""))
+        if not (status == "running" or status.startswith("running:")):
+            return False
+        duration = self.lease_timeout_sec if extend_sec is None else float(extend_sec)
+        new_leased_until = str(time.time() + duration)
+        self._client.hset(task_key, "leased_until", new_leased_until)
+        return True
+
+    def reclaim_expired_leases(self, max_retries: int = 3) -> int:
+        now = time.time()
+        if hasattr(self._client, "scan_iter"):
+            task_keys = list(self._client.scan_iter(f"{self.prefix}:task:*"))
+        elif hasattr(self._client, "keys"):
+            task_keys = list(self._client.keys(f"{self.prefix}:task:*"))
+        elif hasattr(self._client, "_hashes"):
+            task_keys = [k for k in self._client._hashes.keys() if k.startswith(f"{self.prefix}:task:")]
+        else:
+            task_keys = []
+
+        reclaimed = 0
+        for task_key in task_keys:
+            data = self._client.hgetall(task_key)
+            if not data:
+                continue
+            status = str(data.get("status", ""))
+            if not (status == "running" or status.startswith("running:")):
+                continue
+            try:
+                leased_until = float(data.get("leased_until", 0.0) or 0.0)
+            except (ValueError, TypeError):
+                leased_until = 0.0
+
+            if 0.0 < leased_until < now:
+                tid = data.get("id") or task_key.split(":")[-1]
+                retries = int(data.get("retries", 0)) + 1
+                priority = float(data.get("priority", 0))
+                if retries < max_retries:
+                    self._client.hset(
+                        task_key,
+                        mapping={
+                            "status": f"retry:{retries}",
+                            "retries": str(retries),
+                            "leased_until": "0.0",
+                        },
+                    )
+                    self._client.zadd(self._pending_zset, {str(tid): priority})
+                else:
+                    self._client.hset(
+                        task_key,
+                        mapping={
+                            "status": "failed:lease_expired",
+                            "retries": str(retries),
+                            "leased_until": "0.0",
+                        },
+                    )
+                reclaimed += 1
+        return reclaimed
 
 
 class PostgresTaskQueue(BaseTaskQueue):
@@ -386,8 +562,10 @@ class PostgresTaskQueue(BaseTaskQueue):
         self,
         uri: str = "postgresql://postgres:postgres@localhost:5432/bp",
         pool: Optional[Any] = None,
+        lease_timeout_sec: float = 60.0,
         **kwargs: Any,
     ) -> None:
+        super().__init__(lease_timeout_sec=lease_timeout_sec)
         self.uri = uri
         self.kwargs = kwargs
         if pool is not None:
@@ -420,7 +598,7 @@ class PostgresTaskQueue(BaseTaskQueue):
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO tasks (url, operation, priority) VALUES (%s, %s, %s) RETURNING id;",
+                    "INSERT INTO tasks (url, operation, priority, leased_until) VALUES (%s, %s, %s, 0.0) RETURNING id;",
                     (url, operation, priority),
                 )
                 task_id = cur.fetchone()[0]
@@ -448,9 +626,14 @@ class PostgresTaskQueue(BaseTaskQueue):
                     conn.commit()
                     return None
                 task_id, url, operation, status = row[0], row[1], row[2], str(row[3] or "")
+                now = time.time()
+                leased_until = now + self.lease_timeout_sec
                 prev_retries = _extract_retry_count(status)
                 running_status = f"running:{prev_retries}" if prev_retries > 0 else "running"
-                cur.execute("UPDATE tasks SET status = %s WHERE id = %s;", (running_status, task_id))
+                cur.execute(
+                    "UPDATE tasks SET status = %s, leased_until = %s WHERE id = %s;",
+                    (running_status, leased_until, task_id),
+                )
             conn.commit()
             return {"id": task_id, "url": url, "operation": operation}
         finally:
@@ -461,7 +644,7 @@ class PostgresTaskQueue(BaseTaskQueue):
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE tasks SET status = 'completed', completed_at = NOW() WHERE id = %s;",
+                    "UPDATE tasks SET status = 'completed', completed_at = NOW(), leased_until = 0.0 WHERE id = %s;",
                     (int(task_id),),
                 )
             conn.commit()
@@ -480,29 +663,85 @@ class PostgresTaskQueue(BaseTaskQueue):
                 attempt = _extract_retry_count(status) + 1
 
                 if attempt >= max_retries:
-                    cur.execute("UPDATE tasks SET status = 'failed' WHERE id = %s;", (int(task_id),))
+                    cur.execute("UPDATE tasks SET status = 'failed', leased_until = 0.0 WHERE id = %s;", (int(task_id),))
                 else:
-                    cur.execute("UPDATE tasks SET status = %s WHERE id = %s;", (f"retry:{attempt}", int(task_id)))
+                    cur.execute("UPDATE tasks SET status = %s, leased_until = 0.0 WHERE id = %s;", (f"retry:{attempt}", int(task_id)))
             conn.commit()
         finally:
             self._release_connection(conn)
 
+    def heartbeat_task(self, task_id: Union[int, str], extend_sec: Optional[float] = None) -> bool:
+        duration = self.lease_timeout_sec if extend_sec is None else float(extend_sec)
+        new_leased_until = time.time() + duration
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE tasks SET leased_until = %s WHERE id = %s AND (status = 'running' OR status LIKE 'running:%%') RETURNING id;",
+                    (new_leased_until, int(task_id)),
+                )
+                row = cur.fetchone()
+            conn.commit()
+            return row is not None
+        finally:
+            self._release_connection(conn)
 
-def create_task_queue(uri_or_path: str = "bp_tasks.db", **kwargs: Any) -> BaseTaskQueue:
+    def reclaim_expired_leases(self, max_retries: int = 3) -> int:
+        now = time.time()
+        conn = self._get_connection()
+        try:
+            reclaimed = 0
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, status FROM tasks
+                    WHERE (status = 'running' OR status LIKE 'running:%%')
+                    AND leased_until > 0.0 AND leased_until < %s
+                    FOR UPDATE SKIP LOCKED;
+                    """,
+                    (now,),
+                )
+                rows = cur.fetchall()
+                for row in rows:
+                    tid, st = row[0], str(row[1] or "")
+                    retries = _extract_retry_count(st) + 1
+                    if retries < max_retries:
+                        cur.execute(
+                            "UPDATE tasks SET status = %s, leased_until = 0.0 WHERE id = %s;",
+                            (f"retry:{retries}", tid),
+                        )
+                    else:
+                        cur.execute(
+                            "UPDATE tasks SET status = 'failed:lease_expired', leased_until = 0.0 WHERE id = %s;",
+                            (tid,),
+                        )
+                    reclaimed += 1
+            conn.commit()
+            return reclaimed
+        finally:
+            self._release_connection(conn)
+
+
+def create_task_queue(
+    uri_or_path: str = "bp_tasks.db",
+    lease_timeout_sec: float = 60.0,
+    **kwargs: Any,
+) -> BaseTaskQueue:
     """Factory creating SQLite, Redis, or Postgres task queue based on URI precedence."""
     clean_uri = (uri_or_path or "").strip()
     if clean_uri.startswith(("redis://", "rediss://")):
-        return RedisTaskQueue(clean_uri, **kwargs)
+        return RedisTaskQueue(clean_uri, lease_timeout_sec=lease_timeout_sec, **kwargs)
     if clean_uri.startswith(("postgres://", "postgresql://")):
-        return PostgresTaskQueue(clean_uri, **kwargs)
-    return SQLiteTaskQueue(clean_uri or "bp_tasks.db", **kwargs)
+        return PostgresTaskQueue(clean_uri, lease_timeout_sec=lease_timeout_sec, **kwargs)
+    return SQLiteTaskQueue(clean_uri or "bp_tasks.db", lease_timeout_sec=lease_timeout_sec, **kwargs)
 
 
 class TaskQueueRepository:
     """Thread-safe, WAL-enabled priority task repository maintaining backward-compatible contracts."""
 
-    def __init__(self, default_db: str = "bp_tasks.db") -> None:
+    def __init__(self, default_db: str = "bp_tasks.db", lease_timeout_sec: float = 60.0) -> None:
         self.default_db = default_db
+        self.lease_timeout_sec = float(lease_timeout_sec)
         self._queues: Dict[str, BaseTaskQueue] = {}
         self._lock = threading.Lock()
 
@@ -510,7 +749,7 @@ class TaskQueueRepository:
         target = uri_or_path or self.default_db
         with self._lock:
             if target not in self._queues:
-                self._queues[target] = create_task_queue(target)
+                self._queues[target] = create_task_queue(target, lease_timeout_sec=self.lease_timeout_sec)
             return self._queues[target]
 
     def init_queue(self, db_path: Optional[str] = None) -> None:
@@ -539,3 +778,11 @@ class TaskQueueRepository:
     def fail_task(self, db_path: str, task_id: Union[int, str], max_retries: int = 3) -> None:
         queue = self._get_queue(db_path)
         queue.fail_task(task_id, max_retries=max_retries)
+
+    def heartbeat_task(self, db_path: str, task_id: Union[int, str], extend_sec: Optional[float] = None) -> bool:
+        queue = self._get_queue(db_path)
+        return queue.heartbeat_task(task_id, extend_sec=extend_sec)
+
+    def reclaim_expired_leases(self, db_path: Optional[str] = None, max_retries: int = 3) -> int:
+        queue = self._get_queue(db_path)
+        return queue.reclaim_expired_leases(max_retries=max_retries)

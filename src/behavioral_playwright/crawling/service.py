@@ -9,6 +9,7 @@ or a caller-provided async ``scrape`` callable.
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 import hashlib
 import inspect
 import math
@@ -17,7 +18,7 @@ import re
 import sqlite3
 import struct
 import time
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, AsyncIterator, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urljoin, urlparse, urldefrag
 
 try:
@@ -674,8 +675,82 @@ VeilEngine = CrawlingService
 
 
 # =============================================================================
-# 6. ENTERPRISE 4-TIER ADAPTIVE ESCALATION CRAWLER SERVICE
+# 6. ENTERPRISE 4-TIER ADAPTIVE ESCALATION CRAWLER SERVICE & CONCURRENCY BULKHEAD
 # =============================================================================
+
+class TieredConcurrencyBulkhead:
+    """Hierarchical Concurrency Bulkheads separating lightweight Network I/O
+    (HTTP_FAST, TLS_IMPERSONATE) from heavy Headless/Stealth Browser contexts
+    (BROWSER_HEADLESS, BROWSER_STEALTH_KINEMATICS) with backpressure timeout protection.
+    """
+
+    def __init__(
+        self,
+        max_network_concurrency: int = 128,
+        max_browser_concurrency: int = 8,
+    ) -> None:
+        self.max_network_concurrency = max(1, int(max_network_concurrency))
+        self.max_browser_concurrency = max(1, int(max_browser_concurrency))
+        self._network_sem = asyncio.Semaphore(self.max_network_concurrency)
+        self._browser_sem = asyncio.Semaphore(self.max_browser_concurrency)
+        self._lock = asyncio.Lock()
+        self.active_network = 0
+        self.active_browser = 0
+        self.peak_network = 0
+        self.peak_browser = 0
+        self.rejected_timeouts = 0
+
+    def _is_browser_tier(self, tier: Any) -> bool:
+        t_name = getattr(tier, "name", "")
+        t_val = getattr(tier, "value", tier)
+        t_str = f"{t_name} {t_val}".upper()
+        return "BROWSER" in t_str or tier in (3, 4, "3", "4")
+
+    @asynccontextmanager
+    async def slot(self, tier: Any, timeout: float = 30.0) -> AsyncIterator[None]:
+        is_browser = self._is_browser_tier(tier)
+        sem = self._browser_sem if is_browser else self._network_sem
+        try:
+            await asyncio.wait_for(sem.acquire(), timeout=timeout)
+        except (asyncio.TimeoutError, TimeoutError):
+            async with self._lock:
+                self.rejected_timeouts += 1
+            raise TimeoutError(
+                f"Bulkhead backpressure timeout ({timeout}s) exceeded waiting for "
+                f"{'browser' if is_browser else 'network'} slot"
+            )
+
+        async with self._lock:
+            if is_browser:
+                self.active_browser += 1
+                if self.active_browser > self.peak_browser:
+                    self.peak_browser = self.active_browser
+            else:
+                self.active_network += 1
+                if self.active_network > self.peak_network:
+                    self.peak_network = self.active_network
+
+        try:
+            yield
+        finally:
+            async with self._lock:
+                if is_browser:
+                    self.active_browser = max(0, self.active_browser - 1)
+                else:
+                    self.active_network = max(0, self.active_network - 1)
+            sem.release()
+
+    def get_metrics(self) -> Dict[str, int]:
+        return {
+            "active_network": self.active_network,
+            "active_browser": self.active_browser,
+            "peak_network": self.peak_network,
+            "peak_browser": self.peak_browser,
+            "rejected_timeouts": self.rejected_timeouts,
+            "max_network_concurrency": self.max_network_concurrency,
+            "max_browser_concurrency": self.max_browser_concurrency,
+        }
+
 
 class TieredCrawlerService:
     """Robust 4-tier adaptive crawler service with anti-bot challenge detection,
@@ -695,6 +770,9 @@ class TieredCrawlerService:
         memory_threshold_mb: float = 512.0,
         context_rotator: Optional[Any] = None,
         memory_pid_controller: Optional[Any] = None,
+        bulkhead: Optional[TieredConcurrencyBulkhead] = None,
+        max_network_concurrency: int = 128,
+        max_browser_concurrency: int = 8,
     ) -> None:
         self.tier1_fetcher = tier1_fetcher
         self.tier2_fetcher = tier2_fetcher
@@ -702,6 +780,10 @@ class TieredCrawlerService:
         self.tier4_fetcher = tier4_fetcher
         self.max_concurrency = max(1, max_concurrency)
         self.semaphore = asyncio.Semaphore(self.max_concurrency)
+        self.bulkhead = bulkhead or TieredConcurrencyBulkhead(
+            max_network_concurrency=max_network_concurrency,
+            max_browser_concurrency=max_browser_concurrency,
+        )
         self.rate_limit_rpm = max(1, rate_limit_rpm)
         self._domain_limiters: Dict[str, TokenBucketRateLimiter] = {}
         self._domain_lock = asyncio.Lock()
@@ -1017,14 +1099,15 @@ class TieredCrawlerService:
                 error_msg: Optional[str] = None
 
                 try:
-                    if current_tier == CrawlerTier.HTTP_FAST:
-                        code, hdrs, body = await self._execute_tier1(request)
-                    elif current_tier == CrawlerTier.TLS_IMPERSONATE:
-                        code, hdrs, body = await self._execute_tier2(request)
-                    elif current_tier == CrawlerTier.BROWSER_HEADLESS:
-                        code, hdrs, body = await self._execute_tier3(request)
-                    elif current_tier == CrawlerTier.BROWSER_STEALTH_KINEMATICS:
-                        code, hdrs, body = await self._execute_tier4(request)
+                    async with self.bulkhead.slot(current_tier):
+                        if current_tier == CrawlerTier.HTTP_FAST:
+                            code, hdrs, body = await self._execute_tier1(request)
+                        elif current_tier == CrawlerTier.TLS_IMPERSONATE:
+                            code, hdrs, body = await self._execute_tier2(request)
+                        elif current_tier == CrawlerTier.BROWSER_HEADLESS:
+                            code, hdrs, body = await self._execute_tier3(request)
+                        elif current_tier == CrawlerTier.BROWSER_STEALTH_KINEMATICS:
+                            code, hdrs, body = await self._execute_tier4(request)
                 except Exception as exc:
                     error_msg = f"{type(exc).__name__}: {exc}"
                     code = 503
@@ -1131,6 +1214,7 @@ __all__ = [
     "AutoRuleSchemaExtractor",
     "CrawlingService",
     "VeilEngine",
+    "TieredConcurrencyBulkhead",
     "TieredCrawlerService",
     "TieredCrawler",
 ]
