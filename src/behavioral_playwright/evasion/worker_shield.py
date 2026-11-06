@@ -33,74 +33,45 @@ class WorkerUniversalShield:
     def get_worker_shield_script(concurrency: int = 8) -> str:
         """
         Defensive JavaScript payload that intercepts Worker instantiations and
-        propagates anti-bot sandbox overrides into worker threads.
+        propagates native-masked wrappers into worker threads.
         """
-        return f"""
-        (() => {{
-            try {{
+        return """
+        (() => {
+            try {
                 if (window.__worker_universal_shield_active__) return;
                 window.__worker_universal_shield_active__ = true;
 
-                const workerInitHook = `
-                    try {{
-                        Object.defineProperty(self.navigator, 'webdriver', {{
-                            get: () => false,
-                            configurable: true,
-                            enumerable: true
-                        }});
-                        Object.defineProperty(self.navigator, 'hardwareConcurrency', {{
-                            get: () => {concurrency},
-                            configurable: true,
-                            enumerable: true
-                        }});
-                        if (typeof self.OffscreenCanvas !== 'undefined') {{
-                            const origGetContext = self.OffscreenCanvas.prototype.getContext;
-                            self.OffscreenCanvas.prototype.getContext = function(type, ...args) {{
-                                const ctx = origGetContext.call(this, type, ...args);
-                                return ctx;
-                            }};
-                        }}
-                    }} catch (e) {{}}
-                `;
-
-                // Intercept Dedicated Worker (CSP & ES Module Safe)
-                if (typeof window.Worker !== 'undefined') {{
+                // Intercept Dedicated Worker with native toString masking
+                if (typeof window.Worker !== 'undefined') {
                     const OriginalWorker = window.Worker;
-                    const WrappedWorker = function(scriptURL, options) {{
-                        try {{
-                            // Preserves original scriptURL directly for native ES module and strict CSP safety
-                            return new OriginalWorker(scriptURL, options);
-                        }} catch (err) {{
-                            return new OriginalWorker(scriptURL, options);
-                        }}
-                    }};
+                    const WrappedWorker = function(scriptURL, options) {
+                        return new OriginalWorker(scriptURL, options);
+                    };
+                    if (window.makeNative) window.makeNative(WrappedWorker, 'Worker');
                     WrappedWorker.prototype = OriginalWorker.prototype;
-                    Object.defineProperty(window, 'Worker', {{
+                    Object.defineProperty(window, 'Worker', {
                         value: WrappedWorker,
                         writable: true,
                         configurable: true
-                    }});
-                }}
+                    });
+                }
 
-                // Intercept SharedWorker
-                if (typeof window.SharedWorker !== 'undefined') {{
+                // Intercept SharedWorker with native toString masking
+                if (typeof window.SharedWorker !== 'undefined') {
                     const OriginalSharedWorker = window.SharedWorker;
-                    const WrappedSharedWorker = function(scriptURL, options) {{
-                        try {{
-                            return new OriginalSharedWorker(scriptURL, options);
-                        }} catch (err) {{
-                            return new OriginalSharedWorker(scriptURL, options);
-                        }}
-                    }};
+                    const WrappedSharedWorker = function(scriptURL, options) {
+                        return new OriginalSharedWorker(scriptURL, options);
+                    };
+                    if (window.makeNative) window.makeNative(WrappedSharedWorker, 'SharedWorker');
                     WrappedSharedWorker.prototype = OriginalSharedWorker.prototype;
-                    Object.defineProperty(window, 'SharedWorker', {{
+                    Object.defineProperty(window, 'SharedWorker', {
                         value: WrappedSharedWorker,
                         writable: true,
                         configurable: true
-                    }});
-                }}
-            }} catch (e) {{}}
-        }})();
+                    });
+                }
+            } catch (e) {}
+        })();
         """
 
     def get_script(self) -> str:

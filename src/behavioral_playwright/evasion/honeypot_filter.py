@@ -50,12 +50,6 @@ class HoneypotIsolationShield:
             window.__powerhand_verify_atomic_dispatch_safety__ = function(element) {
                 return !window.__powerhand_is_honeypot__(element);
             };
-
-            const origQuerySelectorAll = Document.prototype.querySelectorAll;
-            Document.prototype.querySelectorAll = function(selector) {
-                const nodes = origQuerySelectorAll.apply(this, arguments);
-                return Array.from(nodes).filter(node => !window.__powerhand_is_honeypot__(node));
-            };
         })();
         """
 

@@ -24,7 +24,7 @@ class CanvasWebGLShaderSpoofer:
             const prng = mulberry32(1337);
 
             const origGetImageData = CanvasRenderingContext2D.prototype.getImageData;
-            CanvasRenderingContext2D.prototype.getImageData = function(x, y, w, h) {
+            const canvasHandler = function(x, y, w, h) {
                 const imgData = origGetImageData.apply(this, arguments);
                 for (let i = 0; i < imgData.data.length; i += 4) {
                     if (prng() < 0.05) {
@@ -33,6 +33,8 @@ class CanvasWebGLShaderSpoofer:
                 }
                 return imgData;
             };
+            if (window.makeNative) window.makeNative(canvasHandler, 'getImageData');
+            CanvasRenderingContext2D.prototype.getImageData = canvasHandler;
 
             const UNMASKED_VENDOR_WEBGL = 37445;
             const UNMASKED_RENDERER_WEBGL = 37446;
@@ -43,16 +45,11 @@ class CanvasWebGLShaderSpoofer:
                 if (param === UNMASKED_RENDERER_WEBGL || param === 37446) return 'Intel(R) Iris(TM) Xe Graphics Direct3D11 vs_5_0 ps_5_0';
                 return origGetParameter.apply(this, arguments);
             };
+            if (window.makeNative) window.makeNative(webglHandler, 'getParameter');
 
             WebGLRenderingContext.prototype.getParameter = webglHandler;
             if (window.WebGL2RenderingContext) {
                 WebGL2RenderingContext.prototype.getParameter = webglHandler;
             }
-
-            try {
-                if (window.Notification && Notification.permission === 'denied') {
-                    Object.defineProperty(Notification, 'permission', { get: () => 'default' });
-                }
-            } catch (e) {}
         })();
         """
