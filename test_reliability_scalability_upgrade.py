@@ -480,10 +480,22 @@ class TestReliabilityScalabilityUpgrade(unittest.TestCase):
 
             holders = [asyncio.create_task(long_holder()) for _ in range(3)]
             impatient = asyncio.create_task(impatient_worker())
-            await asyncio.gather(impatient, *holders)
+            # Also verify network tasks run immediately while all 3 browser slots are saturated
+            network_completed = False
 
-            metrics = bulkhead.get_metrics()
+            async def fast_network_worker() -> None:
+                nonlocal network_completed
+                await asyncio.sleep(0.02)
+                async with bulkhead.acquire_slot(CrawlerTier.HTTP_FAST, timeout=0.05):
+                    network_completed = True
+
+            net_task = asyncio.create_task(fast_network_worker())
+            await asyncio.gather(impatient, net_task, *holders)
+            self.assertTrue(network_completed, "Network bulkhead must not be starved by saturated browser slots")
+
+            metrics = bulkhead.get_bulkhead_metrics()
             self.assertGreaterEqual(metrics["rejected_timeouts"], 1, "Timed out requests must register in metrics")
+            self.assertGreaterEqual(metrics["peak_network"], 1)
 
         loop = asyncio.new_event_loop()
         try:
@@ -491,6 +503,24 @@ class TestReliabilityScalabilityUpgrade(unittest.TestCase):
         finally:
             loop.close()
 
+        # Verify bare domain extraction & expired shared_store eviction
+        shared: Dict[str, str] = {}
+        b = BrowserClearanceBridge(shared_store=shared)
+        b.store_lease(ClearanceLease(domain="example.com", cookies={"k": "v"}, ttl_seconds=60.0))
+        self.assertIsNotNone(b.get_valid_lease("example.com"))
+        # Store an already-expired lease in shared_store and verify eviction on read
+        shared["bp:lease:expired.org"] = json.dumps({
+            "domain": "expired.org",
+            "cookies": {"a": "b"},
+            "headers": {},
+            "acquired_at": time.time() - 500.0,
+            "ttl_seconds": 10.0,
+            "reuse_count": 0,
+        })
+        self.assertIsNone(b.get_valid_lease("expired.org"))
+        self.assertNotIn("bp:lease:expired.org", shared)
+
 
 if __name__ == "__main__":
     unittest.main()
+

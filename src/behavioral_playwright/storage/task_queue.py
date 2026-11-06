@@ -385,6 +385,7 @@ class RedisTaskQueue(BaseTaskQueue):
         self.uri = uri
         self.prefix = prefix
         self._pending_zset = f"{prefix}:tasks:pending"
+        self._lock = threading.RLock()
 
         if client is not None:
             self._client = client
@@ -476,79 +477,82 @@ class RedisTaskQueue(BaseTaskQueue):
         })
 
     def fail_task(self, task_id: Union[int, str], max_retries: int = 3) -> None:
-        task_key = f"{self.prefix}:task:{task_id}"
-        data = self._client.hgetall(task_key)
-        retries = int(data.get("retries", 0)) + 1
-        priority = float(data.get("priority", 0))
+        with self._lock:
+            task_key = f"{self.prefix}:task:{task_id}"
+            data = self._client.hgetall(task_key)
+            retries = int(data.get("retries", 0)) + 1
+            priority = float(data.get("priority", 0))
 
-        if retries >= max_retries:
-            self._client.hset(task_key, mapping={"status": "failed", "retries": str(retries), "leased_until": "0.0"})
-        else:
-            self._client.hset(task_key, mapping={"status": f"retry:{retries}", "retries": str(retries), "leased_until": "0.0"})
-            self._client.zadd(self._pending_zset, {str(task_id): priority})
+            if retries >= max_retries:
+                self._client.hset(task_key, mapping={"status": "failed", "retries": str(retries), "leased_until": "0.0"})
+            else:
+                self._client.hset(task_key, mapping={"status": f"retry:{retries}", "retries": str(retries), "leased_until": "0.0"})
+                self._client.zadd(self._pending_zset, {str(task_id): priority})
 
     def heartbeat_task(self, task_id: Union[int, str], extend_sec: Optional[float] = None) -> bool:
-        task_key = f"{self.prefix}:task:{task_id}"
-        data = self._client.hgetall(task_key)
-        if not data:
-            return False
-        status = str(data.get("status", ""))
-        if not (status == "running" or status.startswith("running:")):
-            return False
-        duration = self.lease_timeout_sec if extend_sec is None else float(extend_sec)
-        new_leased_until = str(time.time() + duration)
-        self._client.hset(task_key, "leased_until", new_leased_until)
-        return True
-
-    def reclaim_expired_leases(self, max_retries: int = 3) -> int:
-        now = time.time()
-        if hasattr(self._client, "scan_iter"):
-            task_keys = list(self._client.scan_iter(f"{self.prefix}:task:*"))
-        elif hasattr(self._client, "keys"):
-            task_keys = list(self._client.keys(f"{self.prefix}:task:*"))
-        elif hasattr(self._client, "_hashes"):
-            task_keys = [k for k in self._client._hashes.keys() if k.startswith(f"{self.prefix}:task:")]
-        else:
-            task_keys = []
-
-        reclaimed = 0
-        for task_key in task_keys:
+        with self._lock:
+            task_key = f"{self.prefix}:task:{task_id}"
             data = self._client.hgetall(task_key)
             if not data:
-                continue
+                return False
             status = str(data.get("status", ""))
             if not (status == "running" or status.startswith("running:")):
-                continue
-            try:
-                leased_until = float(data.get("leased_until", 0.0) or 0.0)
-            except (ValueError, TypeError):
-                leased_until = 0.0
+                return False
+            duration = self.lease_timeout_sec if extend_sec is None else float(extend_sec)
+            new_leased_until = str(time.time() + duration)
+            self._client.hset(task_key, "leased_until", new_leased_until)
+            return True
 
-            if 0.0 < leased_until < now:
-                tid = data.get("id") or task_key.split(":")[-1]
-                retries = int(data.get("retries", 0)) + 1
-                priority = float(data.get("priority", 0))
-                if retries < max_retries:
-                    self._client.hset(
-                        task_key,
-                        mapping={
-                            "status": f"retry:{retries}",
-                            "retries": str(retries),
-                            "leased_until": "0.0",
-                        },
-                    )
-                    self._client.zadd(self._pending_zset, {str(tid): priority})
-                else:
-                    self._client.hset(
-                        task_key,
-                        mapping={
-                            "status": "failed:lease_expired",
-                            "retries": str(retries),
-                            "leased_until": "0.0",
-                        },
-                    )
-                reclaimed += 1
-        return reclaimed
+    def reclaim_expired_leases(self, max_retries: int = 3) -> int:
+        with self._lock:
+            now = time.time()
+            if hasattr(self._client, "scan_iter"):
+                task_keys = list(self._client.scan_iter(f"{self.prefix}:task:*"))
+            elif hasattr(self._client, "keys"):
+                task_keys = list(self._client.keys(f"{self.prefix}:task:*"))
+            elif hasattr(self._client, "_hashes"):
+                task_keys = [k for k in self._client._hashes.keys() if k.startswith(f"{self.prefix}:task:")]
+            else:
+                task_keys = []
+
+            reclaimed = 0
+            for task_key in task_keys:
+                data = self._client.hgetall(task_key)
+                if not data:
+                    continue
+                status = str(data.get("status", ""))
+                if not (status == "running" or status.startswith("running:")):
+                    continue
+                try:
+                    leased_until = float(data.get("leased_until", 0.0) or 0.0)
+                except (ValueError, TypeError):
+                    leased_until = 0.0
+
+                if 0.0 < leased_until < now:
+                    tid = data.get("id") or task_key.split(":")[-1]
+                    retries = int(data.get("retries", 0)) + 1
+                    priority = float(data.get("priority", 0))
+                    if retries < max_retries:
+                        self._client.hset(
+                            task_key,
+                            mapping={
+                                "status": f"retry:{retries}",
+                                "retries": str(retries),
+                                "leased_until": "0.0",
+                            },
+                        )
+                        self._client.zadd(self._pending_zset, {str(tid): priority})
+                    else:
+                        self._client.hset(
+                            task_key,
+                            mapping={
+                                "status": "failed:lease_expired",
+                                "retries": str(retries),
+                                "leased_until": "0.0",
+                            },
+                        )
+                    reclaimed += 1
+            return reclaimed
 
 
 class PostgresTaskQueue(BaseTaskQueue):

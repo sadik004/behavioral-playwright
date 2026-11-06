@@ -79,11 +79,16 @@ class BrowserClearanceBridge:
         }
 
     @staticmethod
-    def _extract_domain(url: str) -> str:
-        return (urlparse(url).hostname or "localhost").lower()
+    def _extract_domain(domain_or_url: str) -> str:
+        raw = (domain_or_url or "").strip()
+        if not raw:
+            return "localhost"
+        if "://" not in raw:
+            raw = f"http://{raw}"
+        return (urlparse(raw).hostname or "localhost").lower()
 
-    def get_valid_lease(self, url: str) -> Optional[ClearanceLease]:
-        domain = self._extract_domain(url)
+    def get_valid_lease(self, domain_or_url: str) -> Optional[ClearanceLease]:
+        domain = self._extract_domain(domain_or_url)
         with self._lock:
             lease = self._leases.get(domain)
             if lease is not None and not lease.is_expired:
@@ -128,6 +133,11 @@ class BrowserClearanceBridge:
                             if not l.is_expired:
                                 self._leases[domain] = l
                                 return l
+                            else:
+                                if hasattr(self.shared_store, "delete"):
+                                    self.shared_store.delete(key)
+                                elif isinstance(self.shared_store, dict):
+                                    self.shared_store.pop(key, None)
                         except Exception:
                             pass
             return None

@@ -17,6 +17,7 @@ import random
 import re
 import sqlite3
 import struct
+import threading
 import time
 from typing import Any, AsyncIterator, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urljoin, urlparse, urldefrag
@@ -693,7 +694,7 @@ class TieredConcurrencyBulkhead:
         self.max_browser_concurrency = max(1, int(max_browser_concurrency))
         self._network_sem = asyncio.Semaphore(self.max_network_concurrency)
         self._browser_sem = asyncio.Semaphore(self.max_browser_concurrency)
-        self._lock = asyncio.Lock()
+        self._metrics_lock = threading.Lock()
         self.active_network = 0
         self.active_browser = 0
         self.peak_network = 0
@@ -713,43 +714,47 @@ class TieredConcurrencyBulkhead:
         try:
             await asyncio.wait_for(sem.acquire(), timeout=timeout)
         except (asyncio.TimeoutError, TimeoutError):
-            async with self._lock:
+            with self._metrics_lock:
                 self.rejected_timeouts += 1
             raise TimeoutError(
                 f"Bulkhead backpressure timeout ({timeout}s) exceeded waiting for "
                 f"{'browser' if is_browser else 'network'} slot"
             )
 
-        async with self._lock:
-            if is_browser:
-                self.active_browser += 1
-                if self.active_browser > self.peak_browser:
-                    self.peak_browser = self.active_browser
-            else:
-                self.active_network += 1
-                if self.active_network > self.peak_network:
-                    self.peak_network = self.active_network
-
         try:
+            with self._metrics_lock:
+                if is_browser:
+                    self.active_browser += 1
+                    if self.active_browser > self.peak_browser:
+                        self.peak_browser = self.active_browser
+                else:
+                    self.active_network += 1
+                    if self.active_network > self.peak_network:
+                        self.peak_network = self.active_network
             yield
         finally:
-            async with self._lock:
+            with self._metrics_lock:
                 if is_browser:
                     self.active_browser = max(0, self.active_browser - 1)
                 else:
                     self.active_network = max(0, self.active_network - 1)
             sem.release()
 
+    acquire_slot = slot
+
     def get_metrics(self) -> Dict[str, int]:
-        return {
-            "active_network": self.active_network,
-            "active_browser": self.active_browser,
-            "peak_network": self.peak_network,
-            "peak_browser": self.peak_browser,
-            "rejected_timeouts": self.rejected_timeouts,
-            "max_network_concurrency": self.max_network_concurrency,
-            "max_browser_concurrency": self.max_browser_concurrency,
-        }
+        with self._metrics_lock:
+            return {
+                "active_network": self.active_network,
+                "active_browser": self.active_browser,
+                "peak_network": self.peak_network,
+                "peak_browser": self.peak_browser,
+                "rejected_timeouts": self.rejected_timeouts,
+                "max_network_concurrency": self.max_network_concurrency,
+                "max_browser_concurrency": self.max_browser_concurrency,
+            }
+
+    get_bulkhead_metrics = get_metrics
 
 
 class TieredCrawlerService:
@@ -763,7 +768,7 @@ class TieredCrawlerService:
         tier2_fetcher: Optional[Callable[[CrawlRequest], Coroutine[Any, Any, Tuple[int, Dict[str, str], str]]]] = None,
         tier3_fetcher: Optional[Callable[[CrawlRequest], Coroutine[Any, Any, Tuple[int, Dict[str, str], str]]]] = None,
         tier4_fetcher: Optional[Callable[[CrawlRequest], Coroutine[Any, Any, Tuple[int, Dict[str, str], str]]]] = None,
-        max_concurrency: int = 10,
+        max_concurrency: int = 136,
         rate_limit_rpm: int = 120,
         checkpoint_store: Optional[Any] = None,
         max_pages_per_context: int = 25,
@@ -778,12 +783,12 @@ class TieredCrawlerService:
         self.tier2_fetcher = tier2_fetcher
         self.tier3_fetcher = tier3_fetcher
         self.tier4_fetcher = tier4_fetcher
-        self.max_concurrency = max(1, max_concurrency)
-        self.semaphore = asyncio.Semaphore(self.max_concurrency)
         self.bulkhead = bulkhead or TieredConcurrencyBulkhead(
             max_network_concurrency=max_network_concurrency,
             max_browser_concurrency=max_browser_concurrency,
         )
+        self.max_concurrency = max(1, max_concurrency)
+        self.semaphore = asyncio.Semaphore(self.max_concurrency)
         self.rate_limit_rpm = max(1, rate_limit_rpm)
         self._domain_limiters: Dict[str, TokenBucketRateLimiter] = {}
         self._domain_lock = asyncio.Lock()
