@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
-from typing import Optional, Any, List, Dict, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 """
 behavioral-playwright: Resilient, self-healing browser automation framework
 built on Playwright. Primary package interface — exposes the unified BP facade

@@ -12,7 +12,9 @@ try:
 except ImportError:
     from pydantic import validator
     def field_validator(*fields, mode="after", **kwargs):
-        return validator(*fields, pre=(mode == "before"), allow_reuse=True)
+        """Dual Pydantic v1/v2 compatibility shim."""
+        pre = mode == "before"
+        return validator(*fields, pre=pre, allow_reuse=True)
 
 
 class PAANode(BaseModel):

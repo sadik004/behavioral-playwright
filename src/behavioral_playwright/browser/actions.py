@@ -71,7 +71,7 @@ class BrowserActionNamespace:
 
     # -- public actions -----------------------------------------------------
     async def goto(self, url: str) -> bool:
-        """Navigates to URL via underlying facade/page."""
+        """Navigates to URL via underlying facade or active page."""
         bp = self._bp
         if hasattr(bp, "open"):
             await bp.open(url)
@@ -83,7 +83,7 @@ class BrowserActionNamespace:
         raise ProviderUnavailableError("Browser is not booted. Call bp.boot() first.")
 
     async def screenshot(self, path: Optional[str] = None) -> bytes:
-        """Captures viewport screenshot via underlying facade/page."""
+        """Captures viewport screenshot via underlying facade or active page."""
         bp = self._bp
         if hasattr(bp, "screenshot"):
             return await bp.screenshot(path=path)
