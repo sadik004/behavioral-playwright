@@ -118,8 +118,15 @@ class BrowserClearanceBridge:
         lease = self.get_valid_lease(url)
         req_headers = lease.build_request_headers(extra_headers) if lease else dict(extra_headers or {})
         proxy = lease.proxy_url if lease else None
+        tls_impersonate = lease.tls_impersonate if lease else "chrome124"
 
-        resp = await http_fetcher(url, req_headers, proxy)
+        try:
+            resp = await http_fetcher(url, req_headers, proxy, tls_impersonate)
+        except TypeError:
+            try:
+                resp = await http_fetcher(url, req_headers, proxy)
+            except TypeError:
+                resp = await http_fetcher(url, req_headers)
         status = int(resp.get("status", 200))
         resp_headers = resp.get("headers") or {}
         body = str(resp.get("body", ""))
@@ -134,6 +141,7 @@ class BrowserClearanceBridge:
                 **resp,
                 "execution_tier": "HTTP_WITH_PROMOTED_CLEARANCE" if lease else "HTTP_FAST",
                 "clearance_reused": lease is not None,
+                "tls_impersonate": tls_impersonate,
             }
 
         # Challenge detected -> Invalidate stale lease & invoke Stealth Browser once
@@ -144,7 +152,14 @@ class BrowserClearanceBridge:
 
         # Replay via fast HTTP with the newly acquired clearance lease
         promoted_headers = new_lease.build_request_headers(extra_headers)
-        retry_resp = await http_fetcher(url, promoted_headers, new_lease.proxy_url)
+        promoted_tls = new_lease.tls_impersonate or "chrome124"
+        try:
+            retry_resp = await http_fetcher(url, promoted_headers, new_lease.proxy_url, promoted_tls)
+        except TypeError:
+            try:
+                retry_resp = await http_fetcher(url, promoted_headers, new_lease.proxy_url)
+            except TypeError:
+                retry_resp = await http_fetcher(url, promoted_headers)
         new_lease.reuse_count += 1
         self.stats["promoted_http_reuses"] += 1
         return {
@@ -152,4 +167,5 @@ class BrowserClearanceBridge:
             "execution_tier": "HTTP_PROMOTED_AFTER_BROWSER_SOLVE",
             "clearance_reused": True,
             "clearance_cookies": dict(new_lease.cookies),
+            "tls_impersonate": promoted_tls,
         }

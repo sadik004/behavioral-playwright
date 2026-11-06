@@ -500,6 +500,42 @@ class NetworkNamespace:
         from behavioral_playwright.network.sniffer import JSONResponseSniffer
         return JSONResponseSniffer(page)
 
+    async def fetch_stealth(
+        self,
+        url: str,
+        *,
+        method: str = "GET",
+        headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[Dict[str, str]] = None,
+        proxy: Optional[str] = None,
+        timeout: Optional[float] = None,
+        timeout_s: float = 15.0,
+        impersonate: str = "chrome124",
+        fallback: bool = True,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Performs TLS/JA4 & HTTP/2 impersonated HTTP fetch via curl_cffi with urllib fallback."""
+        from behavioral_playwright.providers.network import CurlCffiProvider
+        provider = CurlCffiProvider(fallback=fallback)
+        req_headers = dict(self._custom_headers)
+        if headers:
+            req_headers.update(headers)
+        res = provider.fetch(
+            url,
+            method=method,
+            headers=req_headers,
+            cookies=cookies,
+            proxy=proxy,
+            timeout=timeout,
+            timeout_s=timeout_s,
+            impersonate=impersonate,
+            fallback=fallback,
+            **kwargs,
+        )
+        if hasattr(res, "__await__"):
+            return await res
+        return res
+
 
 class IntegrationsNamespace:
     """JSON webhook notifications (Slack/Discord/n8n compatible)."""
